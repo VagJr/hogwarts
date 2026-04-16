@@ -666,11 +666,55 @@ app.post('/api/tts', async (req, res) => {
         res.set('Content-Type', 'audio/flac'); res.send(Buffer.from(await response.arrayBuffer()));
     } catch (e) { res.status(500).json({erro: "Falha na geração de voz."}); }
 });
+
+
 // SOCKETS E INTERATIVIDADE
 io.on('connection', (socket) => {
     socket.emit('relogio_hogwarts', RelogioHogwarts.obterHorarioAtual());
     socket.emit('pontuacao_atualizada', core.pontuacaoCasas);
+	
+	
+// Ação de Clique em Objeto do Mundo (MMO)
+socket.on('mmo_interagir_objeto', async (dados) => {
+    const a = core.alunos[socket.alunoId];
+    const sala = core.zonasVivas[socket.zonaAtual];
+    if (!a || !sala) return;
 
+    // Se for um monstro
+    const mobIdx = sala.entidades.findIndex(m => m.idMundo === dados.alvoId);
+    if (mobIdx !== -1) {
+        const mob = sala.entidades[mobIdx];
+        const dano = (a.atributosTotais.feiticos * 10);
+        mob.hpAtual -= dano;
+
+        io.to(`zona_${socket.zonaAtual}`).emit('nova_mensagem', {
+            canal: 'zona',
+            autor: '⚔️ COMBATE',
+            texto: `${a.nome} lançou um feitiço no ${mob.nome}! (-${dano} HP)`
+        });
+
+        if (mob.hpAtual <= 0) {
+            sala.entidades.splice(mobIdx, 1);
+            a.galeoes += 50;
+            core.ganharXp(a, 100);
+            io.to(`zona_${socket.zonaAtual}`).emit('mmo_entidade_morreu', { id: dados.alvoId, msg: `🏆 O ${mob.nome} foi derrotado por ${a.nome}!` });
+        }
+    }
+
+    // Se for um item
+    const itemIdx = sala.itens.findIndex(i => i.id === dados.alvoId);
+    if (itemIdx !== -1) {
+        const item = sala.itens[itemIdx];
+        sala.itens.splice(itemIdx, 1);
+        a.mochilaEscolar.push({ id: crypto.randomBytes(4).toString('hex'), nome: item.nome, tipo: 'reliquia' });
+        
+        io.to(`zona_${socket.zonaAtual}`).emit('mmo_item_coletado', { 
+            id: dados.alvoId, 
+            texto: `🖐️ ${a.nome} foi mais rápido e pegou o [${item.nome}]!` 
+        });
+    }
+    core._salvarUrgente();
+});
 // =====================================
     // SISTEMA MMO: CONVITES E GRUPOS
     // =====================================
@@ -684,6 +728,88 @@ io.on('connection', (socket) => {
             io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Bruxo '${dados.alvoNome}' não está no Castelo.` });
         }
     });
+	
+	socket.on('mmo_action', async (dados) => {
+    const a = core.alunos[socket.alunoId];
+    const sala = core.zonasVivas[dados.zona];
+    if(!a || !sala) return;
+
+    // --- LÓGICA DE COLETA BLINDADA (Vai para a Mochila) ---
+    if (dados.tipo === 'coleta') {
+        const itemIdx = sala.itens.findIndex(i => i.id === dados.idAlvo);
+        if (itemIdx !== -1) {
+            const itemBase = sala.itens[itemIdx];
+            
+            // Tenta gerar as propriedades via IA, com Fallback (Safeguard contra crashes)
+            if (!itemBase.statusDinamico) {
+                if (typeof core.cerebroIA.gerarItemMundoIA === 'function') {
+                    itemBase.statusDinamico = await core.cerebroIA.gerarItemMundoIA(itemBase.nome);
+                } else {
+                    itemBase.statusDinamico = { nome: itemBase.nome, tipo: 'reliquia', descricao: 'Relíquia encontrada no castelo.' };
+                }
+            }
+
+            // Remove o item do chão do servidor
+            sala.itens.splice(itemIdx, 1);
+            
+            // Cria o item formatado para a mochila do jogador
+            const novoItem = { 
+                id: 'itm_' + crypto.randomBytes(4).toString('hex'), 
+                nome: itemBase.statusDinamico.nome || itemBase.nome,
+                tipo: 'reliquia', // Obriga a ser relíquia para aparecer na Mochila
+                lore: itemBase.statusDinamico.descricao 
+            };
+            
+            // Injeta na mochila!
+            a.mochilaEscolar.push(novoItem);
+            
+            // Avisa o mapa inteiro que o item foi apanhado
+            io.to(`zona_${dados.zona}`).emit('mmo_item_coletado', { 
+                id: dados.idAlvo, 
+                texto: `🖐️ [${novoItem.nome}] foi recolhido por ${a.nome}!` 
+            });
+            
+            // Apaga visualmente e guarda os dados
+            io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala); 
+            core._salvarUrgente();
+            forcarSyncAluno(a.id); // Força a aba Inventário a atualizar no telemóvel do jogador
+        }
+    }
+
+    // --- LÓGICA DE COMBATE COOPERATIVO ---
+    else if (dados.tipo === 'combate') {
+        const mob = sala.entidades.find(m => m.id === dados.idAlvo);
+        if (!mob) return;
+
+        if (!mob.jogadoresConfirmados) mob.jogadoresConfirmados = [];
+        if (!mob.jogadoresConfirmados.includes(a.id)) {
+            mob.jogadoresConfirmados.push(a.id);
+            
+            io.to(`zona_${dados.zona}`).emit('mmo_raid_status', { 
+                id: mob.id, count: mob.jogadoresConfirmados.length, texto: `⚔️ ${a.nome} preparou-se para enfrentar ${mob.nome}!`
+            });
+
+            if (mob.jogadoresConfirmados.length === 1) {
+                setTimeout(async () => {
+                    const idInst = `raid_${Date.now()}`;
+                    core.dungeonInstancias[idInst] = {
+                        id: idInst, entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
+                        status: 'combate', multiplayer: true, membros: mob.jogadoresConfirmados
+                    };
+
+                    // Puxa todos para a arena
+                    mob.jogadoresConfirmados.forEach(pid => {
+                        io.to(`priv_${pid}`).emit('puxado_para_dungeon', { idInstancia: idInst, estado: { entidades: core.dungeonInstancias[idInst].entidades } });
+                    });
+
+                    // Tira o monstro do mapa aberto
+                    sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
+                    io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
+                }, 5000); // 5 segundos de espera para outros entrarem
+            }
+        }
+    }
+});
 
     socket.on('multiplayer_spell', (dados) => {
         // Transmite a renderização visual da magia para os aliados na Masmorra
@@ -812,16 +938,50 @@ io.on('connection', (socket) => {
         // Emite a mensagem falada pelo jogador
         io.to(roomEmit).emit('nova_mensagem', { canal: dados.canal, ...payload });
 
-        // RESPOSTAS INTELIGENTES DA IA (Apenas se o canal for Zona ou Aula)
+        // RESPOSTAS INTELIGENTES DA IA & INJEÇÃO NO MUNDO!
         if (dados.canal === 'zona') {
             const respIA = await core.cerebroIA.gerarRespostaPersonagemIA(dados.zona, dados.remetenteNome, dados.texto, dados.remetenteCasa);
+            
             if (respIA && respIA.personagem !== "Nenhum" && respIA.texto) {
                 setTimeout(() => { 
+                    // 1. A IA RESPONDE COMO PERSONAGEM
                     io.to(roomEmit).emit('nova_mensagem', { canal: 'zona', autor: `👻 [${respIA.personagem}]`, texto: respIA.texto }); 
+                    
                     if(respIA.pontos && respIA.pontos !== 0) { 
                         core.adicionarPontosCasa(dados.remetenteCasa, respIA.pontos); 
                         io.emit('pontuacao_atualizada', core.pontuacaoCasas); 
                     }
+
+                    // 2. A IA MATERIALIZA O PEDIDO DO JOGADOR NO MAPA REAL!
+                    const sala = core.zonasVivas[dados.zona];
+                    let mundoAlterado = false;
+
+                    // Se a IA decidiu gerar um Monstro
+                    if (respIA.spawnMob && sala) {
+                        const a = core.alunos[dados.remetenteId];
+                        const hpEscalado = 400 + ((a ? a.nivel : 1) * 50); // Adapta o HP ao nível do jogador
+                        const mob = core._gerarMonstroRapido(hpEscalado, dados.zona, false);
+                        mob.nome = respIA.spawnMob; // Põe o nome que a IA inventou!
+                        
+                        sala.entidades.push({ id: `mob_${Date.now()}`, ...mob, tipo: 'combate' });
+                        mundoAlterado = true;
+                        
+                        io.to(roomEmit).emit('nova_mensagem', { canal: 'zona', autor: '⚡ MAGIA DO CASTELO', texto: `As palavras ecoaram... Um [${respIA.spawnMob}] materializou-se das sombras!` });
+                    }
+
+                    // Se a IA decidiu gerar um Item
+                    if (respIA.spawnItem && sala) {
+                        sala.itens.push({ id: `itm_${Date.now()}`, nome: respIA.spawnItem, tipo: 'coleta' });
+                        mundoAlterado = true;
+                        
+                        io.to(roomEmit).emit('nova_mensagem', { canal: 'zona', autor: '✨ MAGIA DO CASTELO', texto: `O ambiente reagiu! Um [${respIA.spawnItem}] apareceu no chão.` });
+                    }
+
+                    // Se algo foi criado, atualiza a barra HUD "Acontecimentos Atuais" de toda a gente!
+                    if (mundoAlterado) {
+                        io.to(roomEmit).emit('mmo_world_update', sala);
+                    }
+
                 }, 1500);
             }
         }

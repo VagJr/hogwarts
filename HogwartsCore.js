@@ -730,6 +730,32 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
         
         return { sucesso: true, texto: lido.texto };
     }
+	
+	async gerarQuizIA() {
+        if (!this.apiKey) return { pergunta: "A magia é real?", opcoes: ["Sim", "Não", "Talvez", "Sempre"], correta: 0 };
+        try {
+            const prompt = `Gera uma pergunta muito difícil de conhecimento avançado sobre o universo de Harry Potter (Feitiços, Poções, Criaturas ou História).
+            Cria 4 opções de resposta curtas. Indica o índice (0 a 3) da resposta correta.
+            RETORNE APENAS UM JSON ESTRITO E VÁLIDO:
+            {
+                "pergunta": "Qual é o principal ingrediente da Poção Polissuco?",
+                "opcoes": ["Asfódelo", "Hemeróbios", "Sangue de Unicórnio", "Bezoar"],
+                "correta": 1
+            }`;
+            const res = await this.groq.chat.completions.create({ 
+                messages: [{ role: "user", content: prompt }], 
+                model: "llama-3.1-8b-instant",
+                response_format: { type: "json_object" } // 🔥 GARANTE O JSON!
+            });
+            const dados = this._extrairJSONBlindado(res.choices[0].message.content);
+            if(dados && dados.opcoes && Array.isArray(dados.opcoes)) {
+                return dados;
+            }
+            throw new Error("Formato inválido da IA.");
+        } catch(e) { 
+            return { pergunta: "Qual a cor do céu encantado de Hogwarts à noite?", opcoes: ["Azul", "Preto Estrelado", "Vermelho", "Verde"], correta: 1 }; 
+        }
+    }
 
     async gerarPerguntaProva(materia) {
         if (!this.apiKey) return { pergunta: "Qual a cor do céu?", respostaCerta: "Azul" };
@@ -790,14 +816,27 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
     async gerarRespostaPersonagemIA(zona, jogadorNome, mensagemTexto, casa) {
         if (!this.apiKey) return null;
         try {
-            const prompt = `És o castelo mágico. O aluno ${jogadorNome} (${casa}) gritou em "${zona}": "${mensagemTexto}".
-            Faz com que um fantasma, quadro ou estátua responda de forma inteligente a esta frase.
-            RETORNA APENAS JSON ESTRITO: {"personagem": "Quadro da Mulher Gorda", "texto": "Abaixa o tom de voz, jovem!", "pontos": 0}`;
+            const prompt = `És a magia onipresente do castelo de Hogwarts, controlando os fantasmas, quadros e o próprio ambiente. O aluno ${jogadorNome} (${casa}) disse em "${zona}": "${mensagemTexto}".
+            Responde como um habitante local (Fantasma, Quadro, etc). 
+            
+            NOVA REGRA DE MATERIALIZAÇÃO:
+            - Se o aluno te pedir para invocar um inimigo, para treinar, ou se o contexto justificar um ataque (ex: "Quero lutar!", "Traz-me um trasgo"), preenche "spawnMob" com o nome da criatura.
+            - Se o aluno pedir ajuda para encontrar um objeto, ou se a conversa levar a uma recompensa material, preenche "spawnItem" com o nome do objeto (ex: "Tomo Esquecido", "Sapo de Chocolate").
+            - Se for apenas uma conversa normal, deixa spawnMob e spawnItem como nulos.
+
+            RETORNA APENAS JSON ESTRITO: 
+            {
+                "personagem": "Nick Quase Sem Cabeça", 
+                "texto": "Ah, jovem! Queres provar o teu valor? Então enfrenta esta besta que acabou de sair das sombras!", 
+                "pontos": 0,
+                "spawnMob": "Trasgo Montanhês Furioso",
+                "spawnItem": null
+            }`;
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
                 model: "llama-3.1-8b-instant",
-                response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
+                response_format: { type: "json_object" }
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
@@ -875,10 +914,9 @@ class HogwartsCore {
         this.alunos = {}; 
         this.gremios = {}; 
         this.parties = {};
-        this.grupos = {};		// 🔥 CORREÇÃO: Inicializa o sistema de grupos
+        this.grupos = {};
         this.pontuacaoCasas = { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
         
-        // PREÇOS CORRIGIDOS (Adicionado o '0' que faltava no sistema)
         this.lojasBeco = {
             floreios: [ 
                 { id: "l_1", nome: "Livro Padrão de Feitiços", tipo: "livro", preco: 20 }, 
@@ -891,22 +929,18 @@ class HogwartsCore {
                 { id: "l_8", nome: "O Céu Noturno", tipo: "livro", preco: 40 }
             ],
             madamalkin: [ { id: "r_1", nome: "Veste Escolar Simples", tipo: "veste", preco: 50 } ],
-            
-            // 🔥 CORREÇÃO: A LOJA DO BOTICÁRIO AGORA TEM OS INGREDIENTES E AS SEMENTES JUNTOS!
             boticario: [ 
                 { id: "i_1", nome: "Raiz de Asfódelo", tipo: "ingrediente", preco: 30, key: "asfodelo" }, 
                 { id: "i_2", nome: "Bezoar", tipo: "ingrediente", preco: 100, key: "bezoar" },
                 { id: "i_3", nome: "Mandrágora", tipo: "ingrediente", preco: 80, key: "mandragora" },
                 { id: "i_4", nome: "Ditamno", tipo: "ingrediente", preco: 50, key: "ditamno" },
                 { id: "i_5", nome: "Muco de Verme", tipo: "ingrediente", preco: 20, key: "muco" },
-                // AS SEMENTES:
                 { id: "s_1", nome: "Semente de Ditamno", tipo: "semente", preco: 2, key: "ditamno" },
                 { id: "s_2", nome: "Muda de Mandrágora", tipo: "semente", preco: 3, key: "mandragora" },
                 { id: "s_3", nome: "Semente de Asfódelo", tipo: "semente", preco: 3, key: "asfodelo" },
                 { id: "s_4", nome: "Casulo de Verme", tipo: "semente", preco: 1, key: "muco" },
                 { id: "s_5", nome: "Mineral Calcário (Bezoar)", tipo: "semente", preco: 4, key: "bezoar" }
             ],
-            
             gemialidades: [ { id: "w_1", nome: "Bomba de Bosta", tipo: "brinquedo", preco: 100 } ],
             dedosdemel: [ { id: "d_1", nome: "Sapo de Chocolate", tipo: "comida", preco: 20 } ]
         };
@@ -914,7 +948,16 @@ class HogwartsCore {
         this.worldBoss = { ativo: false, nome: "Basilisco Desperto", hpMax: 100000, hpAtual: 100000 };
         this.dungeonInstancias = {}; this.pvpFila = []; this.pvpPartidas = {};
         this.quadribol = new MotorQuadribol(); 
-        this.logs = { salaoPrincipal: [], profetaDiario: [] }; this.cerebroIA = new MotorConscienciaHogwarts();
+        
+        // 🔥 CORREÇÃO DO ERRO: Estas duas linhas nunca podem ser apagadas!
+        this.logs = { salaoPrincipal: [], profetaDiario: [] }; 
+        this.cerebroIA = new MotorConscienciaHogwarts();
+
+        // 🔥 O NOVO MOTOR MMO (Zonas Vivas do Open World)
+        this.zonasVivas = {}; 
+        this.listaZonas = ["Salão Principal", "Grande Escadaria", "Masmorras", "Torre de Astronomia", "Biblioteca", "Floresta Proibida", "Banheiro da Murta", "Hogsmeade"];
+        this.listaZonas.forEach(z => this.zonasVivas[z] = { entidades: [], itens: [] });
+
         this.livroDeFeiticos = {
             'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 2, poderBase: 80, lore: "Desarma o oponente.", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1, trailSize: 15 } },
             'incendio': { nome: "Incendio", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 4, poderBase: 120, lore: "Lança chamas.", visualConfig: { shape: 'wave', color: '#ff4500', glow: '#ff8800', quantity: 3, trailSize: 8 } },
@@ -926,31 +969,34 @@ class HogwartsCore {
             'expecto_patronum': { nome: "Expecto Patronum", tipoMecanica: 'ataque', elemento: 'luz', custoFocoBase: 10, poderBase: 400, lore: "O feitiço protetor.", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#a8d5ff', quantity: 1, trailSize: 30 } }
         };
 
-        // =========================================================
-// CORRIGIR O DICIONÁRIO DE RECEITAS PARA COMBINAR COM HTML
-// (No constructor do HogwartsCore)
-// =========================================================
-        this.boticario = [ 
-            { id: "i_1", nome: "Raiz de Asfodelo", tipo: "ingrediente", preco: 3, key: "asfodelo" }, 
-            { id: "i_2", nome: "Bezoar", tipo: "ingrediente", preco: 10, key: "bezoar" },
-            { id: "i_3", nome: "Mandragora", tipo: "ingrediente", preco: 8, key: "mandragora" },
-            { id: "i_4", nome: "Ditamno", tipo: "ingrediente", preco: 5, key: "ditamno" },
-            { id: "i_5", nome: "Muco de Verme", tipo: "ingrediente", preco: 2, key: "muco" },
-            // NOVOS ITENS: SEMENTES E MUDAS
-            { id: "s_1", nome: "Semente de Ditamno", tipo: "semente", preco: 2, key: "ditamno" },
-            { id: "s_2", nome: "Muda de Mandrágora", tipo: "semente", preco: 3, key: "mandragora" },
-            { id: "s_3", nome: "Semente de Asfódelo", tipo: "semente", preco: 3, key: "asfodelo" },
-            { id: "s_4", nome: "Casulo de Verme", tipo: "semente", preco: 1, key: "muco" },
-            { id: "s_5", nome: "Mineral Calcário (Bezoar)", tipo: "semente", preco: 4, key: "bezoar" }
-        ];
-
-    this.receitasPocoes = {
-        'wiggenweld': { nome: 'Poção Wiggenweld', ingredientes: ['ditamno', 'muco'], cura: 500, visual: { corPrincipal: "#0f5", tipo: "pocao" } },
-        'antidoto': { nome: 'Antídoto Universal', ingredientes: ['bezoar', 'ditamno'], cura: 200, visual: { corPrincipal: "#fff", tipo: "pocao" } },
-        'restauradora': { nome: 'Poção Restauradora', ingredientes: ['mandragora', 'asfodelo'], cura: 1000, visual: { corPrincipal: "#8b4513", tipo: "pocao" } }
-    };
+        this.receitasPocoes = {
+            'wiggenweld': { nome: 'Poção Wiggenweld', ingredientes: ['ditamno', 'muco'], cura: 500, visual: { corPrincipal: "#0f5", tipo: "pocao" } },
+            'antidoto': { nome: 'Antídoto Universal', ingredientes: ['bezoar', 'ditamno'], cura: 200, visual: { corPrincipal: "#fff", tipo: "pocao" } },
+            'restauradora': { nome: 'Poção Restauradora', ingredientes: ['mandragora', 'asfodelo'], cura: 1000, visual: { corPrincipal: "#8b4513", tipo: "pocao" } }
+        };
 
         this._salvarBancoDeDados = () => {}; 
+    }
+
+    // 🔥 O SEGREDO DO MUNDO ABERTO (Adicione este método na mesma classe HogwartsCore)
+    processarCicloMundoVivo() {
+        const zonaSorteada = this.listaZonas[Math.floor(Math.random() * this.listaZonas.length)];
+        const sala = this.zonasVivas[zonaSorteada];
+
+        // 25% de chance de spawnar algo na zona a cada "tick"
+        if (Math.random() < 0.25) {
+            if (Math.random() < 0.40 && sala.entidades.length < 3) {
+                const mob = this._gerarMonstroRapido(400, zonaSorteada, false);
+                const idEv = `mob_${Date.now()}`;
+                sala.entidades.push({ id: idEv, ...mob, tipo: 'combate' });
+                if (global.io) global.io.to(`zona_${zonaSorteada}`).emit('mmo_world_update', sala);
+            } else if (sala.itens.length < 5) {
+                const itens = ["Saco de Galeões", "Erva Mágica Estranha", "Pergaminho Perdido"];
+                const item = { id: `itm_${Date.now()}`, nome: itens[Math.floor(Math.random()*itens.length)], tipo: 'coleta' };
+                sala.itens.push(item);
+                if (global.io) global.io.to(`zona_${zonaSorteada}`).emit('mmo_world_update', sala);
+            }
+        }
     }
 	// ==========================================
     // 1. MOTOR DE XP (AGORA NO ESCOPO CERTO)
@@ -2033,6 +2079,60 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         this._salvarBancoDeDados();
         return { sucesso: true, msg: `Grêmio [${nomeGremio}] fundado com glória!` };
     }
+	// Dentro da classe MotorConscienciaHogwarts em HogwartsCore.js
+
+// 1. GERAÇÃO DE ITENS PARA O CHÃO DO MAPA
+    async gerarItemMundoIA(nomeBase) {
+        if (!this.apiKey) return { nome: nomeBase, tipo: "reliquia", descricao: "Um objeto antigo.", efeito: "nenhum", valor: 10 };
+        const prompt = `Gera as propriedades mágicas para o item "${nomeBase}" encontrado no chão de Hogwarts.
+        Retorne APENAS JSON ESTRITO: {
+            "nome": "${nomeBase} Encantado",
+            "tipo": "reliquia",
+            "descricao": "Lore curta e misteriosa do item.",
+            "efeito": "vida",
+            "valor": 50
+        }`;
+        try {
+            const res = await this.groq.chat.completions.create({
+                messages: [{ role: "user", content: prompt }],
+                model: "llama-3.1-8b-instant",
+                response_format: { type: "json_object" }
+            });
+            return this._extrairJSONBlindado(res.choices[0].message.content) || { nome: nomeBase, tipo: "reliquia", descricao: "Misterioso.", efeito: "vida", valor: 10 };
+        } catch(e) {
+            return { nome: nomeBase, tipo: "reliquia", descricao: "Um item comum.", efeito: "vida", valor: 10 };
+        }
+    }
+
+    // 2. A IA QUE OUVE O CHAT E CONJURA MONSTROS/ITENS NO MAPA!
+    async gerarRespostaPersonagemIA(zona, jogadorNome, mensagemTexto, casa) {
+        if (!this.apiKey) return null;
+        try {
+            const prompt = `És a magia onipresente do castelo de Hogwarts, controlando os fantasmas, quadros e o próprio ambiente. O aluno ${jogadorNome} (${casa}) disse em "${zona}": "${mensagemTexto}".
+            Responde como um habitante local (Fantasma, Quadro, etc). 
+            
+            NOVA REGRA DE MATERIALIZAÇÃO FÍSICA NO JOGO:
+            - Se o aluno te pedir para invocar um inimigo, para treinar, ou se o contexto justificar um ataque (ex: "Quero lutar!", "Traz-me um trasgo"), preenche "spawnMob" com o nome da criatura.
+            - Se o aluno pedir ajuda para encontrar um objeto, ou se a conversa levar a uma recompensa material (ex: "Tenho fome", "Preciso de uma poção"), preenche "spawnItem" com o nome do objeto (ex: "Sapo de Chocolate").
+            - Se for apenas uma conversa normal, deixa spawnMob e spawnItem como null.
+
+            RETORNA APENAS JSON ESTRITO: 
+            {
+                "personagem": "Nick Quase Sem Cabeça", 
+                "texto": "Ah, jovem! Queres provar o teu valor? Então enfrenta esta besta que acabou de sair das sombras!", 
+                "pontos": 0,
+                "spawnMob": "Trasgo Montanhês Furioso",
+                "spawnItem": null
+            }`;
+            
+            const res = await this.groq.chat.completions.create({ 
+                messages: [{ role: "user", content: prompt }], 
+                model: "llama-3.1-8b-instant",
+                response_format: { type: "json_object" }
+            });
+            return this._extrairJSONBlindado(res.choices[0].message.content);
+        } catch(e) { return null; }
+    }
 	
 	async requisitarTituloIA(alunoId) {
         const a = this.alunos[alunoId]; if(!a) return {erro:"Fantasma"};
@@ -2139,6 +2239,9 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         Lexicon.PulsarEternidade(); 
 
         if (this.quadribol) this.quadribol.processarTick(global.io);
+        
+        // 🔥 GERA A VIDA NO MUNDO!
+        this.processarCicloMundoVivo();
         // CICLO DE VIDA DA ESTUFA
         for (let id in this.alunos) {
             let a = this.alunos[id];

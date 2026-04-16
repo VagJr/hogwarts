@@ -64,6 +64,13 @@
         overflow-x: hidden;
         overscroll-behavior-y: none;
     }
+	
+	.action-card {
+    min-width: 140px; background: rgba(0,0,0,0.8); border: 1px solid var(--hp-gold-dark);
+    padding: 10px; border-radius: 4px; text-align: center; animation: pulse 2s infinite;
+}
+.action-card b { display: block; font-size: 0.9em; margin-bottom: 5px; }
+.action-card button { padding: 4px; font-size: 0.7em; }
     /* ==========================================================================
        MMO SOCIAL & PRESENCE HUD
        ========================================================================== */
@@ -437,10 +444,13 @@
         box-shadow: 0 3px 6px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.05);
         transition: all 0.2s ease; text-transform: uppercase;
         position: relative; overflow: hidden;
-        white-space: normal; 
-        word-wrap: break-word;
-        line-height: 1.3;
-        /* 🔥 NOVA LINHA: Impede o Android de gerar atraso nos toques */
+        
+        /* 🔥 AS 4 LINHAS ABAIXO SÃO O SEGREDO DO TEXTO NÃO SER CORTADO 🔥 */
+        white-space: normal;  /* Permite que o texto desça para a linha de baixo */
+        word-wrap: break-word; /* Força palavras gigantes a quebrarem se necessário */
+        min-height: 44px;      /* Altura mínima para botões no Mobile */
+        line-height: 1.3;      /* Espaçamento legível entre linhas de texto no botão */
+        
         touch-action: manipulation; 
         -webkit-tap-highlight-color: transparent;
     }
@@ -636,6 +646,69 @@
         .dungeon-hud-info { font-size: 0.95rem; padding: 6px 15px; }
         .world-ticker { padding: 5px 10px; font-size: 0.75em; }
     }
+	/* ==========================================================================
+       NOVO HUD & NAVEGAÇÃO DE HOGWARTS (IMERSIVO E RESPONSIVO)
+       ========================================================================== */
+    .player-header {
+        display: flex; justify-content: space-between; gap: 10px;
+        padding: 15px; background: linear-gradient(180deg, rgba(20,15,10,0.95) 0%, rgba(10,5,5,0.95) 100%);
+        border-bottom: 2px solid var(--hp-gold-dark); border-radius: 8px 8px 0 0;
+        box-shadow: inset 0 0 20px rgba(229, 184, 46, 0.05);
+    }
+    
+    .needs-container {
+        display: flex; flex-direction: column; gap: 4px;
+        border-left: 1px dashed rgba(229, 184, 46, 0.3); padding-left: 10px; margin-left: 5px;
+    }
+    .mini-bar-bg { background: #000; height: 12px; width: 60px; border-radius: 3px; border: 1px solid #333; overflow: hidden; position: relative; }
+    .mini-bar-text { position: absolute; font-size: 9px; color: #fff; width: 100%; text-align: center; top: -1px; text-shadow: 1px 1px 0 #000; font-weight: bold; }
+
+    .main-nav-container {
+        display: flex; background: url('https://www.transparenttextures.com/patterns/dark-leather.png') #16120f;
+        border-bottom: 2px solid var(--hp-gold-dark); border-top: 1px solid #333;
+        position: sticky; top: 66px; z-index: 100; box-shadow: 0 5px 15px rgba(0,0,0,0.8);
+    }
+    
+    .main-nav-btn {
+        flex: 1; padding: 12px 2px; background: transparent; color: #aaa;
+        border: none; border-right: 1px solid rgba(229, 184, 46, 0.2);
+        font-family: 'Cinzel', serif; font-size: 0.9em; font-weight: bold;
+        transition: 0.3s; text-transform: uppercase; text-shadow: 1px 1px 2px #000;
+    }
+    .main-nav-btn.active { color: var(--hp-gold-glow); background: rgba(229, 184, 46, 0.1); border-bottom: 3px solid var(--hp-gold); text-shadow: 0 0 10px rgba(229, 184, 46, 0.5); }
+    
+    .sub-tabs {
+        display: flex; gap: 8px; overflow-x: auto; padding: 12px 10px;
+        background: rgba(10, 10, 12, 0.95); scrollbar-width: none; border-bottom: 1px solid var(--hp-gold-dark);
+        box-shadow: inset 0 -5px 10px rgba(0,0,0,0.5);
+    }
+    .sub-tabs::-webkit-scrollbar { display: none; }
+    
+    .sub-tabs button.active { background: linear-gradient(to bottom, #4a3b11, #1a1405); border-color: var(--hp-gold-glow); color: #fff; box-shadow: 0 0 10px rgba(229, 184, 46, 0.4); }
+
+    .mapa-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+
+    @media (max-width: 600px) {
+        .main-nav-btn { font-size: 0.70em; padding: 10px 0; letter-spacing: -0.5px; }
+        .sub-tabs button { font-size: 0.75em; padding: 6px 10px; }
+        #ui-nome { font-size: 1.2rem !important; }
+        .player-header { padding: 10px; gap: 5px; }
+    }
+	
+.sub-tabs button {
+        padding: 8px 12px; border-radius: 4px; border: 1px solid var(--hp-gold-dark);
+        background: linear-gradient(to bottom, #2b231a, #0d0a07); color: var(--hp-gold); 
+        
+        /* 🔥 AS DUAS LINHAS QUE CORRIGEM O ERRO DOS BOTÕES SUMIREM 🔥 */
+        width: auto !important; /* Anula o width: 100% do botão global */
+        min-width: max-content; /* Garante que o botão tem o tamanho exato do texto */
+        
+        white-space: nowrap; 
+        flex-shrink: 0; 
+        
+        font-size: 0.85em; font-family: 'Cinzel', serif; font-weight: bold;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.8); transition: 0.2s;
+    }
 </style>
 </head>
 <body>
@@ -773,1101 +846,192 @@
         <button onclick="processarSelecao()" id="btn-chapeu">Ouvir o Veredicto</button>
     </div>
 
-    <!-- TELA 5: MEGA HUD (O JOGO PRINCIPAL) -->
-    <div id="ui-main" class="oculto"> 
-        <div class="card" style="padding: 15px; border-radius: 8px 8px 0 0; margin-bottom: 0; border-bottom: none; background: rgba(10,10,10,0.95);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div style="flex-grow:1; cursor:pointer;" onclick="abrirPerfil()">
-                    <h3 id="ui-nome" style="margin:0; font-size: 1.8rem; color:var(--ouro);">Nome</h3>
-                    <div style="font-size: 0.9em; font-weight: bold; color: #ccc;">《 <span id="ui-titulo" style="color:var(--ouro);">Aprendiz</span> 》</div>
-                    <div style="font-size: 0.9em; font-weight: bold; color: #888; margin-top:5px;">Casa <span id="ui-casa" style="color:#fff;"></span> | Nível <span id="ui-nivel" style="color:var(--ouro);">1</span></div>
+ <div id="ui-main" class="oculto"> 
+        
+        <div class="player-header">
+            <div style="cursor:pointer;" onclick="abrirPerfil()">
+                <div style="display:flex; align-items:center; gap:5px;">
+                    <h3 id="ui-nome" style="margin:0; font-size: 1.5rem; color:var(--hp-gold);">Nome</h3>
+                    <div style="background:#1a1a1a; border:1px solid #333; padding:2px 6px; border-radius:12px; font-size:0.65em; color:#fff;">Lv.<span id="ui-nivel" style="color:var(--hp-gold);">1</span></div>
                 </div>
-                <div style="text-align: right; width: 180px;">
-                    <div style="font-size: 1.2em; font-weight: bold; color: var(--ouro); margin-bottom:5px;"><span id="ui-galeoes">0</span> G</div>
-                    <div class="bar-bg"><div class="hp-bar-fill" id="bar-hp"></div><div class="bar-text">HP</div></div>
-                    <div class="bar-bg"><div class="foco-bar-fill" id="bar-foco"></div><div class="bar-text">Foco</div></div>
-                    <div class="bar-bg"><div class="xp-bar-fill" id="bar-xp"></div><div class="bar-text">EXP</div></div>
-                    <div style="display:flex; gap:5px; margin-top:5px;">
-    <div class="bar-bg" style="flex:1;">
-        <div class="rp-bar-fill" id="bar-energia" style="background: linear-gradient(to right, #3b0066, #8e44ad); border-right-color: #d080ff;"></div>
-        <div class="bar-text" id="txt-energia" style="font-size: 0.65em;">Sono</div>
-    </div>
-    <div class="bar-bg" style="flex:1;">
-        <div class="rp-bar-fill" id="bar-fome" style="background: linear-gradient(to right, #9e3d00, #e67e22); border-right-color: #f1c40f;"></div>
-        <div class="bar-text" id="txt-fome" style="font-size: 0.65em;">Fome</div>
-    </div>
-</div>
+                <div style="font-size: 0.8em; font-weight: bold; color: #888; margin-top:2px;">
+                    <span id="ui-titulo" style="color:#ccc;">Aprendiz</span><br>Casa <span id="ui-casa" style="color:#fff;"></span>
+                </div>
+            </div>
+            
+            <div style="display:flex; align-items:center;">
+                <div style="width: 140px;">
+                    <div style="text-align:right; font-size: 1.1em; font-weight: bold; color: var(--hp-gold); margin-bottom:2px;"><span id="ui-galeoes">0</span> G</div>
+                    <div class="bar-bg" style="height:12px; margin-bottom:4px;"><div class="hp-bar-fill" id="bar-hp"></div><div class="bar-text" style="font-size:8px;">HP</div></div>
+                    <div class="bar-bg" style="height:12px; margin-bottom:4px;"><div class="foco-bar-fill" id="bar-foco"></div><div class="bar-text" style="font-size:8px;">FOCO</div></div>
+                    <div class="bar-bg" style="height:8px; margin-bottom:0;"><div class="xp-bar-fill" id="bar-xp"></div></div>
+                </div>
+                <div class="needs-container">
+                    <div class="mini-bar-bg"><div class="rp-bar-fill" id="bar-energia" style="background: #8e44ad;"></div><div class="mini-bar-text" id="txt-energia">SONO</div></div>
+                    <div class="mini-bar-bg"><div class="rp-bar-fill" id="bar-fome" style="background: #e67e22;"></div><div class="mini-bar-text" id="txt-fome">FOME</div></div>
                 </div>
             </div>
         </div>
 
-        <div class="tabs" id="nav-tabs">
-            <button onclick="nav('aulas', this)" class="active">📚 Academia</button>
+        <div class="main-nav-container">
+            <button class="main-nav-btn active" id="btn-cat-explorar" onclick="mudarCategoria('explorar')">🧭 Terrenos</button>
+            <button class="main-nav-btn" id="btn-cat-academico" onclick="mudarCategoria('academico')">🏰 Academia</button>
+            <button class="main-nav-btn" id="btn-cat-aposentos" onclick="mudarCategoria('aposentos')">🛏️ Aposentos</button>
+        </div>
+
+        <div class="sub-tabs" id="sub-explorar">
+            <button onclick="nav('castelo', this)" class="active">📍 Pátio (Mundo)</button>
+            <button onclick="nav('pve', this)" style="color:#e74c3c;">🌲 Floresta Proibida</button>
+            <button onclick="nav('estufa', this)" style="color:#2ecc71;">🌿 Estufas</button>
+            <button onclick="nav('quadribol', this)" style="color:#f1c40f;">🧹 Quadribol</button>
+            <button onclick="nav('mercado', this)" style="color:#e67e22;">🦉 Correio Coruja</button>
+            <button onclick="abrirMapaSalteador()" style="border-color:#fff; color:#fff;"><i class="fa fa-map"></i> 🗺️ Mapa</button>
+        </div>
+
+        <div class="sub-tabs oculto" id="sub-academico">
+            <button onclick="nav('aulas', this)" class="active">📚 Salas de Aula</button>
             <button onclick="nav('biblioteca', this)" style="color:#d080ff;">📖 Biblioteca</button>
-            <button onclick="nav('castelo', this)">🏰 Explorar</button>
-            <button onclick="nav('dormitorio', this)" style="color: #0f5;">🛏️ Dormitório</button>
-            <button onclick="nav('inventario', this)">🎒 Poções & Magia</button>
-            <button onclick="nav('social', this)" style="color: #40a0ff;">🏆 Guildas</button>
-			<button onclick="nav('quarto', this)" style="color: #f39c12;">🛋️ Sala Precisa</button>
-			<button onclick="nav('estufa', this)" style="color: #2ecc71;">🌿 Estufa</button>
-			<button onclick="nav('quiz', this)" style="color: #1abc9c;">🧠 Quiz</button>
-			<button onclick="nav('baile', this)" style="color: #ff00ff;">🕺 Baile</button>
-			<button onclick="nav('aventura', this)" style="color: #ff9900;">📜 Aventuras</button>
-            <button onclick="nav('pve', this)" style="color: #e74c3c;">⚔️ Floresta</button>
-            <button onclick="nav('pvp', this)" style="color: #00ffcc;">🤺 Duelos</button>
-            <button onclick="nav('quadribol', this)" style="color: #f1c40f;">🧹 Quadribol</button>
-			<button onclick="nav('mercado', this)" style="color: #e67e22;">🦉 Correio Coruja</button>
+            <button onclick="nav('aventura', this)" style="color:#ff9900;">📜 Missões</button>
+            <button onclick="nav('quiz', this)" style="color:#1abc9c;">🧠 Oráculo</button>
+            <button onclick="nav('pvp', this)" style="color:#00ffcc;">🤺 Clube Duelos</button>
+            <button onclick="nav('social', this)">🏆 Ranking Geral</button>
         </div>
 
-<div id="aba-quiz" class="aba oculto">
-    <div class="card" style="border-color:#1abc9c; background:rgba(26, 188, 156, 0.1); text-align:center;">
-        <h3 style="color:#1abc9c; font-size:2em; margin-bottom: 5px;">O Duelo de Sabedoria</h3>
-        
-        <div id="rank-quiz-ui" style="margin: 15px 0;"></div>
-        
-        <p style="color:#aaa;">Testa os teus conhecimentos em tempo real contra o Oráculo.</p>
-        
-        <button id="btn-iniciar-quiz" onclick="iniciarQuiz()" style="background:#0e3a31; color:#1abc9c; border-color:#1abc9c; padding:15px 30px; font-size:1.1em; margin-top:15px;">Pedir Pergunta à IA</button>
-        <div id="quiz-game-area" class="oculto" style="margin-top:20px; background:rgba(0,0,0,0.8); border:1px solid #1abc9c; border-radius:8px; padding:20px;">
-            <div style="font-size:2em; color:#e74c3c; font-weight:bold; margin-bottom:10px;" id="quiz-timer">15s</div>
-            <h4 id="quiz-pergunta" style="color:#fff; font-size:1.3em; margin-bottom:20px;">A carregar pergunta...</h4>
-            <div id="quiz-opcoes" style="display:flex; flex-direction:column; gap:10px;"></div>
+        <div class="sub-tabs oculto" id="sub-aposentos">
+            <button onclick="nav('inventario', this)" class="active">🎒 Mochila & Poções</button>
+            <button onclick="nav('quarto', this)" style="color:#f39c12;">🛋️ Sala Precisa</button>
+            <button onclick="nav('dormitorio', this)">🛏️ Dormitório</button>
+            <button onclick="nav('baile', this)" style="color:#ff00ff;">🕺 Salão Baile</button>
         </div>
-    </div>
-</div>
 
-<script>
-    let quizInterval; let respostaCorretaQuiz = -1;
-    window.iniciarQuiz = async function() {
-        playSFX('magic');
-        document.getElementById('btn-iniciar-quiz').classList.add('oculto');
-        document.getElementById('quiz-game-area').classList.remove('oculto');
-        safeSet('quiz-pergunta', 'O Oráculo está a formular a pergunta...');
-        document.getElementById('quiz-opcoes').innerHTML = '';
-        
-        const res = await fetch('/api/quiz/novo');
-        const q = await res.json();
-        
-        if(!q) return;
-        respostaCorretaQuiz = q.correta;
-        safeSet('quiz-pergunta', q.pergunta);
-        
-        let html = '';
-        q.opcoes.forEach((op, index) => {
-            html += `<button onclick="responderQuiz(${index})" style="background:#111; color:#fff; border-color:#1abc9c; text-align:left; padding:15px;">${['A', 'B', 'C', 'D'][index]}) ${op}</button>`;
-        });
-        document.getElementById('quiz-opcoes').innerHTML = html;
-        
-        let tempo = 15; safeSet('quiz-timer', tempo + 's');
-        clearInterval(quizInterval);
-        quizInterval = setInterval(() => {
-            tempo--; safeSet('quiz-timer', tempo + 's');
-            if(tempo <= 0) { clearInterval(quizInterval); responderQuiz(-1); } // Timeout
-        }, 1000);
-    };
+        <div id="aba-castelo" class="aba">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; margin-top:10px;">
+                <h3 style="margin:0; color:#3498db; font-size:1.6em; display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:1.2em;">📍</span> <span id="ui-zona-nome" style="color:#fff;">Salão Principal</span>
+                </h3>
+                <button onclick="coletarRecursos()" style="background:#0e2918; border-color:#2ecc71; color:#2ecc71; width:auto; padding:5px 15px; border-radius:20px; font-size:0.8em;">🌿 Procurar Chão</button>
+            </div>
+            
+            <div class="card" style="border-color: #f1c40f; background: rgba(241, 196, 15, 0.05); margin-bottom: 15px; padding: 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1c40f; padding-bottom:5px; margin-bottom:10px;">
+                    <h4 style="color:var(--hp-gold); margin:0; font-size:1em;">✨ Eventos do Mundo</h4>
+                    <span style="font-size:0.7em; color:#2ecc71; animation: pulse 2s infinite;">(Online)</span>
+                </div>
+                <div id="mmo-live-events" style="display:flex; gap:10px; overflow-x:auto; padding-bottom:5px;">
+                    <p style="color:#666; font-size:0.8em; width:100%; text-align:center; font-style:italic;">A sala está calma...</p>
+                </div>
+            </div>
 
-    window.responderQuiz = async function(idx) {
-        clearInterval(quizInterval); playSFX('click');
-        let acertou = (idx === respostaCorretaQuiz);
-        try {
-            const res = await fetch('/api/quiz/responder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, acertou }) });
-            const d = await res.json();
-            mostrarNotificacao(d.msg, acertou ? 'sucesso' : 'erro');
-            safeSet('ui-elo-quiz', d.elo);
-            document.getElementById('quiz-game-area').classList.add('oculto');
-            document.getElementById('btn-iniciar-quiz').classList.remove('oculto');
-            document.getElementById('btn-iniciar-quiz').innerText = "Procurar Nova Pergunta";
-            syncRequest();
-        } catch(e) {}
-    };
-</script>
-
-<div id="aba-quarto" class="aba oculto">
-            <div class="card" style="border-color:#f39c12; background:rgba(243, 156, 18, 0.05); text-align:center;">
-                <h3 style="color:#f39c12; font-size:2em; margin-top:0;">A Sala Precisa</h3>
-                <p style="color:#aaa; font-size:0.9em; margin-bottom:10px;">Organiza o teu refúgio pessoal. Arrastar os móveis ativa a sua magia no ambiente.</p>
+            <div class="card" style="border-color: #333; background: rgba(10,10,12,0.8); padding:10px;">
+                <div class="chat-tabs" style="border-bottom: 1px solid #333; margin-bottom:10px; padding-bottom:5px;">
+                    <button class="active" onclick="mudarAbaChat('zona', this)" style="background:transparent; border:none; border-bottom:2px solid transparent;">Local</button>
+                    <button onclick="mudarAbaChat('global', this)" style="background:transparent; border:none; border-bottom:2px solid transparent;">Global</button>
+                    <button onclick="mudarAbaChat('grupo', this)" style="background:transparent; border:none; border-bottom:2px solid transparent; color:#3498db;">Grupo</button>
+                    <button onclick="mudarAbaChat('gremio', this)" style="background:transparent; border:none; border-bottom:2px solid transparent; color:#9b59b6;">Guilda</button>
+                </div>
+                <div class="chat-container" id="chat-zona-box" style="height:250px; border:none; background:transparent; box-shadow:none; padding:5px;"></div>
                 
-                <div id="quarto-grid" style="width:100%; height:450px; background:url('https://www.transparenttextures.com/patterns/wood-pattern.png') #2a1b12; margin: 0 auto; border: 4px inset #16120f; position:relative; box-shadow: inset 0 0 80px rgba(0,0,0,0.9); overflow:hidden; border-radius:4px;">
+                <div style="display:flex; flex-direction:column; gap:5px; margin-top:10px; border-top:1px solid #222; padding-top:10px;">
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" id="in-chat-zona" placeholder="Fala no chat..." style="margin:0; background:#111; border-color:#333; border-radius:20px; padding-left:15px;">
+                        <button onclick="enviarChatMMO()" style="width: 80px; border-radius:20px; font-size:0.8em;">Falar</button>
                     </div>
-
-                <div style="background:rgba(0,0,0,0.8); padding:15px; border-radius:8px; margin-top:20px; border:1px solid #f39c12;">
-                    <h4 style="color:#f39c12; margin-top:0;">Baú de Decoração</h4>
-                    <div id="lista-mobilia-bau" style="display:flex; gap:15px; overflow-x:auto; padding-bottom:10px; min-height:120px; align-items:center;">
-                        A carregar mobília...
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" id="in-acao-livre" placeholder="Escreve uma ação para o DM..." style="margin:0; background:#0a1a2a; border-color:#1c3d5a; color:#3498db; border-radius:20px; padding-left:15px;">
+                        <button onclick="realizarAcaoLivre()" style="width: 80px; background:#12283a; border-color:#3498db; color:#3498db; border-radius:20px; font-size:0.8em;">Agir</button>
                     </div>
-                    <button onclick="comprarMovelMisterioso()" style="margin-top:15px; background:linear-gradient(to bottom, #8e44ad, #4b0082); color:#fff; border-color:#9b59b6; box-shadow: 0 0 15px rgba(155, 89, 182, 0.5);">
-                        ✨ Conjurar Mobília Misteriosa (IA) - 50 G
-                    </button>
+                    <div id="resultado-acao-livre" style="margin-top:5px; color:#2ecc71; font-family:'Courier New', monospace; font-size:0.85em; text-align:center;"></div>
                 </div>
             </div>
         </div>
 
-<div id="aba-baile" class="aba oculto">
-    <div class="card" style="border-color:#ff00ff; background:rgba(255, 0, 255, 0.05); text-align:center;">
-        <h3 style="color:#ff00ff; font-size:2em; margin-bottom: 5px;">O Baile de Inverno</h3>
+        <div id="aba-pve" class="aba oculto"><div class="card" style="border-color: #e74c3c; background: rgba(231, 76, 60, 0.1);"><h3 style="color: #e74c3c; text-align:center;">A Floresta Proibida</h3><div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:8px; border:1px solid #e74c3c; margin-bottom:20px; text-align:center;"><p>Nível: <b id="ui-pve-nivel" style="color:var(--ouro);">1</b> | Área: <b id="ui-pve-area" style="color:#e74c3c;">1</b>/7 | Mult: <span id="ui-pve-mult" style="color:#2ecc71;">1.0x</span></p></div><button onclick="entrarDungeonAcao('floresta')" style="background: #600000; color: #fff; border-color:#e74c3c;">Adentrar na Escuridão (3 Foco)</button></div></div>
         
-        <div id="rank-baile-ui" style="margin: 15px 0;"></div>
+        <div id="aba-estufa" class="aba oculto"><div class="card" style="border-color:#2ecc71; background:rgba(39, 174, 96, 0.05); text-align:center;"><h3 style="color:#2ecc71; margin-top:0;">Estufa de Herbologia</h3><div id="estufa-vasos-container" style="display:flex; flex-wrap:wrap; justify-content:center; gap:15px;">A carregar vasos...</div></div></div>
         
-        <p style="color:#aaa;">Sincroniza-te com a magia. Pressiona as teclas (D, F, J, K) ou clica/toca nos botões no momento exato.</p>
-        <div id="baile-menu">
-            <button onclick="iniciarBaile()" style="background:#2b002b; color:#ff00ff; border-color:#ff00ff; padding:15px 30px; font-size:1.2em;">Iniciar Dança (Custa 2 Foco)</button>
-        </div>
+        <div id="aba-quadribol" class="aba oculto"><div class="card" style="border-color: #f1c40f; background: rgba(241, 196, 15, 0.05); text-align:center;"><h3 style="color: #f1c40f;">Campo de Quadribol</h3><div id="rank-quadribol-ui" style="margin: 15px 0;"></div><div id="q-lobby" style="background: rgba(0,0,0,0.6); border: 1px solid var(--ouro); padding: 15px; border-radius: 4px; margin-bottom: 15px;"><button class="active q-role-btn" id="btn-role-artilheiro" onclick="selecionarPosicaoQ('Artilheiro')" style="padding:10px; background:rgba(231,76,60,0.2); border-color:#e74c3c;">🔴 Artilheiro</button><button class="q-role-btn" id="btn-role-apanhador" onclick="selecionarPosicaoQ('Apanhador')" style="padding:10px; background:rgba(241,196,15,0.2); border-color:#f1c40f; margin-top:5px;">🟡 Apanhador</button><button onclick="entrarQuadribol()" style="margin-top:15px; background:#5c3a21; color:var(--ouro);">Matchmaking</button><p style="color:#888; font-size:0.85em; margin-top:10px;">ELO: <span id="ui-elo-q" style="color:var(--ouro); font-weight:bold;">1000</span></p></div><div id="quadribol-pitch" class="oculto" style="width: 100%; height: 350px; background: #0e2918; border: 2px solid #fff; position: relative; overflow: hidden;"><div class="q-hoop-container left"><div class="q-hoop"></div><div class="q-hoop"></div></div><div class="q-hoop-container right"><div class="q-hoop"></div><div class="q-hoop"></div></div><div id="q-bola" class="q-ball"></div><div id="q-snitch" class="oculto"></div><div id="q-players-container"></div><div id="q-joystick-zone"><div id="q-joystick-knob"></div></div></div><div id="q-logs" style="text-align:center; color:#fff; font-weight:bold; margin-top:10px;"></div><div id="q-controls" class="oculto" style="text-align:center; margin-top:10px;"><button onclick="acaoQuadribol('chutar')" style="background:#2980b9; color:#fff;">☄️ Lançar Goles</button><button onclick="acaoQuadribol('apanhar_pomo')" style="background:#d4af37; color:#000;">✨ Pomo!</button><button onclick="sairDoQuadribol()" style="background:#c0392b; color:#fff;">Descer da Vassoura</button></div></div></div>
+        
+        <div id="aba-mercado" class="aba oculto"><div class="card" style="border-color:#e67e22; background:rgba(40, 20, 5, 0.5);"><h3 style="color:#e67e22;">🦉 Correio Coruja</h3><div style="display:flex; gap:10px; margin-bottom: 15px;"><select id="sel-mercado-item" style="margin:0; width:60%;"></select><input type="number" id="in-mercado-preco" placeholder="G" style="margin:0; width:40%;"></div><button onclick="venderMercado()" style="background:#4a2b10; color:#e67e22;">Anunciar Oferta</button><h4 style="margin-top:20px; border-bottom:1px dashed #555;">Ofertas Globais</h4><div id="lista-mercado-global" style="max-height: 300px; overflow-y:auto;">A procurar...</div></div></div>
 
-        <div id="baile-engine" class="oculto" style="position:relative; margin-top:20px;">
-            <div style="display:flex; justify-content:space-between; color:#fff; margin-bottom:10px; font-weight:bold;">
-                <span id="baile-combo" style="color:var(--ouro); font-size:1.5em;">Combo: 0</span>
-                <span id="baile-score" style="color:#2ecc71; font-size:1.5em;">Score: 0</span>
-            </div>
-            
-            <canvas id="canvas-baile" width="400" height="500" style="background:#0a0a0a; border:2px solid #ff00ff; border-radius:8px; box-shadow:0 0 30px rgba(255,0,255,0.4); width:100%; max-width:400px; display:block; margin:0 auto;"></canvas>
-            
-            <div style="display:flex; justify-content:center; gap:2%; margin-top:10px; max-width:400px; margin:10px auto;">
-                <button onmousedown="hitNota(0)" ontouchstart="event.preventDefault(); hitNota(0)" style="background:#e74c3c; width:22%; padding:15px 0;">D</button>
-<button onmousedown="hitNota(1)" ontouchstart="event.preventDefault(); hitNota(1)" style="background:#f1c40f; width:22%; padding:15px 0; color:#000;">F</button>
-<button onmousedown="hitNota(2)" ontouchstart="event.preventDefault(); hitNota(2)" style="background:#2ecc71; width:22%; padding:15px 0;">J</button>
-<button onmousedown="hitNota(3)" ontouchstart="event.preventDefault(); hitNota(3)" style="background:#3498db; width:22%; padding:15px 0;">K</button>
+        <div id="aba-aulas" class="aba oculto"><div class="card" style="border-color: var(--ouro); background: rgba(212, 175, 55, 0.05);"><h3 style="color:var(--ouro); text-align:center;">Aula: <span id="ui-aula-titulo2" style="color:#fff;">Livre</span></h3><div style="background: url('https://www.transparenttextures.com/patterns/wood-pattern.png') #2c1e16; padding: 15px; border-radius: 4px;"><button onclick="abrirLojaInGame()" style="background:#111; color:var(--ouro); margin-bottom:10px;">🛍️ Beco Diagonal</button><p style="color:#fff;">Livro: <span id="livro-requerido" style="color:#aaa;">...</span></p><button onclick="folhearLivroDeAula()" style="background:#1a110c; color:var(--ouro);">📖 Estudar Matéria</button><button onclick="iniciarAulaImersiva()" style="margin-top:10px; background:var(--ouro-dark); color:#000;">✍️ Iniciar Aula Real</button><div id="painel-aula-ativa" class="oculto" style="margin-top:15px;"><h4 id="txt-fase-aula" style="color:#3498db; text-align:center;">A aguardar...</h4><div class="meter-bg"><div id="barra-progresso-aula" class="meter-fill-mistura"></div></div><div id="zona-pratica-aula" class="oculto" style="text-align:center; margin-top:10px;"><button onclick="praticarFeiticoAula()" style="background:#27ae60; color:#fff;">✨ Praticar</button></div></div><div id="leitura-aula-result" style="margin-top:15px; display:none; background:#efe1c8; color:#2c1e16; padding:10px;"></div><button onclick="document.getElementById('modal-calendario').classList.remove('oculto')" style="margin-top:10px; background:transparent; color:#d4af37;">📜 Horário Escolar</button></div><h4 style="color:var(--hp-gold);">Dúvidas</h4><div class="chat-container" id="chat-aula-box" style="height:150px;"></div><div style="display: flex; gap: 5px;"><input type="text" id="in-chat-aula" placeholder="Pergunta..." style="margin:0;"><button onclick="enviarChatAula()" style="width: 80px;">Falar</button></div></div></div>
+        
+        <div id="aba-biblioteca" class="aba oculto"><div class="card" style="border-color:#9b59b6; background:rgba(155, 89, 182, 0.05); padding: 0;"><div style="padding: 15px; text-align: center;"><h3 style="color:#9b59b6; margin:0;">A Grande Biblioteca</h3><div id="rank-sabedoria-ui" style="margin: 10px 0;"></div></div><div class="tabs" style="background: rgba(0,0,0,0.3); border-bottom: 1px solid #9b59b6; margin-bottom: 0;"><button onclick="navBib('ler')" id="btn-bib-ler" class="btn-bib-nav active">📚 Acervo</button><button onclick="navBib('escrever')" id="id-bib-escrever" class="btn-bib-nav">✒️ Scriptorium</button><button onclick="navBib('comunidade')" id="id-bib-comunidade" class="btn-bib-nav">🤝 Grimórios</button><button onclick="navBib('arquivos')" id="btn-bib-arquivos" class="btn-bib-nav">📜 Arquivos</button></div><div style="padding: 15px;"><div id="bib-ler" class="secao-bib"><input type="text" id="bib-assunto" placeholder="Ex: Fundadores..."><select id="bib-estilo"><option value="académico">Tratado Académico</option><option value="poético">Registos Poéticos</option><option value="diário">Diário Antigo</option></select><button onclick="gerarLivroIA()" style="background:#2c1030; color:#9b59b6;">Invocar</button><div id="bib-resultado-leitura" class="oculto" style="margin-top:15px; padding:15px; background:#efe1c8; color:#2c1e16;"></div></div><div id="bib-escrever" class="secao-bib oculto"><textarea id="tese-manuscrito" rows="5" placeholder="Tese sobre magia..."></textarea><button onclick="submeterTese()" id="btn-submeter-tese" style="color:#0f5; background: rgba(0,255,85,0.1);">Submeter</button><div id="tese-loading" class="oculto" style="text-align:center;"><p>📜 Lendo...</p></div><div id="tese-resultado" style="margin-top: 10px;"></div></div><div id="bib-arquivos" class="secao-bib oculto"><div id="lista-meus-manuscritos" style="display:grid; gap:10px;"></div></div><div id="bib-comunidade" class="secao-bib oculto"><div id="lista-livros-publicos" style="display:grid; gap:10px;"><p style="color:#777; text-align:center;">Aguardando...</p></div></div></div></div></div>
+        
+        <div id="aba-aventura" class="aba oculto"><div class="card" style="border-color: #ff9900; background: rgba(255, 153, 0, 0.05);"><h3 style="color: #ff9900; text-align:center;">Oráculo das Missões</h3><div id="quest-ativa-box" style="background:rgba(0,0,0,0.6); padding:15px; border-radius:8px; border:1px dashed #ff9900; margin-bottom:15px; text-align:center;">Sem missão ativa.</div><button onclick="pedirNovaQuestIA()" style="background: #4a2b00; color: #ff9900;">🔮 Pedir Missão</button></div></div>
+        
+        <div id="aba-quiz" class="aba oculto"><div class="card" style="border-color:#1abc9c; background:rgba(26, 188, 156, 0.1); text-align:center;"><h3 style="color:#1abc9c;">Duelo de Sabedoria</h3><div id="rank-quiz-ui" style="margin: 10px 0;"></div><button id="btn-iniciar-quiz" onclick="iniciarQuiz()" style="background:#0e3a31; color:#1abc9c;">Pedir Pergunta à IA</button><div id="quiz-game-area" class="oculto" style="margin-top:15px; background:rgba(0,0,0,0.8); border:1px solid #1abc9c; padding:15px;"><div style="font-size:1.5em; color:#e74c3c;" id="quiz-timer">15s</div><h4 id="quiz-pergunta" style="color:#fff;">A carregar...</h4><div id="quiz-opcoes" style="display:flex; flex-direction:column; gap:5px;"></div></div></div></div>
+        
+        <div id="aba-pvp" class="aba oculto"><div class="card" style="background: rgba(0, 255, 204, 0.05); border-color: #00ffcc; text-align:center;"><h3 style="color: #00ffcc;">Clube de Duelos</h3><div id="rank-duelos-ui" style="margin: 10px 0;"></div><button onclick="entrarFilaPvP()" id="btn-fila-pvp" style="background: #011a14; color: #00ffcc;">Entrar na Fila Ranked</button><div id="pvp-status-msg" style="color:#00ffcc; margin-top:10px;"></div></div></div>
+        
+        <div id="aba-social" class="aba oculto"><div class="card" style="border-color:#3498db; text-align:center;"><h3 style="color:var(--ouro);">🏆 Leaderboard Global</h3><div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px;" id="hall-of-fame-grid">Sincronizando...</div></div></div>
+
+        <div id="aba-inventario" class="aba oculto"><div class="card" style="background: rgba(0,0,0,0.8); border-color:var(--ouro);"><h3 style="color:var(--ouro); text-align:center;">Varinha Destinada</h3><canvas id="main-wand-canvas" width="350" height="100" style="margin: 0 auto; display:block; max-width:100%;"></canvas><div style="text-align:center; margin-top:10px;"><h4 id="ui-varinha-nome" style="color:#0f5; margin:0;">Varinha</h4><p id="ui-varinha-core" style="color:#ccc; font-size:0.8em; margin:5px 0;">...</p></div></div><div class="card" style="border-color:#27ae60; background:rgba(39, 174, 96, 0.1);"><h3 style="color:#2ecc71; text-align:center;">Laboratório Alquímico</h3><button onclick="abrirLivroReceitas()" style="background:#8c6b32; color:#fff;">📖 Livro Poções</button><div id="livro-receitas-ui" class="oculto" style="background:rgba(0,0,0,0.8); padding:10px; margin:10px 0;"></div><div style="display:flex; gap:5px; margin:10px 0; flex-wrap:wrap;" id="botoes-ingredientes"></div><div style="background:rgba(0,0,0,0.6); padding:10px; border:1px dashed #2ecc71; margin-bottom:10px; text-align:center;" id="caldeirao-atual">Caldeirão Vazio...</div><div style="display:flex; gap:5px;"><button onclick="iniciarMinigamePocao()" style="background:#0e2918; color:var(--ouro); flex:3;">🔥 Fogo Mágico</button><button onclick="limparCaldeirao()" style="background:#4a0000; color:#e74c3c; flex:1;">Limpar</button></div></div><div id="minigame-pocao-ui" class="alchemy-panel oculto" style="margin-bottom:15px;"><h4 style="color:#2ecc71;">🔥 Fervura 🔥</h4><div class="caldeirao-anim" id="pocao-anim-icon">🍲</div><div class="alchemy-status-box"><div id="pocao-instrucao" style="color: #f39c12;">Aquece!</div><div style="display:flex; justify-content:space-between; font-size:0.8em;"><span id="txt-temp" style="color:#f39c12;">50°C</span></div><div class="meter-bg"><div id="pocao-calor-fill" class="meter-fill-calor"></div></div><div style="display:flex; justify-content:space-between; font-size:0.8em; margin-top:5px;"><span id="txt-mistura" style="color:#2ecc71;">0%</span></div><div class="meter-bg"><div id="pocao-mistura-fill" class="meter-fill-mistura"></div></div></div><div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top:10px;"><button onclick="pocaoAcao('fogo')" style="background:#8e24aa;">🔥 Assoprar</button><button onclick="pocaoAcao('mexer')" style="background:#2980b9;">🥄 Mexer</button></div></div><div class="card" style="border-color:#3498db;"><h3 style="color:#3498db;">Mochila & Livros</h3><div id="lista-mochila" style="display:flex; flex-direction:column; gap:5px; max-height:200px; overflow-y:auto; margin-bottom:10px;"></div><div id="lista-livros" style="display:flex; flex-direction:column; gap:5px;"></div></div><div class="card"><h3>Grimório (<span id="deck-count">0</span>/4)</h3><div id="lista-maestria" style="max-height: 200px; overflow-y:auto; display:flex; flex-direction:column; gap:5px;"></div></div></div>
+        
+        <div id="aba-quarto" class="aba oculto"><div class="card" style="border-color:#f39c12; background:rgba(243, 156, 18, 0.05); text-align:center;"><h3 style="color:#f39c12; margin-top:0;">A Sala Precisa</h3><div id="quarto-grid" style="width:100%; height:300px; background:url('https://www.transparenttextures.com/patterns/wood-pattern.png') #2a1b12; position:relative; overflow:hidden;"></div><div style="background:rgba(0,0,0,0.8); padding:10px; margin-top:10px; border:1px solid #f39c12;"><h4 style="color:#f39c12; margin-top:0;">Baú de Decoração</h4><div id="lista-mobilia-bau" style="display:flex; gap:10px; overflow-x:auto;"></div><button onclick="comprarMovelMisterioso()" style="margin-top:10px; background:#4b0082;">✨ Conjurar Mobília (50 G)</button></div></div></div>
+        
+        <div id="aba-dormitorio" class="aba oculto"><div class="card" style="border-color: #2ecc71; background: rgba(0,20,10,0.4);"><h3 style="color:#2ecc71; text-align:center;">O Teu Perfil</h3><div id="perfil-conteudo-dormitorio"></div><div style="margin-top:15px; text-align:center; display:flex; flex-direction:column; gap:10px;"><button onclick="pedirTituloIA()" style="background:#0a1e12; color:#2ecc71;">Pedir Reconhecimento (IA)</button><button onclick="abrirAlbumSapos()" style="background:#3a2f24; color:var(--ouro);">🐸 Álbum Sapos Chocolate</button><button onclick="fazerLogout()" style="background:#5c0a0a; color:#ff9999;">🚪 Sair (Logout)</button></div></div></div>
+        
+        <div id="aba-baile" class="aba oculto"><div class="card" style="border-color:#ff00ff; background:rgba(255, 0, 255, 0.05); text-align:center;"><h3 style="color:#ff00ff;">Salão de Baile</h3><div id="rank-baile-ui"></div><div id="baile-menu"><button onclick="iniciarBaile()" style="background:#2b002b; color:#ff00ff;">Iniciar Dança (2 Foco)</button></div><div id="baile-engine" class="oculto"><div style="display:flex; justify-content:space-between; color:#fff;"><span id="baile-combo" style="color:var(--ouro);">Combo: 0</span><span id="baile-score" style="color:#2ecc71;">Score: 0</span></div><canvas id="canvas-baile" width="300" height="400" style="background:#0a0a0a; width:100%; max-width:300px; display:block; margin:10px auto;"></canvas><div style="display:flex; justify-content:center; gap:5%; max-width:300px; margin:0 auto;"><button onmousedown="hitNota(0)" ontouchstart="event.preventDefault(); hitNota(0)" style="background:#e74c3c; padding:15px 0;">D</button><button onmousedown="hitNota(1)" ontouchstart="event.preventDefault(); hitNota(1)" style="background:#f1c40f; padding:15px 0; color:#000;">F</button><button onmousedown="hitNota(2)" ontouchstart="event.preventDefault(); hitNota(2)" style="background:#2ecc71; padding:15px 0;">J</button><button onmousedown="hitNota(3)" ontouchstart="event.preventDefault(); hitNota(3)" style="background:#3498db; padding:15px 0;">K</button></div></div></div></div>
+
+    </div> <div id="modal-mapa" class="mapa-overlay oculto" onclick="fecharMapaSalteador(event)">
+        <div class="card" style="width: 90%; max-width: 500px; border-color: #d4af37; background: url('https://www.transparenttextures.com/patterns/aged-paper.png') var(--hp-parchment); position:relative;" onclick="event.stopPropagation()">
+            <button onclick="fecharMapaSalteador(null, true)" style="position:absolute; top:-10px; right:-10px; width:35px; height:35px; border-radius:50%; background:#e74c3c; color:#fff; border:2px solid #fff; font-size:1em; box-shadow:0 5px 15px #000; z-index:10;">X</button>
+            <h2 style="color:#5a3b24; text-align:center; border-bottom: 2px solid #8c6b32; padding-bottom:5px; margin-top:0;">O Mapa do Salteador</h2>
+            <div class="mapa-grid" style="margin-top:15px;">
+                <button class="mapa-btn" onclick="viajarPara('Salão Principal')">🍽️<br>Salão</button>
+                <button class="mapa-btn" onclick="viajarPara('Grande Escadaria')">🪜<br>Escadaria</button>
+                <button class="mapa-btn" onclick="viajarPara('Masmorras')">🧪<br>Masmorras</button>
+                <button class="mapa-btn" onclick="viajarPara('Torre de Astronomia')">🔭<br>Torre</button>
+                <button class="mapa-btn" onclick="viajarPara('Banheiro da Murta')">👻<br>Banheiro</button>
+                <button class="mapa-btn" onclick="viajarPara('Floresta Proibida')">🌲<br>Floresta</button>
+                <button class="mapa-btn" onclick="viajarPara('Hogsmeade')" style="border-color:#9b59b6;">🍺<br>Hogsmeade</button>
+                <button class="mapa-btn" onclick="abrirLojaInGame()" style="border-color:var(--hp-gold);">🛍️<br>Beco Diagonal</button>
             </div>
         </div>
     </div>
-</div>
-
-<script>
-    let baileAtivo = false; let notas = []; let bScore = 0; let bCombo = 0; let bTick = 0; let bLoop;
-    const canaisX = [50, 150, 250, 350]; // Posições no Canvas 400px
-
-    window.iniciarBaile = function() {
-        if(meuBruxo.focoAtual < 2) return mostrarNotificacao("Precisas de 2 Foco para dançar.", "erro");
-        document.getElementById('baile-menu').classList.add('oculto'); document.getElementById('baile-engine').classList.remove('oculto');
-        baileAtivo = true; notas = []; bScore = 0; bCombo = 0; bTick = 0;
-        safeSet('baile-score', 'Score: 0'); safeSet('baile-combo', 'Combo: 0');
-        playSFX('magic');
+	
+	<div id="arena-acao" class="arena-action-bg oculto">
+        <div id="arena-flash" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:9999; pointer-events:none; opacity:0;"></div>
         
-        // Gera o Beatmap Mágico (70 notas)
-        for(let i=0; i<70; i++) {
-            notas.push({ y: -100 - (i * 100) - (Math.random()*50), pista: Math.floor(Math.random()*4), hit: false, missed: false });
-        }
+        <div id="ca-dungeon-info" class="dungeon-hud-info oculto">Floresta Proibida - Fase 1</div>
         
-        bLoop = requestAnimationFrame(renderBaile);
-    };
-
-    function renderBaile() {
-        if(!baileAtivo) return;
-        const c = document.getElementById('canvas-baile'); const ctx = c.getContext('2d');
-        ctx.clearRect(0, 0, c.width, c.height);
+        <div style="padding: 15px; display: flex; justify-content: space-between; align-items:center; background:rgba(3,5,9,0.98); border-bottom: 1px solid var(--hp-gold-dark); z-index: 2; font-family:'Cinzel',serif;">
+            
+            <div style="width: 35%;">
+                <div style="color:#2ecc71; font-weight:bold; font-size:1.2rem;" id="ca-player-name">O Bruxo</div>
+                <div class="bar-bg" style="height:20px; border-radius:3px;">
+                    <div class="hp-bar-fill" id="ca-player-hp"></div>
+                    <div class="bar-text" id="ca-player-hp-txt">1000/1000</div>
+                </div>
+            </div>
+            
+            <div style="text-align:center;">
+                <button class="btn-fugir" onclick="fugirCombate()" style="margin-bottom:8px; background:#c0392b; color:#fff; border-color:#e74c3c; box-shadow:0 0 10px rgba(231,76,60,0.4); padding: 5px 15px; border-radius: 20px;">🏃 Desistir</button>
+                <div id="ca-target-selector" style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap;"></div>
+            </div>
+            
+            <div style="width: 35%; text-align:right;">
+                <div style="color:#e74c3c; font-weight:bold; font-size:1.2rem;" id="ca-boss-name">Trevas</div>
+                <div class="bar-bg" style="height:20px; border-radius:3px;">
+                    <div class="hp-bar-fill" id="ca-boss-hp" style="background:linear-gradient(90deg, #600000, #e74c3c); box-shadow: 0 0 10px #e74c3c;"></div>
+                    <div class="bar-text" id="ca-boss-hp-txt">1000/1000</div>
+                </div>
+            </div>
+        </div>
         
-        // Pistas de fundo
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        [50, 150, 250, 350].forEach(x => ctx.fillRect(x - 30, 0, 60, c.height));
-        
-        // Linha de Hit (Alvo)
-        ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(0, 420); ctx.lineTo(c.width, 420); ctx.stroke();
+        <canvas id="engine-combate" width="1000" height="600" style="width: 100%; flex-grow:1; max-height: 65vh;"></canvas>
 
-        let todasPassaram = true;
-        
-        notas.forEach(n => {
-            if(!n.hit && !n.missed) {
-                todasPassaram = false;
-                n.y += 6; // Velocidade de queda
-                
-                if(n.y > 450) { n.missed = true; bCombo = 0; safeSet('baile-combo', 'Combo: 0'); document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 100); }
-                
-                const cores = ['#e74c3c', '#f1c40f', '#2ecc71', '#3498db'];
-                ctx.fillStyle = cores[n.pista]; ctx.shadowColor = cores[n.pista]; ctx.shadowBlur = 15;
-                ctx.beginPath(); ctx.arc(canaisX[n.pista], n.y, 25, 0, Math.PI*2); ctx.fill();
-            }
-        });
-
-        if(todasPassaram) return finalizarBaile();
-        bLoop = requestAnimationFrame(renderBaile);
-    }
-
-    window.hitNota = function(pistaIndex) {
-        if(!baileAtivo) return;
-        // Encontra a nota mais próxima da linha na pista selecionada
-        let notaAlvo = notas.find(n => !n.hit && !n.missed && n.pista === pistaIndex && n.y > 350 && n.y < 460);
-        
-        if(notaAlvo) {
-            notaAlvo.hit = true;
-            let precision = Math.abs(notaAlvo.y - 420);
-            let pts = precision < 15 ? 100 : (precision < 30 ? 50 : 20);
-            bCombo++; bScore += (pts * (1 + (bCombo*0.1)));
-            safeSet('baile-score', `Score: ${Math.floor(bScore)}`); safeSet('baile-combo', `Combo: ${bCombo}`);
-            gerarSparksEmCombate(Math.random()*400, 420, '#ff00ff', 10); // Reutiliza as tuas sparks!
-            playSFX('click');
-        } else {
-            bCombo = 0; safeSet('baile-combo', 'Combo: 0'); playSFX('error');
-        }
-    };
-
-    // Controlos de Teclado PC
-    window.addEventListener('keydown', (e) => {
-        if(!baileAtivo) return;
-        const key = e.key.toLowerCase();
-        if(key === 'd') hitNota(0); if(key === 'f') hitNota(1);
-        if(key === 'j') hitNota(2); if(key === 'k') hitNota(3);
-    });
-
-    async function finalizarBaile() {
-        baileAtivo = false; cancelAnimationFrame(bLoop);
-        document.getElementById('baile-engine').classList.add('oculto'); document.getElementById('baile-menu').classList.remove('oculto');
-        
-        try {
-            const res = await fetch('/api/baile/recompensa', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: meuBruxo.id, score: bScore}) });
-            const d = await res.json();
-            mostrarNotificacao(d.msg, 'info');
-            syncRequest();
-        } catch(e) {}
-    }
-</script>
-
-<div id="aba-estufa" class="aba oculto">
-    <div class="card" style="border-color:#2ecc71; background:rgba(39, 174, 96, 0.05); text-align:center;">
-        <h3 style="color:#2ecc71; font-size:2em; margin-top:0;">Estufa de Herbologia</h3>
-        <p style="color:#aaa; font-size:0.9em; margin-bottom:20px;">Planta sementes, usa feitiços para cuidar delas e colhe ingredientes para as tuas poções.</p>
-        
-        <div id="estufa-vasos-container" style="display:flex; flex-wrap:wrap; justify-content:center; gap:15px;">
-            A carregar vasos...
+        <div style="z-index: 2; background: rgba(0,0,0,0.9); border-top: 1px solid rgba(52,152,219,0.5);">
+            <div class="mana-bar-container">
+                <div class="mana-fill" id="ca-mana-fill" style="box-shadow: 0 0 15px #3498db;"></div>
+                <div class="mana-segments">
+                    <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
+                </div>
+                <div style="position:absolute; top:0; left:50%; transform:translateX(-50%); color:#fff; font-weight:bold; text-shadow:0 0 5px #3498db; line-height:20px; font-size:0.85em;" id="ca-mana-text">A canalizar Aura...</div>
+            </div>
+            <div class="hotbar" id="ca-hotbar"></div>
         </div>
     </div>
-</div>
-<script>
-window.getRankInfo = function(elo) {
-        if(!elo) elo = 1000;
-        if(elo < 1200) return { n: "Aprendiz", c: "#cd7f32", ic: "🥉" }; // Bronze
-        if(elo < 1400) return { n: "Novato", c: "#bdc3c7", ic: "🥈" }; // Prata
-        if(elo < 1600) return { n: "Adepto", c: "#f1c40f", ic: "🥇" }; // Ouro
-        if(elo < 1900) return { n: "Especialista", c: "#1abc9c", ic: "💎" }; // Platina
-        if(elo < 2200) return { n: "Mestre", c: "#9b59b6", ic: "🔮" }; // Ametista
-        return { n: "Lenda Viva", c: "#e74c3c", ic: "👑" }; // Rubi
-    };
-
-    window.renderRankBadge = function(elo, titulo) {
-        const r = window.getRankInfo(elo);
-        return `<div style="background:rgba(0,0,0,0.6); border:1px solid ${r.c}; padding:10px; border-radius:8px; display:inline-block; box-shadow:0 0 15px ${r.c}40; text-align:center; min-width:120px; margin: 5px;">
-            <div style="font-size:0.7em; color:#aaa; margin-bottom:5px; text-transform:uppercase;">${titulo}</div>
-            <div style="font-size:2.5em; line-height:1; text-shadow:0 0 10px ${r.c};">${r.ic}</div>
-            <div style="color:${r.c}; font-weight:bold; font-family:'Cinzel'; font-size:0.9em; margin-top:5px;">${r.n}</div>
-            <div style="color:#fff; font-size:0.8em; font-weight:bold;">${Math.floor(elo)} ELO</div>
-        </div>`;
-    };
-// ==============================================================================
-// SISTEMA DE ESTUFA E HERBOLOGIA (FRONT-END)
-// ==============================================================================
-let estufaUI_Loop;
-
-function renderizarEstufaUI() {
-    if(!meuBruxo) return;
-    
-    // 🔥 PREVENÇÃO FRONT-END: Se a estufa não existir, cria-a no lado visual!
-    if(!meuBruxo.estufa) {
-        meuBruxo.estufa = [
-            { id: 1, plantada: false, tipo: null, plantaTempo: null },
-            { id: 2, plantada: false, tipo: null, plantaTempo: null },
-            { id: 3, plantada: false, tipo: null, plantaTempo: null }
-        ];
-    }
-    
-    const container = document.getElementById('estufa-vasos-container');
-    if(!container) return;
-    
-    // Inicia o Loop de tempo real apenas se não existir
-    if(!estufaUI_Loop) {
-        estufaUI_Loop = setInterval(atualizarBarrasEstufa, 1000);
-    }
-    
-    let html = '';
-    meuBruxo.estufa.forEach(pote => {
-        if(!pote.plantada) {
-            // Garante que o objeto de sementes existe no Front-End
-            if(!meuBruxo.inventario.sementes) meuBruxo.inventario.sementes = {};
-            let sem = meuBruxo.inventario.sementes;
-
-            // VASO VAZIO (Agora lê do inventário)
-            html += `
-            <div style="background:rgba(0,0,0,0.8); border:2px dashed #555; border-radius:8px; padding:15px; width:100%; max-width:250px;">
-                <h4 style="color:#888; margin:0 0 10px 0;">Vaso ${pote.id} Vazio</h4>
-                <div style="font-size:3em; filter:grayscale(100%); opacity:0.3; margin-bottom:10px;">🪴</div>
-                <select id="semente-vaso-${pote.id}" style="font-size:0.9em; padding:8px; margin-bottom:10px; width:100%;">
-                    <option value="ditamno" ${sem.ditamno > 0 ? '' : 'disabled'}>Semente Ditamno (Tens: ${sem.ditamno || 0})</option>
-                    <option value="mandragora" ${sem.mandragora > 0 ? '' : 'disabled'}>Muda Mandrágora (Tens: ${sem.mandragora || 0})</option>
-                    <option value="asfodelo" ${sem.asfodelo > 0 ? '' : 'disabled'}>Semente Asfódelo (Tens: ${sem.asfodelo || 0})</option>
-                    <option value="muco" ${sem.muco > 0 ? '' : 'disabled'}>Casulo de Verme (Tens: ${sem.muco || 0})</option>
-                    <option value="bezoar" ${sem.bezoar > 0 ? '' : 'disabled'}>Sem. Bezoar (Tens: ${sem.bezoar || 0})</option>
-                </select>
-                <button onclick="plantarNaEstufa(${pote.id})" style="background:#2c1e16; color:var(--ouro); border-color:var(--ouro);">Plantar na Terra</button>
-            </div>`;
-			
-			
-        
-        } else {
-            // VASO OCUPADO
-            html += `
-            <div style="background:rgba(10,30,15,0.9); border:2px solid #2ecc71; border-radius:8px; padding:15px; width:100%; max-width:250px; position:relative;">
-                <h4 style="color:#2ecc71; margin:0 0 10px 0; text-transform:capitalize;">${pote.tipo}</h4>
-                <div style="font-size:3em; text-shadow:0 0 15px #2ecc71; margin-bottom:10px;" id="icon-vaso-${pote.id}">🌱</div>
-                
-                <div class="meter-bg" style="height:15px; margin-bottom:10px;">
-                    <div id="barra-vaso-${pote.id}" style="width:0%; background:linear-gradient(90deg, #27ae60, #2ecc71); height:100%; transition:1s linear;"></div>
-                </div>
-                
-                <div id="info-vaso-${pote.id}" style="margin-bottom:15px;"></div>
-                
-                <div id="acoes-vaso-${pote.id}">
-                </div>
-            </div>`;
-        }
-    });
-    
-    container.innerHTML = html;
-    atualizarBarrasEstufa(); // Chama logo uma vez para forçar o render imediato
-}
-
-// LOOP REAL-TIME: Atualiza as barras de crescimento da estufa
-function atualizarBarrasEstufa() {
-    if(!meuBruxo || !meuBruxo.estufa) return;
-    
-    const agora = Date.now();
-    
-    meuBruxo.estufa.forEach(pote => {
-        if(pote.plantada) {
-            const barra = document.getElementById(`barra-vaso-${pote.id}`);
-            const acoes = document.getElementById(`acoes-vaso-${pote.id}`);
-            const icone = document.getElementById(`icon-vaso-${pote.id}`);
-            const infos = document.getElementById(`info-vaso-${pote.id}`); // Nova div
-            
-            if(!barra || !acoes) return;
-            
-            if(pote.morta) {
-                icone.innerText = "🥀"; barra.style.width = "0%";
-                acoes.innerHTML = `<button onclick="limparVasoMorto(${pote.id})" style="background:#e74c3c;">Limpar Vaso Morto</button>`;
-                return;
-            }
-            
-            let tempoMax = pote.tempoCrescimentoMax || 300000; // 5 Minutos padrão
-            let passado = agora - pote.plantaTempo;
-            let percentagem = Math.min(100, (passado / tempoMax) * 100);
-            
-            if(pote.praga) {
-                icone.innerText = "🐛🌿";
-                acoes.innerHTML = `<button onclick="curarPragaEstufa(${pote.id})" style="background:#8e44ad; color:#fff;">🧪 Lançar Pesticida (2G)</button>`;
-            } else if (percentagem < 100) {
-                icone.innerText = "🌱";
-                acoes.innerHTML = `<button onclick="regarEstufa(${pote.id})" style="background:#3498db; color:#fff;">💦 Regar Planta</button>`;
-            }
-            
-            barra.style.width = `${percentagem}%`;
-            
-            if(infos) {
-                infos.innerHTML = `
-                    <div style="font-size:0.8em; color:#3498db; margin-bottom:5px;">Água: ${Math.floor(pote.agua || 0)}%</div>
-                    <div style="width:100%; height:5px; background:#111;"><div style="width:${pote.agua||0}%; height:100%; background:#3498db;"></div></div>
-                `;
-            }
-            
-            if(percentagem >= 100 && !pote.praga) {
-                icone.innerText = "🌿"; 
-                barra.style.boxShadow = "0 0 15px #2ecc71";
-                acoes.innerHTML = `<button onclick="colherDaEstufa(${pote.id})" style="background:#2ecc71; color:#000; font-weight:bold;">Colher Frutos!</button>`;
-            }
-        }
-    });
-}
-
-window.regarEstufa = async function(poteId) {
-    playSFX('magic');
-    try {
-        const res = await fetch('/api/estufa/regar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
-        const d = await res.json();
-        mostrarNotificacao(d.msg || d.erro, d.erro ? 'erro':'sucesso'); syncRequest();
-    } catch(e){}
-}
-window.curarPragaEstufa = async function(poteId) {
-    playSFX('magic');
-    try {
-        const res = await fetch('/api/estufa/curar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
-        const d = await res.json();
-        mostrarNotificacao(d.msg || d.erro, d.erro ? 'erro':'sucesso'); syncRequest();
-    } catch(e){}
-}
-// ==============================================================================
-// FUNÇÕES DE AÇÃO DA ESTUFA (CHAMAM O BACKEND)
-// ==============================================================================
-window.plantarNaEstufa = async function(poteId) {
-    playSFX('click');
-    const semente = document.getElementById(`semente-vaso-${poteId}`).value;
-    try {
-        const res = await fetch('/api/estufa/plantar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId, semente }) });
-        const d = await res.json();
-        mostrarNotificacao(d.erro || d.msg, d.erro ? 'erro' : 'sucesso');
-        syncRequest();
-    } catch(e) {}
-};
-
-window.cuidarDaEstufa = async function(poteId) {
-    playSFX('magic');
-    try {
-        const res = await fetch('/api/estufa/cuidar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
-        const d = await res.json();
-        if(!d.erro) {
-            gerarSparksEmCombate(window.innerWidth/2, window.innerHeight/2, '#2ecc71', 20); // Reutiliza as partículas visuais
-        }
-        mostrarNotificacao(d.erro || d.msg, d.erro ? 'erro' : 'sucesso');
-        syncRequest();
-    } catch(e) {}
-};
-
-window.colherDaEstufa = async function(poteId) {
-    playSFX('click');
-    try {
-        const res = await fetch('/api/estufa/colher', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
-        const d = await res.json();
-        if(d.sucesso) {
-            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-            playSFX('magic');
-        }
-        mostrarNotificacao(d.erro || d.msg, d.erro ? 'erro' : 'sucesso');
-        syncRequest();
-    } catch(e) {}
-};
-</script>
-        <!-- ABA: DORMITÓRIO (PERFIL E BAÚ) -->
-        <div id="aba-dormitorio" class="aba oculto">
-            <div class="card" style="border-color: #2ecc71; background: rgba(0,20,10,0.4);">
-                <h3 style="color:#2ecc71; text-align:center;">O Teu Baú Pessoal</h3>
-                <div id="perfil-conteudo-dormitorio"></div>
-                <div style="margin-top:15px; text-align:center;">
-                    <button onclick="pedirTituloIA()" style="background:#0a1e12; border-color:#2ecc71; color:#2ecc71;">Pedir Reconhecimento (IA) - 500 G</button>
-					<div style="margin-top:15px; text-align:center; display:flex; gap:10px; justify-content:center;">
-                    <button onclick="pedirTituloIA()" style="background:#0a1e12; border-color:#2ecc71; color:#2ecc71;">Pedir Reconhecimento (IA)</button>
-                    <button onclick="abrirAlbumSapos()" style="background:#3a2f24; border-color:var(--ouro); color:var(--ouro);">🐸 Álbum de Bruxos Famosos</button>
-					<div style="text-align:center; margin-top:20px; border-top: 1px dashed #555; padding-top: 15px;">
-        <button onclick="fazerLogout()" style="background:#5c0a0a; color:#ff9999; border-color:#e74c3c; width:auto; padding:8px 20px;">🚪 Sair da Conta (Logout)</button>
-    </div>
-                </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ABA: MERCADO CORUJA -->
-        <div id="aba-mercado" class="aba oculto">
-            <div class="card" style="border-color:#e67e22; background:rgba(40, 20, 5, 0.5);">
-                <h3 style="color:#e67e22;">🦉 Correio Coruja (Mercado Global)</h3>
-                <p style="font-size:0.9em; color:#aaa;">Vende relíquias, pocões e livros a outros alunos através das corujas.</p>
-                
-                <h4 style="margin-top:20px; border-bottom:1px dashed #555; padding-bottom:5px;">Vender Item da Mochila</h4>
-                <div style="display:flex; gap:10px; margin-bottom: 15px;">
-                    <select id="sel-mercado-item" style="margin:0; width:60%;"></select>
-                    <input type="number" id="in-mercado-preco" placeholder="Preço (G)" style="margin:0; width:40%;">
-                </div>
-                <button onclick="venderMercado()" style="background:#4a2b10; color:#e67e22; border-color:#e67e22;">Anunciar Oferta</button>
-                
-                <h4 style="margin-top:30px; border-bottom:1px dashed #555; padding-bottom:5px;">Ofertas dos Outros Alunos</h4>
-                <div id="lista-mercado-global" style="max-height: 300px; overflow-y:auto; padding-right:10px;">
-                    A procurar pergaminhos de venda...
-                </div>
-            </div>
-        </div>
-
-        <!-- ABA: AULAS INTERATIVAS -->
-        <div id="aba-aulas" class="aba">
-            <div class="card" style="border-color: var(--ouro); background: rgba(212, 175, 55, 0.05);">
-                <h3 style="color:var(--ouro); text-align:center;">Sala de Aula: <span id="ui-aula-titulo2" style="color:#fff;">Livre</span></h3>
-                
-                <div style="background: url('https://www.transparenttextures.com/patterns/wood-pattern.png') #2c1e16; border: 2px solid #1a110c; border-radius: 4px; padding: 20px; margin-bottom: 20px; box-shadow: inset 0 0 30px #000;">
-                    <h4 style="color:#d4af37; margin-top:0; border-bottom:1px dashed rgba(212,175,55,0.3); padding-bottom:5px;">A Minha Mesa</h4>
-                    
-                    <div style="text-align:center; margin-top:10px; margin-bottom:15px;">
-                        <button onclick="abrirLojaInGame()" style="background:#111; color:var(--ouro);">🛍️ Visitar Beco Diagonal</button>
-                    </div>
-
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:15px;">
-                        <div>
-                            <p style="margin:5px 0; font-size:0.9em; color:#fff;">Livro Exigido: <span id="livro-requerido" style="color:#aaa;">Sincronizando...</span></p>
-                            <button onclick="folhearLivroDeAula()" style="background:#1a110c; color:var(--ouro); border-color:var(--ouro); padding:8px 15px;">📖 Estudar Matéria (1 Foco)</button>
-                        </div>
-                        <div style="text-align:right;" id="painel-acao-aula">
-                            <button onclick="iniciarAulaImersiva()" style="background:var(--ouro-dark); color:#000; border-color:var(--ouro); padding:15px; box-shadow: 0 0 15px rgba(212,175,55,0.4);">✍️ Iniciar Aula Real (3 Minutos)</button>
-                        </div>
-                        
-                        <div id="painel-aula-ativa" class="oculto" style="width:100%; margin-top:15px; background:rgba(0,0,0,0.6); padding:15px; border:1px solid #3498db; border-radius:4px;">
-                            <h4 style="color:#3498db; margin:0 0 10px 0; text-align:center;" id="txt-fase-aula">A aguardar o Professor...</h4>
-                            <div class="meter-bg"><div id="barra-progresso-aula" class="meter-fill-mistura" style="background:#3498db; width:0%;"></div></div>
-                            <div id="zona-pratica-aula" class="oculto" style="text-align:center; margin-top:15px;">
-                                <p style="color:var(--ouro); font-size:0.9em;">Treino Prático: Copia o movimento da varinha para fixar a matéria!</p>
-                                <button onclick="praticarFeiticoAula()" style="background:#27ae60; color:#fff; border-color:#2ecc71;">✨ Executar Movimento Prático</button>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="leitura-aula-result" style="margin-top:20px; padding:15px; background:url('https://www.transparenttextures.com/patterns/aged-paper.png') #efe1c8; color:#2c1e16; font-family:'IM Fell English', serif; font-size:1.1em; display:none; border:1px solid #8c6b32; box-shadow:inset 0 0 15px rgba(0,0,0,0.1);"></div>
-                        
-                        <div style="text-align:center; margin-top:15px; border-top: 1px solid rgba(212,175,55,0.3); padding-top: 15px;">
-                            <button onclick="document.getElementById('modal-calendario').classList.remove('oculto')" style="background:transparent; color:#d4af37; border: 1px dashed #d4af37; width:auto; padding:8px 20px;">📜 Ver Horário Escolar</button>
-                        </div>
-                    </div> <h4 style="color:var(--hp-gold); margin-bottom:5px;">Debate e Dúvidas</h4>
-                    <div class="chat-container" id="chat-aula-box"></div>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="in-chat-aula" placeholder="Levanta a mão e pergunta ao Professor..." style="margin:0;" onkeypress="if(event.key === 'Enter') enviarChatAula()">
-                        <button onclick="enviarChatAula()" style="width: 100px; margin:0;">Falar</button>
-                    </div>
-
-                </div> </div>
-
-        <!-- ABA: BIBLIOTECA E LORE -->
-<div id="aba-biblioteca" class="aba oculto">
-    <div class="card" style="border-color:#9b59b6; background:rgba(155, 89, 182, 0.05); padding: 0;">
-        <div style="padding: 20px; text-align: center; border-bottom: 1px solid rgba(155, 89, 182, 0.3);">
-            <h3 style="color:#9b59b6; margin:0; font-size: 2em;">A Grande Biblioteca</h3>
-            
-            <div id="rank-sabedoria-ui" style="margin: 15px 0;"></div>
-            
-            <p style="color:#aaa; font-style: italic;">"Onde o conhecimento se torna manifestação."</p>
-        </div>
-
-                <div class="tabs" style="background: rgba(0,0,0,0.3); border-bottom: 1px solid #9b59b6; margin-bottom: 0;">
-                    <button onclick="navBib('ler')" id="btn-bib-ler" class="btn-bib-nav active">📚 O Acervo</button>
-                    <button onclick="navBib('escrever')" id="id-bib-escrever" class="btn-bib-nav">✒️ Scriptorium</button>
-                    <button onclick="navBib('comunidade')" id="id-bib-comunidade" class="btn-bib-nav">🤝 Grimórios</button>
-                    <button onclick="navBib('arquivos')" id="btn-bib-arquivos" class="btn-bib-nav">📜 Meus Arquivos</button>
-                </div>
-
-                <div style="padding: 20px;">
-                    <div id="bib-ler" class="secao-bib">
-                        <h4 style="color:#9b59b6; border-bottom: 1px dashed #9b59b6; padding-bottom: 5px;">Solicitar Conhecimento Proibido</h4>
-                        <p style="font-size: 0.9em; color: #ccc; margin-bottom: 15px;">
-                            Utilize o poder da Consciência para invocar pergaminhos sobre qualquer tema do Mundo Bruxo. 
-                            <b>Uso:</b> Digite um tema e escolha o tom do registro para receber um excerto detalhado.
-                        </p>
-                        <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <input type="text" id="bib-assunto" placeholder="Ex: A fundação das Casas de Hogwarts...">
-                            <select id="bib-estilo">
-                                <option value="académico">Tratado Académico (Rigoroso)</option>
-                                <option value="poético">Registos Poéticos (Profético)</option>
-                                <option value="diário">Fragmentos de Diário Antigo</option>
-                            </select>
-                            <button onclick="gerarLivroIA()" style="background:#2c1030; color:#9b59b6; border-color:#9b59b6;">Invocar Pergaminho</button>
-                        </div>
-                        <div id="bib-resultado-leitura" class="oculto" style="margin-top:20px; padding:20px; background:url('https://www.transparenttextures.com/patterns/aged-paper.png') #efe1c8; color:#2c1e16; border-radius:4px; box-shadow: inset 0 0 20px rgba(0,0,0,0.2);"></div>
-                    </div>
-
-                    <div id="bib-escrever" class="secao-bib oculto">
-                        <h4 style="color:#0f5; border-bottom: 1px dashed #0f5; padding-bottom: 5px;">O Altar da Escrita Arcaica</h4>
-                        <p style="font-size: 0.9em; color: #ccc; margin-bottom: 15px;">
-                            Nesta área, você não apenas lê, mas molda a magia. Escreva a sua tese sobre um novo feitiço.
-                            <b>Rigor:</b> A Consciência de Hogwarts avaliará a sua lógica, lore e intenção. Se aprovado, o feitiço será injetado no seu Grimório.
-                        </p>
-                        <textarea id="tese-manuscrito" rows="8" placeholder="Descreva a física mágica, os movimentos e a intenção da sua nova magia..."></textarea>
-                        <button onclick="submeterTese()" id="btn-submeter-tese" style="border-color:#0f5; color:#0f5; background: rgba(0,255,85,0.1);">Submeter à Consciência</button>
-                        
-                        <div id="tese-loading" class="oculto" style="text-align:center; padding:20px;">
-                            <p style="animation: pulse 1.5s infinite;">📜 A Consciência está a ler os seus pensamentos...</p>
-                        </div>
-                        
-                        <div id="tese-resultado" style="margin-top: 15px;"></div>
-                    </div>
-
-                    <div id="bib-arquivos" class="secao-bib oculto">
-                        <h4 style="color:var(--hp-gold);">Baú de Pergaminhos Pessoais</h4>
-                        <p style="font-size: 0.85em; color: #aaa;">Aqui residem as tuas descobertas e rascunhos. Clica num título para retomar a leitura ou escrita.</p>
-                        <div id="lista-meus-manuscritos" style="display:grid; gap:10px; margin-top:15px;"></div>
-                    </div>
-
-                    <div id="bib-comunidade" class="secao-bib oculto">
-                        <h4 style="color:#40a0ff; border-bottom: 1px dashed #40a0ff; padding-bottom: 5px;">Estudos Compartilhados</h4>
-                        <p style="font-size: 0.9em; color: #ccc; margin-bottom: 15px;">
-                            Consulte as teses aprovadas de outros bruxos. 
-                            <b>Aprendizado:</b> Para aprender uma magia criada por outro jogador, você deve estudar o manuscrito original e provar que compreendeu a sua essência.
-                        </p>
-                        <div id="lista-livros-publicos" style="display:grid; gap:10px;">
-                            <p style="color:#777; text-align:center; font-style:italic;">Aguardando novas publicações dos alunos...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-<script>
-// --- LÓGICA DA BIBLIOTECA ---
-
-function navBib(secao) {
-    playSFX('click');
-    document.querySelectorAll('.secao-bib').forEach(el => el.classList.add('oculto'));
-    document.querySelectorAll('.btn-bib-nav').forEach(el => el.classList.remove('active'));
-    
-    document.getElementById('bib-' + secao).classList.remove('oculto');
-    // Adiciona classe active ao botão correto
-    event.currentTarget.classList.add('active');
-}
-
-window.gerarLivroIA = async function() {
-    playSFX('magic');
-    const assunto = document.getElementById('bib-assunto').value;
-    const estilo = document.getElementById('bib-estilo').value;
-    const resDiv = document.getElementById('bib-resultado-leitura');
-
-    if(!assunto) return mostrarNotificacao("Diz à biblioteca o que desejas saber.", "erro");
-
-    resDiv.classList.remove('oculto');
-    resDiv.innerHTML = "<p style='color:#3d2314; font-style:italic; padding:20px;'>A tinta está a espalhar-se pelo pergaminho...</p>";
-
-    try {
-        const res = await fetch('/api/biblioteca/gerar_livro', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: meuBruxo.id, assunto, estilo })
-        });
-        const d = await res.json();
-        
-        if(d.erro) {
-            resDiv.innerHTML = `<p style="color:#e74c3c; padding:20px;">${d.erro}</p>`;
-        } else {
-            // 🔥 FIX: IDs fixos e seletores globais para evitar erros de referência
-            resDiv.innerHTML = `
-                <div style="padding:20px;">
-                    <h2 id="last-title" style="color:#3d2314; border-bottom: 2px solid #8c6b32; font-family:'Cinzel'; padding-bottom:10px;">${d.titulo}</h2>
-                    <div id="last-content" style="color:#2c1e16; line-height:1.6; white-space:pre-wrap; font-family:'IM Fell English'; font-size:1.1em;">${d.conteúdo}</div>
-                    <div style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
-                        <button onclick="arquivarPergaminhoAtual()" style="width:auto; padding:10px 20px; background:#155c32; color:#fff; border:none; border-radius:4px; cursor:pointer;">📜 Guardar no Baú</button>
-                        <button onclick="document.getElementById('bib-resultado-leitura').classList.add('oculto')" style="width:auto; padding:10px 20px; background:#3d2314; color:#efe1c8; border:none; border-radius:4px; cursor:pointer;">Ignorar</button>
-                    </div>
-                </div>
-            `;
-            falarTextoIA("O conhecimento foi invocado.", "Biblioteca");
-        }
-    } catch(e) { 
-        resDiv.innerHTML = "<p style='color:#e74c3c; padding:20px;'>A conexão com o acervo falhou.</p>"; 
-    }
-};
-
-window.arquivarPergaminhoAtual = async function() {
-    const titulo = document.getElementById('last-title').innerText;
-    const conteudo = document.getElementById('last-content').innerText;
-    
-    try {
-        const res = await fetch('/api/biblioteca/arquivar', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: meuBruxo.id, titulo, conteudo })
-        });
-        const d = await res.json();
-        mostrarNotificacao(d.msg, "sucesso");
-        syncRequest(); // Atualiza a lista de manuscritos na interface
-    } catch(e) { console.error(e); }
-};
-
-window.abrirManuscritoArquivado = function(titulo, conteudo) {
-    playSFX('click');
-    navBib('ler'); // Volta para a tela de leitura
-    const resDiv = document.getElementById('bib-resultado-leitura');
-    resDiv.classList.remove('oculto');
-    
-    // 🔥 Transformamos a visualização num editor de texto (textarea) disfarçado de pergaminho
-    resDiv.innerHTML = `
-        <div style="padding:20px;">
-            <h2 id="edit-title" style="color:#3d2314; border-bottom: 2px solid #8c6b32; font-family:'Cinzel'; padding-bottom:10px;">${titulo}</h2>
-            
-            <textarea id="edit-content" rows="15" style="width:100%; background:rgba(255,255,255,0.2); border:1px dashed #8c6b32; color:#2c1e16; font-family:'IM Fell English'; font-size:1.1em; line-height:1.6; padding:15px; resize:vertical; outline:none; border-radius:4px;">${conteudo}</textarea>
-            
-            <p style="font-size:0.85em; color:#6b4423; font-style:italic; margin-top:10px;">A tua pena está pronta. Podes continuar a escrever ou editar as palavras da Consciência...</p>
-            
-            <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
-                <button onclick="salvarEdicaoManuscrito()" style="width:auto; padding:10px 20px; background:#155c32; color:#fff; border:none; border-radius:4px; cursor:pointer;">💾 Guardar Alterações</button>
-                <button onclick="document.getElementById('bib-resultado-leitura').classList.add('oculto')" style="width:auto; padding:10px 20px; background:#3d2314; color:#efe1c8; border:none; border-radius:4px; cursor:pointer;">Fechar</button>
-            </div>
-        </div>
-    `;
-};
-
-window.salvarEdicaoManuscrito = async function() {
-    playSFX('click');
-    const titulo = document.getElementById('edit-title').innerText;
-    const conteudoEditado = document.getElementById('edit-content').value;
-    
-    // Altera o botão temporariamente para dar feedback visual
-    const btnSalvar = event.currentTarget;
-    const textoOriginal = btnSalvar.innerText;
-    btnSalvar.innerText = "A guardar...";
-    btnSalvar.disabled = true;
-    
-    try {
-        const res = await fetch('/api/biblioteca/arquivar', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            // Manda o ID do jogador, o título intacto e o NOVO conteúdo
-            body: JSON.stringify({ id: meuBruxo.id, titulo: titulo, conteudo: conteudoEditado })
-        });
-        
-        const d = await res.json();
-        
-        btnSalvar.innerText = "✔️ Guardado!";
-        setTimeout(() => { 
-            btnSalvar.innerText = textoOriginal; 
-            btnSalvar.disabled = false; 
-        }, 2000);
-        
-        mostrarNotificacao("As tuas anotações foram guardadas no Baú.", "sucesso");
-        syncRequest(); // Força o jogo a descarregar a versão atualizada do servidor
-        
-    } catch(e) { 
-        console.error("Erro na pena mágica:", e);
-        mostrarNotificacao("A tinta secou e não guardou.", "erro");
-        btnSalvar.innerText = textoOriginal; 
-        btnSalvar.disabled = false;
-    }
-};
-
-
-async function submeterTese() {
-    const texto = document.getElementById('tese-manuscrito').value;
-    if(texto.length < 50) return mostrarNotificacao("A sua tese é muito rasa para a Consciência.", "erro");
-    
-    document.getElementById('tese-loading').classList.remove('oculto');
-    document.getElementById('btn-submeter-tese').disabled = true;
-
-    try {
-        const res = await fetch('/api/biblioteca/avaliar_tese', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: meuBruxo.id, manuscrito: texto })
-        });
-        const d = await res.json();
-        
-        document.getElementById('tese-loading').classList.add('oculto');
-        document.getElementById('btn-submeter-tese').disabled = false;
-
-        if (d.aprovado) {
-            falarTextoIA("A sua tese foi aceita. O feitiço agora pulsa no seu grimório.", "Consciência");
-            document.getElementById('tese-resultado').innerHTML = `
-                <div class="card" style="border-color:#0f5; text-align:center;">
-                    <h2 style="color:#0f5;">Maniestação Aprovada!</h2>
-                    <p>${d.feedback}</p>
-                    <div style="background:#111; padding:15px; border-radius:8px; margin:10px 0;">
-                        <b style="font-size:1.4em;">${d.feitico.nome}</b><br>
-                        Elemento: ${d.feitico.elemento} | Poder: ${d.feitico.poderBase}
-                    </div>
-                    <button onclick="publicarEstudo('${d.feitico.nome}', '${texto}')">Publicar Estudo para a Comunidade</button>
-                </div>`;
-            syncRequest();
-        } else {
-            document.getElementById('tese-resultado').innerHTML = `<p style="color:#e74c3c;">${d.feedback}</p>`;
-        }
-    } catch(e) {}
-}
-</script>
-
-<div id="aba-castelo" class="aba oculto">
-            <div class="card" style="border-color: #d4af37; background: rgba(212, 175, 55, 0.05); text-align:center;">
-                <h3 style="color:#d4af37; margin-top:0;">O Ciclo da Vida em Hogwarts</h3>
-                <p style="font-size:0.9em; color:#ccc;">Segue estes passos para te tornares o Bruxo mais poderoso:</p>
-                <div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:10px; font-size:0.85em; color:#aaa; margin-top:15px;">
-                    <div style="flex:1; min-width:120px;"><b>1. 🛏️ Descanso</b><br>Dorme no Quarto para restaurar Foco e HP.</div>
-                    <div style="flex:1; min-width:120px;"><b>2. 📚 Academia</b><br>Gasta Foco em Aulas e Biblioteca para ganhar EXP e Magias.</div>
-                    <div style="flex:1; min-width:120px;"><b>3. 🧪 Alquimia</b><br>Colhe ingredientes no Castelo e prepara Poções (Cura/Buff).</div>
-                    <div style="flex:1; min-width:120px;"><b>4. ⚔️ Floresta (PvE)</b><br>Usa Poções e Magias para matar Bosses, ganhar Galeões e Cartas.</div>
-                    <div style="flex:1; min-width:120px;"><b>5. 🦉 Mercado & PvP</b><br>Vende os teus saques raros, compra equipamentos e ganha ELO no Quadribol.</div>
-                </div>
-            </div>
-
-            <div class="card" style="background: rgba(39, 174, 96, 0.1); border-color:#27ae60;">
-                <h3 style="color:#2ecc71;">Rotina do Estudante</h3>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button onclick="acaoRoleplay('comer')" style="flex:1; background:#8e6c1e; color:#fff; border-color:var(--ouro);">🍗 Comer no Salão</button>
-                    <button onclick="acaoRoleplay('dormir')" style="flex:1; background:#2c3e50; color:#fff; border-color:#34495e;">🛏️ Dormir no Quarto</button>
-                    <div style="text-align:right; margin-bottom: 10px;">
-                        <button onclick="convidarParaGrupo()" style="background:#8e44ad; color:#fff; border-color:#9b59b6; width:auto; padding:5px 15px; font-size:0.85em;">🤝 Convidar Jogador para Grupo</button>
-                    </div>
-                </div>
-                
-                <div style="background: rgba(0,0,0,0.5); border: 1px dashed #2ecc71; padding: 15px; margin-top: 15px; border-radius: 4px; text-align:center;">
-                    <h4 style="color:#2ecc71; margin-top:0;">🌿 Herbologia e Coleta</h4>
-                    <p style="font-size:0.85em; color:#aaa;">Procura ingredientes processuais raros pela zona.</p>
-                    <button onclick="coletarRecursos()" style="background:#0e2918; border-color:#2ecc71; color:#2ecc71;">Colher Recursos (2 Foco)</button>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h3>O Mapa do Salteador</h3>
-                <div class="mapa-grid">
-                    <button class="mapa-btn" onclick="entrarZonaCastelo('Salão Principal')">🍽️<br>Salão</button>
-                    <button class="mapa-btn" onclick="entrarZonaCastelo('Grande Escadaria')">🪜<br>Escadaria</button>
-                    <button class="mapa-btn" onclick="entrarZonaCastelo('Masmorras')">🧪<br>Masmorras</button>
-                    <button class="mapa-btn" onclick="entrarZonaCastelo('Torre de Astronomia')">🔭<br>Torre</button>
-                    <button class="mapa-btn" onclick="entrarZonaCastelo('Banheiro da Murta')">👻<br>Banheiro</button>
-                    <button class="mapa-btn" onclick="entrarZonaCastelo('Floresta Proibida')">🌲<br>Floresta</button>
-                    <button class="mapa-btn" onclick="entrarZonaCastelo('Hogsmeade')" style="border-color:#9b59b6;">🍺<br>Hogsmeade</button>
-                    <button class="mapa-btn" onclick="abrirLojaInGame()" style="border-color:var(--ouro);">🛍️<br>Beco Diagonal</button>
-                </div>
-            </div>
-
-            <div class="card" style="border-color: #3498db; box-shadow: inset 0 0 30px rgba(52, 152, 219, 0.1);">
-                <h3>📍 Zona Atual: <span id="ui-zona-nome" style="color:#fff;">Salão Principal</span></h3>
-                
-                <div style="background: rgba(0,0,0,0.5); border: 1px dashed #3498db; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
-                    <h4 style="color:#3498db; margin-top:0;">Interação Dinâmica (IA DM)</h4>
-                    <p style="font-size:0.85em; color:#aaa; font-style:italic;">Escreve qualquer ação (ex: "Tocar na armadura", "Investigar a parede falsa"). O Mestre de Jogo IA ditará as consequências e recompensas.</p>
-                    <div style="display:flex; gap:10px;">
-                        <input type="text" id="in-acao-livre" placeholder="Descreve a tua ação..." style="margin:0;">
-                        <button onclick="realizarAcaoLivre()" style="width:100px; background:#12283a; border-color:#3498db; color:#3498db;">Agir</button>
-                    </div>
-                    <div id="resultado-acao-livre" style="margin-top:15px; color:#2ecc71; font-family:'Courier New', monospace; font-size:0.95em; white-space:pre-wrap; text-shadow:0 0 5px rgba(46,204,113,0.5);"></div>
-                </div>
-
-                <h4 style="color:var(--hp-gold); margin-bottom:5px;">Comunicação Mágica</h4>
-                <div class="chat-tabs">
-                    <button class="active" onclick="mudarAbaChat('zona', this)">📍 Local</button>
-                    <button onclick="mudarAbaChat('global', this)">🌍 Global</button>
-                    <button onclick="mudarAbaChat('grupo', this)" style="color:#3498db;">🤝 Grupo</button>
-                    <button onclick="mudarAbaChat('gremio', this)" style="color:#9b59b6;">🛡️ Guilda</button>
-                </div>
-                
-                <div class="chat-container" id="chat-zona-box"></div>
-                
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="in-chat-zona" placeholder="Pressiona Enter para falar..." style="margin:0;" onkeypress="if(event.key === 'Enter') enviarChatMMO()">
-                    <button onclick="enviarChatMMO()" style="width: 100px;">Falar</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ABA: INVENTÁRIO & POÇÕES -->
-        <div id="aba-inventario" class="aba oculto">
-            
-            <div class="card" style="background: rgba(0,0,0,0.8); border-color:var(--ouro);">
-                <h3 style="color:var(--ouro); text-align:center;">A Tua Varinha Destinada</h3>
-                <!-- CANVAS COM AS NOVAS DIMENSÕES PARA A CAIXA ALMOFADADA -->
-                <canvas id="main-wand-canvas" width="350" height="100" style="margin: 0 auto; display:block; border-radius:4px; box-shadow: 0 0 20px rgba(0,0,0,0.9);"></canvas>
-                <div style="text-align:center; margin-top:15px;">
-                    <h4 id="ui-varinha-nome" style="color:#0f5; margin:0; font-size:1.3em;">Varinha</h4>
-                    <p id="ui-varinha-core" style="color:#ccc; font-size:0.9em; margin:5px 0;">Sincronizando Madeira e Núcleo...</p>
-                    <p id="ui-varinha-lore" style="color:#888; font-style:italic; font-size:0.85em;">"..."</p>
-                </div>
-            </div>
-
-            <div class="card" style="border-color:#27ae60; background:rgba(39, 174, 96, 0.1);">
-                <div style="text-align:center;">
-                    <h3 style="color:#2ecc71; margin:0 0 10px 0;">Laboratório Alquímico</h3>
-                    
-                    <div id="rank-pocoes-ui" style="margin: 15px 0;"></div>
-                    
-                    <button onclick="abrirLivroReceitas()" style="background:#8c6b32; border-color:var(--ouro); color:#fff; font-size:0.8em; padding:8px;">📖 Livro Poções</button>
-                </div>
-                
-                <div id="livro-receitas-ui" class="oculto" style="background:rgba(0,0,0,0.8); padding:15px; border:1px solid #d4af37; margin:15px 0; border-radius:4px;">
-                    <h4 style="color:#d4af37; margin-top:0;">📚 O Livro Avançado do Preparo</h4>
-                    <ul style="color:#ccc; font-size:0.9em; padding-left:20px;">
-                        <li style="margin-bottom:8px;"><b style="color:#2ecc71;">Wiggenweld (500 HP):</b> 1x Ditamno + 1x Muco de Verme</li>
-                        <li style="margin-bottom:8px;"><b style="color:#fff;">Antídoto (200 HP):</b> 1x Bezoar + 1x Ditamno</li>
-                        <li><b style="color:#f1c40f;">Restauradora (1000 HP):</b> 1x Mandrágora + 1x Asfódelo</li>
-                    </ul>
-                </div>
-
-                <div style="display:flex; gap:10px; margin:15px 0; flex-wrap:wrap;" id="botoes-ingredientes">
-                    <button onclick="addIngrediente('ditamno')" style="flex:1; padding:10px;">🌿 Ditamno (<span id="q-ditamno">0</span>)</button>
-                    <button onclick="addIngrediente('muco')" style="flex:1; padding:10px;">💧 Muco (<span id="q-muco">0</span>)</button>
-                    <button onclick="addIngrediente('bezoar')" style="flex:1; padding:10px;">🪨 Bezoar (<span id="q-bezoar">0</span>)</button>
-                    <button onclick="addIngrediente('asfodelo')" style="flex:1; padding:10px;">🌱 Asfódelo (<span id="q-asfodelo">0</span>)</button>
-                    <button onclick="addIngrediente('mandragora')" style="flex:1; padding:10px;">🪴 Mandrágora (<span id="q-mandragora">0</span>)</button>
-                </div>
-                
-                <div style="background:rgba(0,0,0,0.6); padding:15px; border:1px dashed #2ecc71; margin-bottom:15px; color:#aaa; text-align:center;" id="caldeirao-atual">Caldeirão Vazio... Junta os ingredientes.</div>
-                
-                <div style="display:flex; gap:10px;">
-                    <button onclick="iniciarMinigamePocao()" style="background:#0e2918; color:var(--ouro); border-color:var(--ouro); flex:3;">🔥 Acender Fogo Mágico</button>
-                    <button onclick="limparCaldeirao()" style="background:#4a0000; color:#e74c3c; border-color:#e74c3c; flex:1;">Vazar Água (Limpar)</button>
-                </div>
-            </div>
-
-            <!-- O MINIGAME VISUAL DE POÇÕES -->
-            <div id="minigame-pocao-ui" class="alchemy-panel oculto" style="margin-bottom:20px;">
-                <h4 style="color:#2ecc71; margin-top:0; font-size:1.5em;">🔥 Fervura Mágica 🔥</h4>
-                <div class="caldeirao-anim" id="pocao-anim-icon">🍲</div>
-                
-                <div class="alchemy-status-box">
-                    <div id="pocao-instrucao" class="alchemy-instruction" style="color: #f39c12;">Aquece o caldeirão!</div>
-                    
-                    <div style="display:flex; justify-content:space-between; font-size:0.85em; color:#aaa; margin-bottom:4px;">
-                        <span>Calor:</span> <span id="txt-temp" style="font-weight:bold; color:#f39c12;">50°C</span>
-                    </div>
-                    <div class="meter-bg"><div class="meter-target"></div><div id="pocao-calor-fill" class="meter-fill-calor"></div></div>
-                    
-                    <div style="display:flex; justify-content:space-between; font-size:0.85em; color:#aaa; margin-top:12px; margin-bottom:4px;">
-                        <span>Mistura:</span> <span id="txt-mistura" style="font-weight:bold; color:#2ecc71;">0%</span>
-                    </div>
-                    <div class="meter-bg"><div id="pocao-mistura-fill" class="meter-fill-mistura"></div></div>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                    <button onclick="pocaoAcao('fogo')" style="background:#8e24aa; color:#fff; border-color:#9b59b6;">🔥 Assoprar Fogo</button>
-                    <button onclick="pocaoAcao('mexer')" style="background:#2980b9; color:#fff; border-color:#3498db;">🥄 Mexer Poção</button>
-                </div>
-                <div style="margin-top:15px; font-weight:bold; color:var(--ouro); font-size:1.1em;">Pronta em: <span id="pocao-timer">15</span>s</div>
-            </div>
-
-            <div class="card" style="background: rgba(41, 128, 185, 0.1); border-color:#3498db;">
-                <h3 style="color:#3498db;">Mochila Escolar & Livros</h3>
-                <div id="lista-mochila" style="display:flex; flex-direction:column; gap:8px; max-height:250px; overflow-y:auto; margin-bottom:15px;">Vazia.</div>
-                <h4 style="margin-top:20px; color:#aaa; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:5px;">Obras Adquiridas</h4>
-                <div id="lista-livros" style="display:flex; flex-direction:column; gap:5px;"></div>
-            </div>
-            
-            <div class="card">
-                <h3>O Teu Grimório de Combate (<span id="deck-count">0</span>/4)</h3>
-                <div id="lista-maestria" style="max-height: 250px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;"></div>
-            </div>
-        </div>
-
-        <!-- ABA: SOCIAL -->
-        <div id="aba-social" class="aba oculto">
-            <div class="card" style="border-color:#3498db; text-align:center;">
-                <h3 style="color:var(--ouro); font-size:2em;">🏆 Leaderboard Global</h3>
-                <p style="color:#aaa; font-size:0.9em;">Os melhores bruxos do mundo em cada disciplina.</p>
-                
-                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:15px; margin-top:20px;" id="hall-of-fame-grid">
-                    A Sincronizar com o Ministério da Magia...
-                </div>
-            </div>
-            
-            <div class="card">
-                <h3 style="color:var(--ouro);">🏆 Salão da Fama</h3>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
-                    <div><h4 style="color:#aaa; border-bottom:1px solid #444; padding-bottom:5px;">Duelistas Lendários</h4><ol id="rank-duelos" style="padding-left:20px; color:#ccc;"></ol></div>
-                    <div><h4 style="color:#aaa; border-bottom:1px solid #444; padding-bottom:5px;">Bruxos Sábios</h4><ol id="rank-nivel" style="padding-left:20px; color:#ccc;"></ol></div>
-                </div>
-            </div>
-		</div>	
-
-        <!-- ABA: PVE -->
-        <div id="aba-pve" class="aba oculto">
-            <div class="card" style="border-color: #e74c3c; background: rgba(231, 76, 60, 0.1);">
-                <h3 style="color: #e74c3c; text-align:center; font-size:1.8em;">A Floresta Proibida</h3>
-                <p style="color:#aaa; font-size:0.95em; text-align:center; margin-bottom:15px;">Criaturas das trevas aguardam-te. O nível sobe à medida que adentras na escuridão.</p>
-                
-                <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:8px; border:1px solid #e74c3c; margin-bottom:20px; text-align:center;">
-                    <h4 style="color:#fff; margin:0 0 10px 0;">O Teu Progresso</h4>
-                    <p style="color:#aaa; font-size:0.9em; margin:5px 0;">Nível da Floresta: <b id="ui-pve-nivel" style="color:var(--ouro); font-size:1.2em;">1</b></p>
-                    <p style="color:#aaa; font-size:0.9em; margin:5px 0;">Área Atual: <b id="ui-pve-area" style="color:#e74c3c; font-size:1.2em;">1</b>/7</p>
-                    <p style="color:#aaa; font-size:0.9em; margin:5px 0;">Modificador de Fúria: <span id="ui-pve-mult" style="color:#2ecc71; font-weight:bold;">1.0x</span></p>
-                </div>
-
-                <div style="display:flex; justify-content:center;">
-                    <button onclick="entrarDungeonAcao('floresta')" style="background: #600000; color: #fff; border-color:#e74c3c; font-size:1.1em; padding:15px 30px;">Adentrar na Escuridão (3 Foco)</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ABA: PVP -->
-        <div id="aba-pvp" class="aba oculto">
-            <div class="card" style="background: rgba(0, 255, 204, 0.05); border-color: #00ffcc; text-align:center;">
-                <h3 style="color: #00ffcc; font-size:1.8em; margin-bottom: 5px;">O Clube de Duelos</h3>
-                
-                <div id="rank-duelos-ui" style="margin: 15px 0;"></div>
-                
-                <p style="color:#aaa; font-size:0.95em; margin-bottom:25px;">Combate bruxos reais de todo o mundo. Não te esqueças da vénia de respeito.</p>
-                <div style="display:flex; flex-direction:column; align-items:center; gap:15px;">
-                    <button onclick="entrarFilaPvP()" id="btn-fila-pvp" style="background: #011a14; color: #00ffcc; border-color:#00ffcc; font-size:1.1em; padding:15px 30px;">Entrar na Fila Ranked</button>
-                    <div id="pvp-status-msg" style="color:#00ffcc; font-weight:bold; font-style:italic;"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ABA: QUADRIBOL -->
-        <div id="aba-quadribol" class="aba oculto">
-            <div class="card" style="border-color: #f1c40f; background: rgba(241, 196, 15, 0.05); text-align:center;">
-                <h3 style="color: #f1c40f; font-size:1.8em; margin-bottom:5px;">Campo de Quadribol</h3>
-                
-                <div id="rank-quadribol-ui" style="margin: 15px 0;"></div>
-                
-                <div id="q-lobby" style="background: rgba(0,0,0,0.6); border: 1px solid var(--ouro); padding: 25px; border-radius: 4px; margin-bottom: 15px;">
-                    <h4 style="color:#fff; margin-top:0;">O Teu Papel na Equipa</h4><div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin:20px 0;">
-                        <button class="active" id="btn-role-artilheiro" onclick="selecionarPosicaoQ('Artilheiro')" style="padding:15px; background:rgba(231,76,60,0.2); border-color:#e74c3c;">🔴 Artilheiro (Goles)</button>
-                        <button id="btn-role-apanhador" onclick="selecionarPosicaoQ('Apanhador')" style="padding:15px; background:rgba(241,196,15,0.2); border-color:#f1c40f;">🟡 Apanhador (Pomo)</button>
-                    </div>
-                    <button onclick="entrarQuadribol()" style="background:#5c3a21; color:var(--ouro); border-color:var(--ouro); padding:15px 30px; font-size:1.1em;">Entrar no Matchmaking</button>
-                    <p style="color:#888; font-size:0.85em; margin-top:15px;">O teu ELO de Voo: <span id="ui-elo-q" style="color:var(--ouro); font-weight:bold;">1000</span></p>
-                </div>
-
-                <div id="quadribol-pitch" class="oculto" style="width: 100%; height: 350px; background: #0e2918; border: 2px solid #fff; position: relative; overflow: hidden; box-shadow: inset 0 0 60px #000; border-radius:4px;">
-                    <div class="q-hoop-container left"><div class="q-hoop"></div> <div class="q-hoop" style="transform:scale(1.2) translateY(-10px);"></div> <div class="q-hoop"></div></div>
-                    <div class="q-hoop-container right"><div class="q-hoop"></div> <div class="q-hoop" style="transform:scale(1.2) translateY(-10px);"></div> <div class="q-hoop"></div></div>
-                    <div id="q-bola" class="q-ball"></div>
-                    <div id="q-snitch" class="oculto"></div>
-                    <div id="q-players-container"></div>
-                    
-                    <div id="q-joystick-zone">
-                        <div id="q-joystick-knob"></div>
-                    </div>
-                </div>
-                
-                <div id="q-logs" style="text-align:center; color:#fff; font-weight:bold; margin-top:15px; font-size:1.1em; text-shadow:0 0 5px #000;"></div>
-                
-                <div id="q-controls" class="oculto" style="text-align:center; margin-top:20px;">
-                    <div style="display:flex; justify-content:center; gap:10px;">
-                        <button onclick="acaoQuadribol('chutar')" style="background:#2980b9; color:#fff; border-color:#3498db;">☄️ Lançar Goles</button>
-                        <button onclick="acaoQuadribol('apanhar_pomo')" style="background:#d4af37; color:#000; border-color:#f1c40f;">✨ Apanhar Pomo!</button>
-                        <button onclick="sairDoQuadribol()" style="background:#c0392b; color:#fff; border-color:#e74c3c;">Descer da Vassoura</button>
-                   </div>
-                </div>
-            </div>
-        </div>
-
-    </div> <!-- ESTE É O FECHAMENTO QUE FALTAVA DO #ui-main -->
-</div> <!-- ESTE É O FECHAMENTO QUE FALTAVA DO .container -->
-<div id="aba-aventura" class="aba oculto">
-            <div class="card" style="border-color: #ff9900; background: rgba(255, 153, 0, 0.05);">
-                <h3 style="color: #ff9900; text-align:center; font-size:1.8em;">O Oráculo das Missões</h3>
-                <p style="color:#aaa; font-size:0.95em; text-align:center; margin-bottom:15px;">Pede à IA uma missão única e resolve-a pelo castelo para ganhares glória.</p>
-                
-                <div id="quest-ativa-box" style="background:rgba(0,0,0,0.6); padding:15px; border-radius:8px; border:1px dashed #ff9900; margin-bottom:20px; text-align:center;">
-                    Sem missão ativa. Consulta o Oráculo.
-                </div>
-
-                <div style="display:flex; justify-content:center;">
-                    <button onclick="pedirNovaQuestIA()" style="background: #4a2b00; color: #ff9900; border-color:#ff9900; font-size:1.1em; padding:15px 30px;">🔮 Pedir Missão ao Oráculo</button>
-                </div>
-            </div>
-        </div>
-
-<!-- ARENA DE COMBATE (Mantém a base, só refina visual) -->
-<div id="arena-acao" class="arena-action-bg oculto">
-    <div id="arena-flash" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:9999; pointer-events:none; opacity:0;"></div>
-    
-    <div id="ca-dungeon-info" class="dungeon-hud-info oculto">Floresta Proibida - Fase 1/3</div>
-    
-    <div style="padding: 15px; display: flex; justify-content: space-between; align-items:center; background:rgba(3,5,9,0.98); border-bottom: 1px solid var(--ouro); z-index: 2; font-family:'Cinzel',serif;">
-        <div style="width: 35%;">
-            <div style="color:#2ecc71; font-weight:bold; font-size:1.2rem;" id="ca-player-name">O Bruxo</div>
-            <div class="bar-bg" style="height:20px;">
-                <div class="hp-bar-fill" id="ca-player-hp"></div>
-                <div class="hp-text-overlay" id="ca-player-hp-txt">1000/1000</div>
-            </div>
-        </div>
-        <div style="text-align:center;">
-            <button class="btn-fugir" onclick="fugirCombate()" style="margin-bottom:5px;">🏃 Desistir</button>
-            <div id="ca-target-selector" style="display:flex; gap:5px; justify-content:center; flex-wrap:wrap;"></div>
-        </div>
-        <div style="width: 35%; text-align:right;">
-            <div style="color:#e74c3c; font-weight:bold; font-size:1.2rem;" id="ca-boss-name">Trevas</div>
-            <div class="bar-bg" style="height:20px;">
-                <div class="hp-bar-fill" id="ca-boss-hp" style="background:linear-gradient(90deg, #600000, #e74c3c); box-shadow: 0 0 10px #e74c3c;"></div>
-                <div class="hp-text-overlay" id="ca-boss-hp-txt">1000/1000</div>
-            </div>
-        </div>
-    </div>
-    
-    <canvas id="engine-combate" width="1000" height="600" style="width: 100%; flex-grow:1; max-height: 65vh;"></canvas>
-
-    <div style="z-index: 2; background: rgba(0,0,0,0.9); border-top: 1px solid rgba(52,152,219,0.5);">
-        <div class="mana-bar-container">
-            <div class="mana-fill" id="ca-mana-fill" style="box-shadow: 0 0 15px #3498db;"></div>
-            <div class="mana-segments">
-                <div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div>
-            </div>
-            <div style="position:absolute; top:0; left:50%; transform:translateX(-50%); color:#fff; font-weight:bold; text-shadow:0 0 5px #3498db; line-height:25px;" id="ca-mana-text">A canalizar Aura...</div>
-        </div>
-        <div class="hotbar" id="ca-hotbar"></div>
-    </div>
-</div>
 
 <!-- MODAL LIVRO -->
 <div id="modal-livro" class="oculto" style="position:fixed; top:5%; left:50%; transform:translateX(-50%); width:95%; max-width:700px; background:var(--bg-dark); border:1px solid var(--ouro); border-radius:6px; z-index:100000; padding:0; box-shadow: 0 0 60px rgba(0,0,0,0.95); max-height:90vh; overflow-y:auto; display:flex; flex-direction:column;">
@@ -2801,8 +1965,57 @@ let arenaInimigos = []; // Array de inimigos
     window.nav = function(abaId, btn) { 
         playSFX('click');
         document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
-        document.querySelectorAll('.tabs button').forEach(el => el.classList.remove('active')); 
-        document.getElementById('aba-' + abaId).classList.remove('oculto'); btn.classList.add('active'); 
+        document.querySelectorAll('.sub-tabs button').forEach(el => el.classList.remove('active')); 
+        
+        const alvo = document.getElementById('aba-' + abaId);
+        if(alvo) alvo.classList.remove('oculto'); 
+        
+        if (btn) btn.classList.add('active'); 
+    };
+	
+	window.mudarCategoria = function(categoria) {
+        playSFX('click');
+        
+        // Ativa botão principal
+        document.querySelectorAll('.main-nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-cat-${categoria}`).classList.add('active');
+        
+        // Revela Sub-menu correto
+        document.querySelectorAll('.sub-tabs').forEach(el => el.classList.add('oculto'));
+        const subMenu = document.getElementById(`sub-${categoria}`);
+        if(subMenu) {
+            subMenu.classList.remove('oculto');
+            // Clica na primeira aba deste menu
+            const primeiroBotao = subMenu.querySelector('button');
+            if(primeiroBotao) {
+                primeiroBotao.click();
+                subMenu.scrollLeft = 0; 
+            }
+        }
+    };
+	
+	// ==============================================================================
+    // SISTEMA DO MAPA DO SALTEADOR (Popup)
+    // ==============================================================================
+    window.abrirMapaSalteador = function() {
+        playSFX('magic');
+        document.getElementById('modal-mapa').classList.remove('oculto');
+    };
+
+    window.fecharMapaSalteador = function(e, forced = false) {
+        if (forced || (e && e.target.id === 'modal-mapa')) {
+            playSFX('click');
+            document.getElementById('modal-mapa').classList.add('oculto');
+        }
+    };
+
+    window.viajarPara = function(zona) {
+        entrarZonaCastelo(zona); // Muda o jogador no Socket
+        fecharMapaSalteador(null, true);
+        mostrarNotificacao(`Viajaste para: ${zona}`, 'info');
+        
+        // Muda para a aba Castelo para ele ver onde chegou
+        mudarCategoria('explorar');
     };
 	
 	// SOCIAL: EMPACOTAR FIGURINHA REPETIDA PARA VENDER NO MERCADO
@@ -3392,9 +2605,16 @@ let arenaInimigos = []; // Array de inimigos
         playSFX('error'); combatEngineAtivo = false; clearInterval(arenaLoop); 
         mostrarNotificacao("🏃 Fugiste da batalha!", "erro"); 
         meuBruxo.hpAtual = Math.floor(meuBruxo.hpAtual * 0.9); 
+        
         document.getElementById('arena-acao').classList.add('oculto'); 
         
-        // 🔥 CORREÇÃO: Pede ao Servidor para matar a Masmorra para não criar lag!
+        // Restaura a UI de forma segura
+        const navContainer = document.querySelector('.main-nav-container');
+        if(navContainer) navContainer.classList.remove('oculto');
+        
+        // 🔥 CORREÇÃO: Devolve o jogador à Floresta (Terrenos/Explorar)
+        if(typeof mudarCategoria === 'function') mudarCategoria('explorar'); 
+        
         try {
             await fetch('/api/dungeon/fugir', { method:'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: meuBruxo.id, instId: combatInstId}) });
         } catch(e) {}
@@ -3406,8 +2626,14 @@ let arenaInimigos = []; // Array de inimigos
         if (!meuBruxo || meuBruxo.focoAtual < 3) return mostrarNotificacao("Precisas de 3 de Foco.", "erro");
 
         // Bloqueia a interface imediatamente para loading suave
-        document.getElementById('ui-main').classList.add('oculto');
-        document.getElementById('arena-acao').classList.remove('oculto');
+        document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
+        const arena = document.getElementById('arena-acao');
+        if(arena) arena.classList.remove('oculto');
+
+        // Esconde a navegação superior para imersão total
+        const navContainer = document.querySelector('.main-nav-container');
+        if(navContainer) navContainer.classList.add('oculto');
+        document.querySelectorAll('.sub-tabs').forEach(el => el.classList.add('oculto'));
 
         cvs = document.getElementById('engine-combate');
         ctxCombat = cvs.getContext('2d');
@@ -3421,23 +2647,37 @@ let arenaInimigos = []; // Array de inimigos
             const d = await res.json();
 
             if (d.erro) {
-                document.getElementById('arena-acao').classList.add('oculto');
-                document.getElementById('ui-main').classList.remove('oculto');
+                // Restaura a UI de forma segura se der erro
+                if(arena) arena.classList.add('oculto');
+                if(navContainer) navContainer.classList.remove('oculto');
+                
+                // 🔥 CORREÇÃO: Volta para a aba Explorar (Terrenos)
+                const subMenu = document.getElementById('sub-explorar');
+                if (subMenu) subMenu.classList.remove('oculto');
+                const abaPve = document.getElementById('aba-pve');
+                if (abaPve) abaPve.classList.remove('oculto');
+                
                 return mostrarNotificacao(d.erro, "erro");
             }
 
             isPvP = false; combatInstId = d.idInstancia;
 
-            // 🔥 Atualiza Foco visualmente com segurança
+            // Atualiza Foco visualmente com segurança
             meuBruxo.focoAtual -= 3;
             atualizarInterfaceMagica();
 
             iniciarArenaLocal(d.estado.entidades[0].nome, d.estado.entidades[0].hpMax, null, false, d.estado.entidades);
             mostrarNotificacao(`⚠️ A floresta move-se... Prepare-se!`, "info");
         } catch(e) {
-            console.error("Erro real na floresta capturado:", e); // Mostra o erro verdadeiro no Console (F12)
-            document.getElementById('arena-acao').classList.add('oculto');
-            document.getElementById('ui-main').classList.remove('oculto');
+            console.error("Erro real na floresta capturado:", e); 
+            if(arena) arena.classList.add('oculto');
+            if(navContainer) navContainer.classList.remove('oculto');
+            
+            const subMenu = document.getElementById('sub-explorar');
+            if (subMenu) subMenu.classList.remove('oculto');
+            const abaPve = document.getElementById('aba-pve');
+            if (abaPve) abaPve.classList.remove('oculto');
+            
             mostrarNotificacao("A ligação mágica com a floresta foi cortada.", "erro");
         }
     };
@@ -3487,7 +2727,18 @@ let arenaInimigos = []; // Array de inimigos
     
     function finalizarArena(vitoria) { 
         combatEngineAtivo = false; clearInterval(arenaLoop); 
-        setTimeout(()=>{ document.getElementById('arena-acao').classList.add('oculto'); window.syncRequest(); }, 3500); 
+        setTimeout(()=>{ 
+            document.getElementById('arena-acao').classList.add('oculto'); 
+            
+            // Restaura a UI de forma segura
+            const navContainer = document.querySelector('.main-nav-container');
+            if(navContainer) navContainer.classList.remove('oculto');
+            
+            // 🔥 CORREÇÃO: Devolve o jogador à Floresta (Terrenos/Explorar)
+            if(typeof mudarCategoria === 'function') mudarCategoria('explorar'); 
+            
+            window.syncRequest(); 
+        }, 3500); 
     }
 	
 	let floatingTexts = [];
@@ -4068,6 +3319,64 @@ let arenaInimigos = []; // Array de inimigos
         const pomo = document.getElementById('q-snitch');
         if(p.snitch.active) { pomo.classList.remove('oculto'); pomo.style.left = `${(p.snitch.x/800)*100}%`; pomo.style.top = `${(p.snitch.y/400)*100}%`; } else { pomo.classList.add('oculto'); }
     });
+	
+	socket.on('mmo_world_update', (sala) => {
+    const container = document.getElementById('mmo-live-events');
+    if(!container) return;
+    let html = '';
+    
+    sala.entidades.forEach(m => {
+        html += `
+        <div class="action-card" id="card_${m.id}" style="border-color:#e74c3c; position:relative;">
+            <b style="color:#e74c3c;">👾 ${m.nome}</b>
+            <div id="wait_${m.id}" style="font-size:0.7em; color:var(--ouro);">Livre para ataque</div>
+            <button onclick="mmoInteragirMundo('${m.id}', 'combate')">⚔️ PARTICIPAR</button>
+        </div>`;
+    });
+
+    sala.itens.forEach(i => {
+        html += `
+        <div class="action-card" id="card_${i.id}" style="border-color:#2ecc71;">
+            <b style="color:#2ecc71;">📦 ${i.nome}</b>
+            <div id="prog_${i.id}" style="font-size:0.6em; color:#aaa;">Distante...</div>
+            <button onclick="iniciarMinigameColeta('${i.id}')">🔎 PROCURAR</button>
+        </div>`;
+    });
+    container.innerHTML = html || "<p style='color:#666; font-size:0.8em; width:100%; text-align:center;'>O castelo está calmo...</p>";
+});
+socket.on('mmo_raid_status', (d) => {
+    const label = document.getElementById(`wait_${d.id}`);
+    if(label) label.innerText = `🔥 Preparando... (${d.count} bruxos)`;
+});
+
+// Minigame de Coleta (Cliques)
+window.iniciarMinigameColeta = function(id) {
+    let clicks = 0;
+    const btn = event.target;
+    btn.innerText = "CLICA RÁPIDO!";
+    
+    const inter = setInterval(() => {
+        clicks++;
+        document.getElementById(`prog_${id}`).innerText = "Procurando... " + (clicks * 10) + "%";
+        gerarSparksEmCombate(window.innerWidth/2, window.innerHeight/2, '#2ecc71', 5);
+        
+        if(clicks >= 10) {
+            clearInterval(inter);
+            socket.emit('mmo_action', { idAlvo: id, tipo: 'coleta', zona: zonaAtual });
+            mostrarNotificacao("Encontraste o item!", "sucesso");
+        }
+    }, 300);
+};
+
+window.mmoInteragirMundo = function(idAlvo, tipo) {
+    playSFX('magic');
+    if(tipo === 'combate') {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerText = "AGUARDANDO...";
+    }
+    socket.emit('mmo_action', { idAlvo, tipo, zona: zonaAtual });
+};
 socket.on('receber_convite_grupo', (dados) => {
         playSFX('magic');
         const aceita = confirm(`🤝 O bruxo ${dados.liderNome} convidou-te para um Grupo de Exploração!\n\nSe aceitares, entrarão nas mesmas Masmorras juntos.\nAceitar?`);
@@ -4141,46 +3450,50 @@ socket.on('receber_convite_grupo', (dados) => {
             falarTextoIA(dados.texto, dados.autor);
         }
     });
+socket.on('mmo_spawn_mob', (d) => {
+    const box = document.getElementById('chat-zona-box');
+    box.innerHTML += `
+        <div class="chat-msg" id="mmo_obj_${d.id}">
+            <span style="color:#e74c3c; font-weight:bold;">🚨 EVENTO:</span> ${d.texto} 
+            <button onclick="mmoInteragir('${d.id}')" style="width:auto; padding:2px 10px; margin-left:10px; background:#c0392b;">ATACAR</button>
+        </div>`;
+    box.scrollTop = box.scrollHeight;
+    falarTextoIA(d.texto, "Sistema");
+});
 
-    socket.on('pvp_start', (dados) => { isPvP = true; combatInstId = dados.instId; iniciarArenaLocal(dados.inimigoNome, dados.maxHpInimigo, null, true); mostrarNotificacao("⚔️ DUELO INICIADO!", "info"); });
-    socket.on('pvp_update', (dados) => { if(!combatEngineAtivo) return; playerCurrentHp = dados.meuHp; bossCurrentHp = dados.inimigoHp; atualizarHPUIVisual(); document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 200); });
-    socket.on('pvp_fim', (dados) => { combatEngineAtivo = false; clearInterval(arenaLoop); mostrarNotificacao(`${dados.msg}`, "info"); setTimeout(() => { document.getElementById('arena-acao').classList.add('oculto'); document.getElementById('btn-fila-pvp').disabled = false; safeSet('pvp-status-msg', ""); syncRequest(); }, 3500); });
-    // ==============================================================================
-    // DRAG-TO-SCROLL PARA MENU PC (Substitui Touch Screen no Rato)
-    // ==============================================================================
-    document.addEventListener('DOMContentLoaded', () => {
-        const tabsContainer = document.getElementById('nav-tabs');
-        if(!tabsContainer) return;
-        
-        let isDown = false;
-        let startX;
-        let scrollLeft;
+socket.on('mmo_spawn_item', (d) => {
+    const box = document.getElementById('chat-zona-box');
+    box.innerHTML += `
+        <div class="chat-msg" id="mmo_obj_${d.id}">
+            <span style="color:#f1c40f; font-weight:bold;">✨ DROP:</span> ${d.texto} 
+            <button onclick="mmoInteragir('${d.id}')" style="width:auto; padding:2px 10px; margin-left:10px; background:#f39c12; color:#000;">COLETAR</button>
+        </div>`;
+    box.scrollTop = box.scrollHeight;
+});
 
-        tabsContainer.addEventListener('mousedown', (e) => {
-            isDown = true;
-            tabsContainer.style.cursor = 'grabbing';
-            startX = e.pageX - tabsContainer.offsetLeft;
-            scrollLeft = tabsContainer.scrollLeft;
-        });
+window.mmoInteragir = function(idAlvo) {
+    playSFX('magic');
+    socket.emit('mmo_interagir_objeto', { alvoId: idAlvo });
+};
+
+// Remove o objeto da tela quando alguém interage
+// Remove o objeto da tela suavemente quando coletado
+socket.on('mmo_item_coletado', (d) => {
+    // O ID visual do bloco no HTML é gerado como "card_ID", não "mmo_obj_ID"
+    const cardEl = document.getElementById(`card_${d.id}`);
+    
+    if (cardEl) {
+        // Transforma o cartão visualmente antes de desaparecer
+        cardEl.style.borderColor = "#888";
+        cardEl.style.opacity = "0.5";
+        cardEl.innerHTML = `<b style="color:#888;">${d.texto}</b>`;
         
-        tabsContainer.addEventListener('mouseleave', () => {
-            isDown = false;
-            tabsContainer.style.cursor = 'pointer';
-        });
-        
-        tabsContainer.addEventListener('mouseup', () => {
-            isDown = false;
-            tabsContainer.style.cursor = 'pointer';
-        });
-        
-        tabsContainer.addEventListener('mousemove', (e) => {
-            if (!isDown) return;
-            e.preventDefault();
-            const x = e.pageX - tabsContainer.offsetLeft;
-            const walk = (x - startX) * 2; // Velocidade de deslize
-            tabsContainer.scrollLeft = scrollLeft - walk;
-        });
-    });
+        // Remove a div por completo passados 2 segundos
+        setTimeout(() => {
+            if(cardEl) cardEl.remove();
+        }, 2000);
+    }
+});
 	
 	// ==============================================================================
     // LÓGICA DO JOYSTICK ANALÓGICO MOBILE
@@ -4941,6 +4254,528 @@ function pararDragMovel() {
         mostrarNotificacao(`Convite enviado a ${nomeAlvo}!`, 'sucesso');
         document.getElementById('modal-perfil').classList.add('oculto');
     };
+	let quizInterval; let respostaCorretaQuiz = -1;
+    window.iniciarQuiz = async function() {
+        playSFX('magic');
+        document.getElementById('btn-iniciar-quiz').classList.add('oculto');
+        document.getElementById('quiz-game-area').classList.remove('oculto');
+        safeSet('quiz-pergunta', 'O Oráculo está a formular a pergunta...');
+        document.getElementById('quiz-opcoes').innerHTML = '';
+        
+        const res = await fetch('/api/quiz/novo');
+        const q = await res.json();
+        
+        if(!q) return;
+        respostaCorretaQuiz = q.correta;
+        safeSet('quiz-pergunta', q.pergunta);
+        
+        let html = '';
+        q.opcoes.forEach((op, index) => {
+            html += `<button onclick="responderQuiz(${index})" style="background:#111; color:#fff; border-color:#1abc9c; text-align:left; padding:15px;">${['A', 'B', 'C', 'D'][index]}) ${op}</button>`;
+        });
+        document.getElementById('quiz-opcoes').innerHTML = html;
+        
+        let tempo = 15; safeSet('quiz-timer', tempo + 's');
+        clearInterval(quizInterval);
+        quizInterval = setInterval(() => {
+            tempo--; safeSet('quiz-timer', tempo + 's');
+            if(tempo <= 0) { clearInterval(quizInterval); responderQuiz(-1); } // Timeout
+        }, 1000);
+    };
+
+    window.responderQuiz = async function(idx) {
+        clearInterval(quizInterval); playSFX('click');
+        let acertou = (idx === respostaCorretaQuiz);
+        try {
+            const res = await fetch('/api/quiz/responder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, acertou }) });
+            const d = await res.json();
+            mostrarNotificacao(d.msg, acertou ? 'sucesso' : 'erro');
+            safeSet('ui-elo-quiz', d.elo);
+            document.getElementById('quiz-game-area').classList.add('oculto');
+            document.getElementById('btn-iniciar-quiz').classList.remove('oculto');
+            document.getElementById('btn-iniciar-quiz').innerText = "Procurar Nova Pergunta";
+            syncRequest();
+        } catch(e) {}
+    };
+	   let baileAtivo = false; let notas = []; let bScore = 0; let bCombo = 0; let bTick = 0; let bLoop;
+    const canaisX = [50, 150, 250, 350]; // Posições no Canvas 400px
+
+    window.iniciarBaile = function() {
+        if(meuBruxo.focoAtual < 2) return mostrarNotificacao("Precisas de 2 Foco para dançar.", "erro");
+        document.getElementById('baile-menu').classList.add('oculto'); document.getElementById('baile-engine').classList.remove('oculto');
+        baileAtivo = true; notas = []; bScore = 0; bCombo = 0; bTick = 0;
+        safeSet('baile-score', 'Score: 0'); safeSet('baile-combo', 'Combo: 0');
+        playSFX('magic');
+        
+        // Gera o Beatmap Mágico (70 notas)
+        for(let i=0; i<70; i++) {
+            notas.push({ y: -100 - (i * 100) - (Math.random()*50), pista: Math.floor(Math.random()*4), hit: false, missed: false });
+        }
+        
+        bLoop = requestAnimationFrame(renderBaile);
+    };
+
+    function renderBaile() {
+        if(!baileAtivo) return;
+        const c = document.getElementById('canvas-baile'); const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, c.width, c.height);
+        
+        // Pistas de fundo
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        [50, 150, 250, 350].forEach(x => ctx.fillRect(x - 30, 0, 60, c.height));
+        
+        // Linha de Hit (Alvo)
+        ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, 420); ctx.lineTo(c.width, 420); ctx.stroke();
+
+        let todasPassaram = true;
+        
+        notas.forEach(n => {
+            if(!n.hit && !n.missed) {
+                todasPassaram = false;
+                n.y += 6; // Velocidade de queda
+                
+                if(n.y > 450) { n.missed = true; bCombo = 0; safeSet('baile-combo', 'Combo: 0'); document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 100); }
+                
+                const cores = ['#e74c3c', '#f1c40f', '#2ecc71', '#3498db'];
+                ctx.fillStyle = cores[n.pista]; ctx.shadowColor = cores[n.pista]; ctx.shadowBlur = 15;
+                ctx.beginPath(); ctx.arc(canaisX[n.pista], n.y, 25, 0, Math.PI*2); ctx.fill();
+            }
+        });
+
+        if(todasPassaram) return finalizarBaile();
+        bLoop = requestAnimationFrame(renderBaile);
+    }
+
+    window.hitNota = function(pistaIndex) {
+        if(!baileAtivo) return;
+        // Encontra a nota mais próxima da linha na pista selecionada
+        let notaAlvo = notas.find(n => !n.hit && !n.missed && n.pista === pistaIndex && n.y > 350 && n.y < 460);
+        
+        if(notaAlvo) {
+            notaAlvo.hit = true;
+            let precision = Math.abs(notaAlvo.y - 420);
+            let pts = precision < 15 ? 100 : (precision < 30 ? 50 : 20);
+            bCombo++; bScore += (pts * (1 + (bCombo*0.1)));
+            safeSet('baile-score', `Score: ${Math.floor(bScore)}`); safeSet('baile-combo', `Combo: ${bCombo}`);
+            gerarSparksEmCombate(Math.random()*400, 420, '#ff00ff', 10); // Reutiliza as tuas sparks!
+            playSFX('click');
+        } else {
+            bCombo = 0; safeSet('baile-combo', 'Combo: 0'); playSFX('error');
+        }
+    };
+
+    // Controlos de Teclado PC
+    window.addEventListener('keydown', (e) => {
+        if(!baileAtivo) return;
+        const key = e.key.toLowerCase();
+        if(key === 'd') hitNota(0); if(key === 'f') hitNota(1);
+        if(key === 'j') hitNota(2); if(key === 'k') hitNota(3);
+    });
+
+    async function finalizarBaile() {
+        baileAtivo = false; cancelAnimationFrame(bLoop);
+        document.getElementById('baile-engine').classList.add('oculto'); document.getElementById('baile-menu').classList.remove('oculto');
+        
+        try {
+            const res = await fetch('/api/baile/recompensa', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: meuBruxo.id, score: bScore}) });
+            const d = await res.json();
+            mostrarNotificacao(d.msg, 'info');
+            syncRequest();
+        } catch(e) {}
+    }
+	window.getRankInfo = function(elo) {
+        if(!elo) elo = 1000;
+        if(elo < 1200) return { n: "Aprendiz", c: "#cd7f32", ic: "🥉" }; // Bronze
+        if(elo < 1400) return { n: "Novato", c: "#bdc3c7", ic: "🥈" }; // Prata
+        if(elo < 1600) return { n: "Adepto", c: "#f1c40f", ic: "🥇" }; // Ouro
+        if(elo < 1900) return { n: "Especialista", c: "#1abc9c", ic: "💎" }; // Platina
+        if(elo < 2200) return { n: "Mestre", c: "#9b59b6", ic: "🔮" }; // Ametista
+        return { n: "Lenda Viva", c: "#e74c3c", ic: "👑" }; // Rubi
+    };
+
+    window.renderRankBadge = function(elo, titulo) {
+        const r = window.getRankInfo(elo);
+        return `<div style="background:rgba(0,0,0,0.6); border:1px solid ${r.c}; padding:10px; border-radius:8px; display:inline-block; box-shadow:0 0 15px ${r.c}40; text-align:center; min-width:120px; margin: 5px;">
+            <div style="font-size:0.7em; color:#aaa; margin-bottom:5px; text-transform:uppercase;">${titulo}</div>
+            <div style="font-size:2.5em; line-height:1; text-shadow:0 0 10px ${r.c};">${r.ic}</div>
+            <div style="color:${r.c}; font-weight:bold; font-family:'Cinzel'; font-size:0.9em; margin-top:5px;">${r.n}</div>
+            <div style="color:#fff; font-size:0.8em; font-weight:bold;">${Math.floor(elo)} ELO</div>
+        </div>`;
+    };
+// ==============================================================================
+// SISTEMA DE ESTUFA E HERBOLOGIA (FRONT-END)
+// ==============================================================================
+let estufaUI_Loop;
+
+function renderizarEstufaUI() {
+    if(!meuBruxo) return;
+    
+    // 🔥 PREVENÇÃO FRONT-END: Se a estufa não existir, cria-a no lado visual!
+    if(!meuBruxo.estufa) {
+        meuBruxo.estufa = [
+            { id: 1, plantada: false, tipo: null, plantaTempo: null },
+            { id: 2, plantada: false, tipo: null, plantaTempo: null },
+            { id: 3, plantada: false, tipo: null, plantaTempo: null }
+        ];
+    }
+    
+    const container = document.getElementById('estufa-vasos-container');
+    if(!container) return;
+    
+    // Inicia o Loop de tempo real apenas se não existir
+    if(!estufaUI_Loop) {
+        estufaUI_Loop = setInterval(atualizarBarrasEstufa, 1000);
+    }
+    
+    let html = '';
+    meuBruxo.estufa.forEach(pote => {
+        if(!pote.plantada) {
+            // Garante que o objeto de sementes existe no Front-End
+            if(!meuBruxo.inventario.sementes) meuBruxo.inventario.sementes = {};
+            let sem = meuBruxo.inventario.sementes;
+
+            // VASO VAZIO (Agora lê do inventário)
+            html += `
+            <div style="background:rgba(0,0,0,0.8); border:2px dashed #555; border-radius:8px; padding:15px; width:100%; max-width:250px;">
+                <h4 style="color:#888; margin:0 0 10px 0;">Vaso ${pote.id} Vazio</h4>
+                <div style="font-size:3em; filter:grayscale(100%); opacity:0.3; margin-bottom:10px;">🪴</div>
+                <select id="semente-vaso-${pote.id}" style="font-size:0.9em; padding:8px; margin-bottom:10px; width:100%;">
+                    <option value="ditamno" ${sem.ditamno > 0 ? '' : 'disabled'}>Semente Ditamno (Tens: ${sem.ditamno || 0})</option>
+                    <option value="mandragora" ${sem.mandragora > 0 ? '' : 'disabled'}>Muda Mandrágora (Tens: ${sem.mandragora || 0})</option>
+                    <option value="asfodelo" ${sem.asfodelo > 0 ? '' : 'disabled'}>Semente Asfódelo (Tens: ${sem.asfodelo || 0})</option>
+                    <option value="muco" ${sem.muco > 0 ? '' : 'disabled'}>Casulo de Verme (Tens: ${sem.muco || 0})</option>
+                    <option value="bezoar" ${sem.bezoar > 0 ? '' : 'disabled'}>Sem. Bezoar (Tens: ${sem.bezoar || 0})</option>
+                </select>
+                <button onclick="plantarNaEstufa(${pote.id})" style="background:#2c1e16; color:var(--ouro); border-color:var(--ouro);">Plantar na Terra</button>
+            </div>`;
+			
+			
+        
+        } else {
+            // VASO OCUPADO
+            html += `
+            <div style="background:rgba(10,30,15,0.9); border:2px solid #2ecc71; border-radius:8px; padding:15px; width:100%; max-width:250px; position:relative;">
+                <h4 style="color:#2ecc71; margin:0 0 10px 0; text-transform:capitalize;">${pote.tipo}</h4>
+                <div style="font-size:3em; text-shadow:0 0 15px #2ecc71; margin-bottom:10px;" id="icon-vaso-${pote.id}">🌱</div>
+                
+                <div class="meter-bg" style="height:15px; margin-bottom:10px;">
+                    <div id="barra-vaso-${pote.id}" style="width:0%; background:linear-gradient(90deg, #27ae60, #2ecc71); height:100%; transition:1s linear;"></div>
+                </div>
+                
+                <div id="info-vaso-${pote.id}" style="margin-bottom:15px;"></div>
+                
+                <div id="acoes-vaso-${pote.id}">
+                </div>
+            </div>`;
+        }
+    });
+    
+    container.innerHTML = html;
+    atualizarBarrasEstufa(); // Chama logo uma vez para forçar o render imediato
+}
+
+// LOOP REAL-TIME: Atualiza as barras de crescimento da estufa
+function atualizarBarrasEstufa() {
+    if(!meuBruxo || !meuBruxo.estufa) return;
+    
+    const agora = Date.now();
+    
+    meuBruxo.estufa.forEach(pote => {
+        if(pote.plantada) {
+            const barra = document.getElementById(`barra-vaso-${pote.id}`);
+            const acoes = document.getElementById(`acoes-vaso-${pote.id}`);
+            const icone = document.getElementById(`icon-vaso-${pote.id}`);
+            const infos = document.getElementById(`info-vaso-${pote.id}`); // Nova div
+            
+            if(!barra || !acoes) return;
+            
+            if(pote.morta) {
+                icone.innerText = "🥀"; barra.style.width = "0%";
+                acoes.innerHTML = `<button onclick="limparVasoMorto(${pote.id})" style="background:#e74c3c;">Limpar Vaso Morto</button>`;
+                return;
+            }
+            
+            let tempoMax = pote.tempoCrescimentoMax || 300000; // 5 Minutos padrão
+            let passado = agora - pote.plantaTempo;
+            let percentagem = Math.min(100, (passado / tempoMax) * 100);
+            
+            if(pote.praga) {
+                icone.innerText = "🐛🌿";
+                acoes.innerHTML = `<button onclick="curarPragaEstufa(${pote.id})" style="background:#8e44ad; color:#fff;">🧪 Lançar Pesticida (2G)</button>`;
+            } else if (percentagem < 100) {
+                icone.innerText = "🌱";
+                acoes.innerHTML = `<button onclick="regarEstufa(${pote.id})" style="background:#3498db; color:#fff;">💦 Regar Planta</button>`;
+            }
+            
+            barra.style.width = `${percentagem}%`;
+            
+            if(infos) {
+                infos.innerHTML = `
+                    <div style="font-size:0.8em; color:#3498db; margin-bottom:5px;">Água: ${Math.floor(pote.agua || 0)}%</div>
+                    <div style="width:100%; height:5px; background:#111;"><div style="width:${pote.agua||0}%; height:100%; background:#3498db;"></div></div>
+                `;
+            }
+            
+            if(percentagem >= 100 && !pote.praga) {
+                icone.innerText = "🌿"; 
+                barra.style.boxShadow = "0 0 15px #2ecc71";
+                acoes.innerHTML = `<button onclick="colherDaEstufa(${pote.id})" style="background:#2ecc71; color:#000; font-weight:bold;">Colher Frutos!</button>`;
+            }
+        }
+    });
+}
+
+window.regarEstufa = async function(poteId) {
+    playSFX('magic');
+    try {
+        const res = await fetch('/api/estufa/regar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
+        const d = await res.json();
+        mostrarNotificacao(d.msg || d.erro, d.erro ? 'erro':'sucesso'); syncRequest();
+    } catch(e){}
+}
+window.curarPragaEstufa = async function(poteId) {
+    playSFX('magic');
+    try {
+        const res = await fetch('/api/estufa/curar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
+        const d = await res.json();
+        mostrarNotificacao(d.msg || d.erro, d.erro ? 'erro':'sucesso'); syncRequest();
+    } catch(e){}
+}
+// ==============================================================================
+// FUNÇÕES DE AÇÃO DA ESTUFA (CHAMAM O BACKEND)
+// ==============================================================================
+window.plantarNaEstufa = async function(poteId) {
+    playSFX('click');
+    const semente = document.getElementById(`semente-vaso-${poteId}`).value;
+    try {
+        const res = await fetch('/api/estufa/plantar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId, semente }) });
+        const d = await res.json();
+        mostrarNotificacao(d.erro || d.msg, d.erro ? 'erro' : 'sucesso');
+        syncRequest();
+    } catch(e) {}
+};
+
+window.cuidarDaEstufa = async function(poteId) {
+    playSFX('magic');
+    try {
+        const res = await fetch('/api/estufa/cuidar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
+        const d = await res.json();
+        if(!d.erro) {
+            gerarSparksEmCombate(window.innerWidth/2, window.innerHeight/2, '#2ecc71', 20); // Reutiliza as partículas visuais
+        }
+        mostrarNotificacao(d.erro || d.msg, d.erro ? 'erro' : 'sucesso');
+        syncRequest();
+    } catch(e) {}
+};
+
+window.colherDaEstufa = async function(poteId) {
+    playSFX('click');
+    try {
+        const res = await fetch('/api/estufa/colher', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, poteId }) });
+        const d = await res.json();
+        if(d.sucesso) {
+            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
+            playSFX('magic');
+        }
+        mostrarNotificacao(d.erro || d.msg, d.erro ? 'erro' : 'sucesso');
+        syncRequest();
+    } catch(e) {}
+};
+// --- LÓGICA DA BIBLIOTECA ---
+
+function navBib(secao) {
+    playSFX('click');
+    document.querySelectorAll('.secao-bib').forEach(el => el.classList.add('oculto'));
+    document.querySelectorAll('.btn-bib-nav').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById('bib-' + secao).classList.remove('oculto');
+    // Adiciona classe active ao botão correto
+    event.currentTarget.classList.add('active');
+}
+
+window.gerarLivroIA = async function() {
+    playSFX('magic');
+    const assunto = document.getElementById('bib-assunto').value;
+    const estilo = document.getElementById('bib-estilo').value;
+    const resDiv = document.getElementById('bib-resultado-leitura');
+
+    if(!assunto) return mostrarNotificacao("Diz à biblioteca o que desejas saber.", "erro");
+
+    resDiv.classList.remove('oculto');
+    resDiv.innerHTML = "<p style='color:#3d2314; font-style:italic; padding:20px;'>A tinta está a espalhar-se pelo pergaminho...</p>";
+
+    try {
+        const res = await fetch('/api/biblioteca/gerar_livro', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: meuBruxo.id, assunto, estilo })
+        });
+        const d = await res.json();
+        
+        if(d.erro) {
+            resDiv.innerHTML = `<p style="color:#e74c3c; padding:20px;">${d.erro}</p>`;
+        } else {
+            // 🔥 FIX: IDs fixos e seletores globais para evitar erros de referência
+            resDiv.innerHTML = `
+                <div style="padding:20px;">
+                    <h2 id="last-title" style="color:#3d2314; border-bottom: 2px solid #8c6b32; font-family:'Cinzel'; padding-bottom:10px;">${d.titulo}</h2>
+                    <div id="last-content" style="color:#2c1e16; line-height:1.6; white-space:pre-wrap; font-family:'IM Fell English'; font-size:1.1em;">${d.conteúdo}</div>
+                    <div style="margin-top:25px; display:flex; gap:10px; justify-content:flex-end;">
+                        <button onclick="arquivarPergaminhoAtual()" style="width:auto; padding:10px 20px; background:#155c32; color:#fff; border:none; border-radius:4px; cursor:pointer;">📜 Guardar no Baú</button>
+                        <button onclick="document.getElementById('bib-resultado-leitura').classList.add('oculto')" style="width:auto; padding:10px 20px; background:#3d2314; color:#efe1c8; border:none; border-radius:4px; cursor:pointer;">Ignorar</button>
+                    </div>
+                </div>
+            `;
+            falarTextoIA("O conhecimento foi invocado.", "Biblioteca");
+        }
+    } catch(e) { 
+        resDiv.innerHTML = "<p style='color:#e74c3c; padding:20px;'>A conexão com o acervo falhou.</p>"; 
+    }
+};
+
+window.arquivarPergaminhoAtual = async function() {
+    const titulo = document.getElementById('last-title').innerText;
+    const conteudo = document.getElementById('last-content').innerText;
+    
+    try {
+        const res = await fetch('/api/biblioteca/arquivar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: meuBruxo.id, titulo, conteudo })
+        });
+        const d = await res.json();
+        mostrarNotificacao(d.msg, "sucesso");
+        syncRequest(); // Atualiza a lista de manuscritos na interface
+    } catch(e) { console.error(e); }
+};
+
+window.abrirManuscritoArquivado = function(titulo, conteudo) {
+    playSFX('click');
+    navBib('ler'); // Volta para a tela de leitura
+    const resDiv = document.getElementById('bib-resultado-leitura');
+    resDiv.classList.remove('oculto');
+    
+    // 🔥 Transformamos a visualização num editor de texto (textarea) disfarçado de pergaminho
+    resDiv.innerHTML = `
+        <div style="padding:20px;">
+            <h2 id="edit-title" style="color:#3d2314; border-bottom: 2px solid #8c6b32; font-family:'Cinzel'; padding-bottom:10px;">${titulo}</h2>
+            
+            <textarea id="edit-content" rows="15" style="width:100%; background:rgba(255,255,255,0.2); border:1px dashed #8c6b32; color:#2c1e16; font-family:'IM Fell English'; font-size:1.1em; line-height:1.6; padding:15px; resize:vertical; outline:none; border-radius:4px;">${conteudo}</textarea>
+            
+            <p style="font-size:0.85em; color:#6b4423; font-style:italic; margin-top:10px;">A tua pena está pronta. Podes continuar a escrever ou editar as palavras da Consciência...</p>
+            
+            <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
+                <button onclick="salvarEdicaoManuscrito()" style="width:auto; padding:10px 20px; background:#155c32; color:#fff; border:none; border-radius:4px; cursor:pointer;">💾 Guardar Alterações</button>
+                <button onclick="document.getElementById('bib-resultado-leitura').classList.add('oculto')" style="width:auto; padding:10px 20px; background:#3d2314; color:#efe1c8; border:none; border-radius:4px; cursor:pointer;">Fechar</button>
+            </div>
+        </div>
+    `;
+};
+
+window.salvarEdicaoManuscrito = async function() {
+    playSFX('click');
+    const titulo = document.getElementById('edit-title').innerText;
+    const conteudoEditado = document.getElementById('edit-content').value;
+    
+    // Altera o botão temporariamente para dar feedback visual
+    const btnSalvar = event.currentTarget;
+    const textoOriginal = btnSalvar.innerText;
+    btnSalvar.innerText = "A guardar...";
+    btnSalvar.disabled = true;
+    
+    try {
+        const res = await fetch('/api/biblioteca/arquivar', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            // Manda o ID do jogador, o título intacto e o NOVO conteúdo
+            body: JSON.stringify({ id: meuBruxo.id, titulo: titulo, conteudo: conteudoEditado })
+        });
+        
+        const d = await res.json();
+        
+        btnSalvar.innerText = "✔️ Guardado!";
+        setTimeout(() => { 
+            btnSalvar.innerText = textoOriginal; 
+            btnSalvar.disabled = false; 
+        }, 2000);
+        
+        mostrarNotificacao("As tuas anotações foram guardadas no Baú.", "sucesso");
+        syncRequest(); // Força o jogo a descarregar a versão atualizada do servidor
+        
+    } catch(e) { 
+        console.error("Erro na pena mágica:", e);
+        mostrarNotificacao("A tinta secou e não guardou.", "erro");
+        btnSalvar.innerText = textoOriginal; 
+        btnSalvar.disabled = false;
+    }
+};
+
+
+async function submeterTese() {
+    const texto = document.getElementById('tese-manuscrito').value;
+    if(texto.length < 50) return mostrarNotificacao("A sua tese é muito rasa para a Consciência.", "erro");
+    
+    document.getElementById('tese-loading').classList.remove('oculto');
+    document.getElementById('btn-submeter-tese').disabled = true;
+
+    try {
+        const res = await fetch('/api/biblioteca/avaliar_tese', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: meuBruxo.id, manuscrito: texto })
+        });
+        const d = await res.json();
+        
+        document.getElementById('tese-loading').classList.add('oculto');
+        document.getElementById('btn-submeter-tese').disabled = false;
+
+        if (d.aprovado) {
+            falarTextoIA("A sua tese foi aceita. O feitiço agora pulsa no seu grimório.", "Consciência");
+            document.getElementById('tese-resultado').innerHTML = `
+                <div class="card" style="border-color:#0f5; text-align:center;">
+                    <h2 style="color:#0f5;">Maniestação Aprovada!</h2>
+                    <p>${d.feedback}</p>
+                    <div style="background:#111; padding:15px; border-radius:8px; margin:10px 0;">
+                        <b style="font-size:1.4em;">${d.feitico.nome}</b><br>
+                        Elemento: ${d.feitico.elemento} | Poder: ${d.feitico.poderBase}
+                    </div>
+                    <button onclick="publicarEstudo('${d.feitico.nome}', '${texto}')">Publicar Estudo para a Comunidade</button>
+                </div>`;
+            syncRequest();
+        } else {
+            document.getElementById('tese-resultado').innerHTML = `<p style="color:#e74c3c;">${d.feedback}</p>`;
+        }
+    } catch(e) {}
+}
+// ==============================================================================
+    // MOTOR DE ARRASTE (MOUSE DRAG) PARA MENUS NO PC
+    // ==============================================================================
+    function inicializarMenusDeslizaveis() {
+        const menus = ['.main-nav-container', '.sub-tabs', '.tabs'];
+        menus.forEach(selector => {
+            const sliders = document.querySelectorAll(selector);
+            sliders.forEach(slider => {
+                let isDown = false; let startX; let scrollLeft;
+
+                slider.addEventListener('mousedown', (e) => {
+                    isDown = true; slider.classList.add('active');
+                    startX = e.pageX - slider.offsetLeft;
+                    scrollLeft = slider.scrollLeft;
+                });
+                slider.addEventListener('mouseleave', () => { isDown = false; });
+                slider.addEventListener('mouseup', () => { isDown = false; });
+                slider.addEventListener('mousemove', (e) => {
+                    if(!isDown) return;
+                    e.preventDefault();
+                    const x = e.pageX - slider.offsetLeft;
+                    const walk = (x - startX) * 2; 
+                    slider.scrollLeft = scrollLeft - walk;
+                });
+            });
+        });
+    }
+    document.addEventListener('DOMContentLoaded', inicializarMenusDeslizaveis);
 </script>
 </body>
 </html>
