@@ -29,42 +29,56 @@ async function inicializarServidor() {
     console.log("A invocar os feitiços de proteção de Gringotes...");
     if (MONGO_URI) {
         try {
-            const client = new MongoClient(MONGO_URI); await client.connect();
-            const db = client.db('hogwarts_db'); core.collection = db.collection('registos_escolares');
+            const client = new MongoClient(MONGO_URI); 
+            await client.connect();
+            const db = client.db('hogwarts_db'); 
+            core.collection = db.collection('registos_escolares');
+            
             const doc = await core.collection.findOne({ _id: 'MATRIZ_HOGWARTS' });
             
             if (doc) {
-                core.alunos = doc.alunos || {}; core.mercadoJogadores = doc.mercadoJogadores || []; 
+                console.log("📜 Registos escolares carregados com sucesso do Atlas!");
+                core.alunos = doc.alunos || {}; 
+                core.mercadoJogadores = doc.mercadoJogadores || []; 
                 core.logs = doc.logs || { salaoPrincipal: [], profetaDiario: [] };
                 core.pontuacaoCasas = doc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
                 core.gremios = doc.gremios || {};
+                
+                // 🔥 CORREÇÃO: Carrega os feitiços criados pelos jogadores e junta-os aos feitiços base!
+                if (doc.livroDeFeiticos) {
+                    core.livroDeFeiticos = { ...core.livroDeFeiticos, ...doc.livroDeFeiticos };
+                }
+            } else {
+                console.log("✨ Criando nova Matriz de Hogwarts no Atlas...");
             }
 
-            // SALVAMENTO LENTO (Apenas para movimento passivo)
-            let precisaSalvar = false; let salvando = false;
-            core._salvarBancoDeDados = () => { precisaSalvar = true; };
-
-            // 🔥 SALVAMENTO URGENTE: Blinda a base de dados instantaneamente contra Rollbacks no Fly.io
-            core._salvarUrgente = () => {
-                if(!core.collection || salvando) { precisaSalvar = true; return; }
-                salvando = true;
+            // 🔥 SALVAMENTO BLINDADO ATUALIZADO
+            core._salvarUrgente = async () => {
+                if(!core.collection) return;
                 
-                const data = { alunos: core.alunos, mercadoJogadores: core.mercadoJogadores, logs: core.logs, pontuacaoCasas: core.pontuacaoCasas, gremios: core.gremios };
+                // 🔥 AQUI ESTAVA O PROBLEMA: Adicionámos o "livroDeFeiticos" ao pacote salvo na base de dados!
+                const data = { 
+                    alunos: core.alunos, 
+                    mercadoJogadores: core.mercadoJogadores, 
+                    logs: core.logs, 
+                    pontuacaoCasas: core.pontuacaoCasas, 
+                    gremios: core.gremios,
+                    livroDeFeiticos: core.livroDeFeiticos // O Conhecimento agora é eterno!
+                };
                 
-                // Dispara o salvamento mas NÃO manda o servidor esperar (Sem await). 
-                // A resposta vai instantânea para o jogador!
-                core.collection.updateOne({ _id: 'MATRIZ_HOGWARTS' }, { $set: data }, { upsert: true })
-                    .then(() => { 
-                        salvando = false; 
-                        if(precisaSalvar) { precisaSalvar = false; core._salvarUrgente(); }
-                    })
-                    .catch(e => { console.error("Erro Mágico ao salvar:", e); salvando = false; });
+                try {
+                    await core.collection.updateOne({ _id: 'MATRIZ_HOGWARTS' }, { $set: data }, { upsert: true });
+                } catch(e) { 
+                    console.error("Erro Mágico ao salvar:", e.message); 
+                }
             };
-            setInterval(() => {
-                if(precisaSalvar && !salvando) core._salvarUrgente();
-            }, 6000); 
 
-        } catch (error) { console.error("❌ Falha na conexão a Gringotes!", error.message); }
+            core._salvarBancoDeDados = () => { core._salvarUrgente(); };
+            setInterval(() => { core._salvarUrgente(); }, 10000); 
+
+        } catch (error) { 
+            console.error("❌ Falha na conexão a Gringotes!", error.message); 
+        }
     }
 }
 
@@ -72,7 +86,19 @@ async function inicializarServidor() {
 // ==============================================================================
 // 1. ADMISSÃO E BECO DIAGONAL
 // ==============================================================================
-app.post('/api/registrar', async (req, res) => { try { const r = core.registrarNovaConta(Date.now(), req.body.username, req.body.nomeBruxo, req.body.senha); await core._salvarUrgente(); res.json(r); } catch(e) { res.status(500).json({erro: "Falha ao criar pergaminho."}); } });
+app.post('/api/registrar', async (req, res) => { 
+    try { 
+        // A função core.registrarNovaConta que te dei já faz o check de senha/id
+        const r = core.registrarNovaConta(Date.now(), req.body.username, req.body.nomeBruxo, req.body.senha); 
+        
+        if (r.sucesso) {
+            await core._salvarUrgente(); 
+        }
+        res.json(r); 
+    } catch(e) { 
+        res.status(500).json({erro: "Erro ao acessar o Grande Livro."}); 
+    } 
+});
 app.post('/api/beco/ollivanders_ia', async (req, res) => { try { const r = await core.gerarVarinhaOllivanders(req.body.id, req.body.personalidade); if(!r.erro) { await core._salvarUrgente(); forcarSyncAluno(req.body.id); } res.json(r); } catch(e) { res.status(500).json({erro: "A varinha explodiu."}); } });
 app.post('/api/beco/comprar', async (req, res) => { try { const r = core.comprarNoBecoDiagonal(req.body.id, req.body.loja, req.body.itemId); if(!r.erro) { await core._salvarUrgente(); forcarSyncAluno(req.body.id); } res.json(r); } catch(e) { res.status(500).json({erro: "O lojista ignorou-te."}); } });
 app.post('/api/selecao', async (req, res) => { try { const r = await core.processarSelecao(req.body.id, req.body.resposta); io.emit('pontuacao_atualizada', core.pontuacaoCasas); await core._salvarUrgente(); forcarSyncAluno(req.body.id); res.json(r); } catch(e) { res.status(500).json({erro: "O Chapéu adormeceu."}); } });
@@ -108,19 +134,76 @@ core.livrosPublicos = [];
 
 // --- ROTAS DA BIBLIOTECA NO SERVER.JS ---
 
+// --- ROTAS DA BIBLIOTECA NO SERVER.JS (ATUALIZADAS) ---
+
 app.post('/api/biblioteca/gerar_livro', async (req, res) => {
-    const { id, assunto, estilo } = req.body;
-    const a = core.alunos[id];
-    if(!a) return res.json({erro: "Aluno não encontrado"});
-    
-    // XP Passivo por invocar conhecimento (Gasta foco, ganha algum XP)
-    if (a.focoAtual < 2) return res.json({erro: "Foco Insuficiente (Requer 2)."});
-    a.focoAtual -= 2;
-    core.ganharXp(a, 25); // +25 XP só por pesquisar
-    core._salvarUrgente();
-    
-    const livro = await core.cerebroIA.gerarLivroCompleto(a.nome, assunto, estilo);
-    res.json(livro);
+    try {
+        const { id, assunto, estilo } = req.body;
+        const a = core.alunos[id];
+        if(!a) return res.json({erro: "Aluno não encontrado"});
+        
+        // XP Passivo por invocar conhecimento
+        if (a.focoAtual < 2) return res.json({erro: "Foco Insuficiente (Requer 2)."});
+        a.focoAtual -= 2;
+        core.ganharXp(a, 25); 
+        core._salvarUrgente();
+        
+        const livro = await core.cerebroIA.gerarLivroCompleto(a.nome, assunto, estilo);
+        
+        // BLINDAGEM: Se a IA falhar e retornar null, damos feedback ao jogador sem crashar!
+        if (!livro) return res.json({ erro: "O pergaminho desfez-se em pó durante a escrita. A magia estava instável, tenta de novo." });
+        
+        res.json(livro);
+    } catch(e) {
+        console.error("Erro Mágico ao Gerar Livro:", e);
+        res.status(500).json({erro: "As estantes da biblioteca trancaram-se."});
+    }
+});
+
+// ATUALIZAR: Rota da Biblioteca para dar ELO
+app.post('/api/biblioteca/avaliar_tese', async (req, res) => {
+    try {
+        const { id, manuscrito } = req.body;
+        const a = core.alunos[id];
+        if (!a) return res.json({erro: "O aluno desvaneceu."});
+        if (a.focoAtual < 5) return res.json({erro: "Requer 5 de Foco."});
+        a.focoAtual -= 5;
+        
+        let r = await core.cerebroIA.avaliarTeseMagica(a, manuscrito);
+        
+        if (!r) {
+            r = { aprovado: false, feedback: "O pergaminho carbonizou-se! A Consciência não compreendeu a tua magia, tenta reescrever." };
+        }
+        
+        let xp = r.xpGanha || 50; 
+        let elo = r.eloGanha || 5;
+        core.ganharXp(a, xp);
+        
+        if (!a.elos) a.elos = { sabedoria: 1000, duelos: 1000, quadribol: 1000, baile: 1000, quiz: 1000, pocoes: 1000 };
+        if (a.elos.sabedoria === undefined) a.elos.sabedoria = 1000;
+        
+        a.elos.sabedoria += elo;
+        
+        if (r.aprovado && r.feitico) {
+            // 🔥 BLINDAGEM INFALÍVEL: Corta qualquer custo de mana superior a 10
+            if (r.feitico.custoMana > 10) r.feitico.custoMana = 10;
+            if (r.feitico.custoFocoBase > 10) r.feitico.custoFocoBase = 10;
+
+            const fId = `custom_${Date.now()}`;
+            core.livroDeFeiticos[fId] = { ...r.feitico, criador: a.nome, custom: true };
+            if(!a.maestriaFeiticos) a.maestriaFeiticos = {};
+            a.maestriaFeiticos[fId] = { nivel: 1, exp: 0, expProx: 100 };
+            if(!a.feitiçosEquipados) a.feitiçosEquipados = [];
+            a.feitiçosEquipados.push(fId);
+        }
+        
+        core._salvarUrgente();
+        r.feedback = `[+${xp} XP | +${elo} ELO] ${r.feedback}`;
+        res.json(r);
+    } catch(e) {
+        console.error("Falha ao avaliar tese:", e);
+        res.status(500).json({erro: "A sala da biblioteca trancou as portas."});
+    }
 });
 
 
@@ -156,29 +239,6 @@ app.post('/api/biblioteca/publicar', (req, res) => {
         feiticoOriginalId: feiticoId
     });
     res.json({sucesso: true});
-});
-// ATUALIZAR: Rota da Biblioteca para dar ELO
-app.post('/api/biblioteca/avaliar_tese', async (req, res) => {
-    const { id, manuscrito } = req.body;
-    const a = core.alunos[id];
-    if (a.focoAtual < 5) return res.json({erro: "Requer 5 de Foco."});
-    a.focoAtual -= 5;
-    
-    const r = await core.cerebroIA.avaliarTeseMagica(a, manuscrito);
-    
-    let xp = r.xpGanha || 50; let elo = r.eloGanha || 5;
-    core.ganharXp(a, xp);
-    a.elos.sabedoria += elo;
-    
-    if (r.aprovado && r.feitico) {
-        const fId = `custom_${Date.now()}`;
-        core.livroDeFeiticos[fId] = { ...r.feitico, criador: a.nome, custom: true };
-        a.maestriaFeiticos[fId] = { nivel: 1, exp: 0, expProx: 100 };
-        a.feitiçosEquipados.push(fId);
-    }
-    core._salvarUrgente();
-    r.feedback = `[+${xp} XP | +${elo} ELO] ${r.feedback}`;
-    res.json(r);
 });
 
 // ATUALIZAR: Quiz ELO

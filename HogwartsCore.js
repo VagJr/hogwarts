@@ -386,27 +386,29 @@ async gerarMobiliaMagica() {
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile", 
+                model: "llama-3.1-8b-instant", 
                 response_format: { type: "json_object" } 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
     }
 async gerarLivroCompleto(alunoNome, assunto, estilo) {
-    const prompt = `És o bibliotecário de Hogwarts. Escreve um capítulo de um livro de lore sobre "${assunto}". 
-    O estilo deve ser "${estilo}". O autor fictício é "${alunoNome}".
-    Retorna um JSON com o título e o conteúdo formatado (máximo 4 parágrafos).
-    JSON: {"titulo": "...", "conteúdo": "..."}`;
+        const prompt = `És o bibliotecário de Hogwarts. Escreve um capítulo de um livro de lore sobre "${assunto}". 
+        O estilo deve ser "${estilo}". O autor fictício é "${alunoNome}".
+        Retorna um JSON com o título e o conteúdo formatado (máximo 4 parágrafos).
+        JSON: {"titulo": "...", "conteúdo": "..."}`;
 
-    try {
-        const res = await this.groq.chat.completions.create({
-            messages: [{ role: "user", content: prompt }],
-            model: "llama-3.3-70b-versatile",
-            response_format: { type: "json_object" }
-        });
-        return this._extrairJSONBlindado(res.choices[0].message.content);
-    } catch (e) { return null; }
-}
+        try {
+            const res = await this.groq.chat.completions.create({
+                messages: [{ role: "user", content: prompt }],
+                model: "llama-3.1-8b-instant",
+                response_format: { type: "json_object" }
+            });
+            const p = this._extrairJSONBlindado(res.choices[0].message.content);
+            if (!p) throw new Error("JSON Parse Error");
+            return p;
+        } catch (e) { return null; }
+    }
 
 async avaliarEstudoParaAprender(alunoSummary, feiticoOriginal) {
     const prompt = `Um aluno submeteu este resumo de estudo: "${alunoSummary}". 
@@ -417,41 +419,152 @@ async avaliarEstudoParaAprender(alunoSummary, feiticoOriginal) {
     try {
         const res = await this.groq.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant",
             response_format: { type: "json_object" }
         });
         return this._extrairJSONBlindado(res.choices[0].message.content);
     } catch (e) { return { aprovado: false, feedback: "A conexão com a biblioteca falhou." }; }
 }
+
 async avaliarTeseMagica(aluno, manuscrito) {
-        const prompt = `És a Consciência Onisciente de Hogwarts, um mestre supremo do universo Harry Potter. 
-        Analisa esta tese mágica: "${manuscrito}".
+        const prompt = `És a Consciência de Hogwarts. Analisa a tese: "${manuscrito}".
         
-        1. Avalia o rigor da lore e a complexidade.
-        2. Atribui "xpGanha" (50 a 1000) e "eloGanha" (5 a 50 pontos de ELO de Sabedoria). Textos rigorosos ganham mais.
-        3. Se for inovadora, cria um NOVO FEITIÇO (aprovado: true).
+        REGRAS DE EQUILÍBRIO (MÁXIMO DE MANA 10):
+        - Tier 1: custoMana 2-3 | valorBase 100
+        - Tier 2: custoMana 4-6 | valorBase 250
+        - Tier 3: custoMana 7-8 | valorBase 500
+        - Tier 4: custoMana 9-10 | valorBase 900
         
-        RETORNE APENAS JSON:
+        DNA VISUAL AVANÇADO (visualConfig):
+        - shape: 'bolt' (raio zig-zag), 'sphere' (bola clássica), 'meteor' (chuva do céu), 'wave' (meia-lua cortante), 'slash' (lâmina invisível), 'spiral' (hélice dupla giratória), 'beam' (laser contínuo).
+        - color: código Hex da cor principal.
+        - glow: código Hex do brilho.
+        - quantity: 1 a 15 projéteis.
+        - speed: velocidade (15 a 35).
+        - trailSize: tamanho do rastro (10 a 50).
+        - movement: 'linear' (reto), 'wavy' (movimento senoidal em onda), 'erratic' (tremeluzente/caótico).
+        - particleStyle: 'sparks' (faíscas de luz), 'smoke' (fumaça escura), 'stars' (estrelas brilhantes), 'void' (distorção negra/vácuo), 'blood' (gotas vermelhas).
+        - impactEffect: 'explosion' (explosão radial), 'implosion' (suga para o centro antes de explodir), 'nova' (anel de energia massivo), 'shatter' (quebra como vidro).
+        Regras:
+
+        - O shape define obrigatoriamente o tipo de movimento e impacto.
+
+        - Nunca gerar comportamento que contradiga o shape.
+
+        - Sempre associar origem + trajetória + efeito final.
+
+
+
+
+
+    - color:
+
+        Define a cor base dominante da habilidade (Hex).
+
+        A IA deve interpretar a cor como identidade elemental e emocional.
+
+
+
+        Interpretação:
+
+        - Vermelho (#FF0000 - #FF5500) → fogo, agressividade, destruição
+
+        - Azul (#0099FF - #00CCFF) → energia, gelo, controle
+
+        - Roxo (#8000FF - #CC00FF) → arcano, caos, magia instável
+
+        - Verde (#00FF66 - #66FF99) → veneno, natureza, corrupção
+
+        - Amarelo (#FFFF00 - #FFD700) → luz, eletricidade, poder divino
+
+        - Branco (#FFFFFF) → pureza, energia máxima
+
+        - Preto (#000000) → vazio, escuridão, anulação
+
+
+
+Regras:
+- Deve influenciar partículas, iluminação e impacto.
+- Pode variar em tons durante o movimento.
+- Deve harmonizar ou contrastar com o glow.
+- glow:
+Define a cor do brilho externo e da aura energética.
+Função:
+- Criar sensação de energia irradiando
+- Destacar o efeito no ambiente
+- Adicionar profundidade visual
+Interpretação:
+- Glow igual ao color → efeito coeso e sólido
+- Glow contrastante → efeito mais mágico ou instável
+A IA deve:
+- Criar pulsação, vibração ou emissão contínua
+- Aplicar bloom visual (brilho forte)
+- Expandir levemente além da forma principal
+- quantity:
+Define quantas instâncias do efeito existem simultaneamente.
+Escala:
+- 1 a 2   → ataque focado, precisão máxima
+- 3 a 5   → múltiplos projéteis controlados
+- 6 a 10  → ataque em área moderado
+- 11 a 15 → caos visual, chuva massiva, destruição em larga escala
+A IA deve:
+- Determinar distribuição (linha, arco, círculo, chuva, aleatório)
+- Definir se ocorre simultâneo ou em sequência
+- Evitar sobreposição visual confusa
+- speed:
+Define a velocidade de movimento do efeito.
+Escala:
+- 15 a 18 → lento/pesado (sensação de massa e impacto)
+- 19 a 24 → equilibrado (controle + impacto)
+- 25 a 30 → extremamente rápido (difícil de reagir)
+A IA deve:
+- Ajustar sensação de peso vs agilidade
+- Alterar tempo de impacto
+- Influenciar o comprimento do rastro
+- trailSize:
+Define o tamanho e intensidade do rastro visual deixado pelo movimento.
+Escala:
+- 10 a 15 → rastro leve, quase imperceptível
+- 16 a 25 → rastro visível e estilizado
+- 26 a 40 → rastro dominante, cinematográfico
+A IA deve:
+- Gerar partículas residuais (faíscas, fumaça, energia)
+- Criar persistência temporal (rastro permanece após movimento)
+- Ajustar largura e opacidade do rastro
+REGRAS GLOBAIS DE INTERPRETAÇÃO:
+- Sempre converter os valores em comportamento visual, nunca apenas repetir.
+- Sempre criar uma sequência lógica:
+
+origem → movimento → trajetória → impacto → dissipação
+
+
+- Sempre adicionar:
+- partículas secundárias
+- efeitos de luz
+- sensação física (calor, choque, pressão, tremor)
+- Sempre manter coerência:
+- velocidade deve combinar com shape
+- quantidade deve combinar com escala do ataque
+- cores devem reforçar o tema
+- Sempre gerar sensação de poder e impacto visual forte.
+        RETORNE JSON ESTRITO (Exemplo para Implosão de Vácuo):
         {
-            "aprovado": true, "xpGanha": 250, "eloGanha": 25,
-            "feedback": "A tua compreensão é magnífica...",
-            "feitico": { "nome": "Nome", "elemento": "fogo", "poderBase": 150, "custoFocoBase": 5, "castTimeMs": 1200, "lore": "..." }
+            "aprovado": true,
+            "feedback": "Uma teoria fascinante sobre a física do vácuo.",
+            "feitico": {
+                "nome": "Implosio Totalis", "tipoMecanica": "ataque", "elemento": "cinetico",
+                "valorBase": 600, "custoMana": 8,
+                "visualConfig": { "shape": "sphere", "color": "#8e44ad", "glow": "#4b0082", "quantity": 1, "speed": 18, "trailSize": 10, "movement": "linear", "particleStyle": "void", "impactEffect": "implosion" },
+                "lore": "Colapso de pressão atmosférica."
+            }
         }`;
+        
         try {
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: { type: "json_object" } });
             return this._extrairJSONBlindado(res.choices[0].message.content);
-        } catch (e) { return { aprovado: false, xpGanha: 10, eloGanha: 1, feedback: "A névoa mental impediu a avaliação." }; }
+        } catch (e) { return { aprovado: false, feedback: "Falha na conexão astral." }; }
     }
-	async gerarQuizIA() {
-    if (!this.apiKey) return { pergunta: "Qual a cor do Expresso de Hogwarts?", opcoes: ["Azul", "Vermelho", "Verde", "Preto"], correta: 1 };
-    try {
-        const prompt = `Gera um quiz DIFÍCIL sobre lore de Harry Potter. Retorna EXATAMENTE SÓ JSON ESTRITO:
-        {"pergunta": "Quem foi o Ministro da Magia durante a Primeira Guerra Bruxa?", "opcoes": ["Cornélio Fudge", "Millicent Bagnold", "Harold Minchum", "Rufo Scrimgeour"], "correta": 2}`;
-        const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
-		return this._extrairJSONBlindado(res.choices[0].message.content);
-    } catch(e) { return null; }
-}
-	
+
 	async folhearLivroAula(materia, livro) {
         if (!this.apiKey) return { texto: "As letras fogem dos teus olhos." };
         try {
@@ -461,7 +574,7 @@ async avaliarTeseMagica(aluno, manuscrito) {
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" } 
             });
             
@@ -483,7 +596,7 @@ async avaliarTeseMagica(aluno, manuscrito) {
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile", 
+                model: "llama-3.1-8b-instant", 
                 response_format: {type: "json_object"} 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -494,7 +607,7 @@ async avaliarTeseMagica(aluno, manuscrito) {
         if (!this.apiKey) return "Avistamentos de Nargles na Escócia reportados por Luna Lovegood.";
         try {
             const prompt = `Escreve uma manchete super criativa e curta (1 frase) para o jornal 'O Profeta Diário' do mundo de Harry Potter. Pode ser sobre o Ministério, Quidditch, ou coisas engraçadas no mundo bruxo. APENAS O TEXTO DA NOTÍCIA, sem aspas.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
 			return res.choices[0].message.content.replace(/["']/g, '').trim();
         } catch(e) { return "O Ministério aprova nova lei sobre caldeirões de espessura padrão."; }
     }
@@ -502,7 +615,7 @@ async gerarCapituloLivro(nomeLivro) {
         if (!this.apiKey) return "A magia deste tomo está adormecida. Não detetei a chave da IA (GROQ_API_KEY). Verifica o teu terminal ou ficheiro .env.";
         try {
             const prompt = `És J.K. Rowling. Escreve um capítulo imersivo (cerca de 3 parágrafos) do livro "${nomeLivro}". O texto deve conter conhecimento mágico real (feitiços, poções ou criaturas) que um aluno de Hogwarts leria. Sem saudações, apenas o texto do livro.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", temperature: 1.0 });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", temperature: 1.0 });
 			return res.choices[0].message.content.trim();
         } catch (e) {
             return "As páginas estão manchadas de tinta e ilegíveis.";
@@ -527,7 +640,7 @@ async gerarCapituloLivro(nomeLivro) {
                 "recompensaGaleoes": 200,
                 "recompensaXp": 500
             }`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: {type: "json_object"} });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: {type: "json_object"} });
             let q = this._extrairJSONBlindado(res.choices[0].message.content);
             if(q) { q.progresso = 0; q.concluida = false; return q; }
             return null;
@@ -539,7 +652,7 @@ async gerarCapituloLivro(nomeLivro) {
         try {
             const prompt = `Age como o Chapéu Seletor de Hogwarts. Analisa: "${respostaAberta}". Retorna EXATAMENTE O JSON ABAIXO, substituindo a casa por Gryffindor, Slytherin, Ravenclaw ou Hufflepuff, e criando uma fala realista:
             {"casa": "Gryffindor", "relato": "Uma mente astuta, vejo... mas há coragem!"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { casa: fallback, relato: "Vejo o teu destino..." };
         } catch (e) { return { casa: fallback, relato: "Vou pelo palpite." }; }
     }
@@ -567,7 +680,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
 }`;
         const res = await this.groq.chat.completions.create({ 
             messages: [{ role: "user", content: prompt }], 
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant",
             response_format: { type: "json_object" } // Força o modo JSON
         });
         
@@ -586,7 +699,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `És o Professor ${professor} a dar aula de ${aula} a ${alunoNome}. O teu conhecimento de Harry Potter é infinito. 
             Dá uma aula real, explicando detalhadamente um feitiço, poção ou criatura exata dos livros. Termina a tua fala perguntando algo diretamente à turma.
             RETORNE SÓ JSON: {"texto": "Silêncio na sala! Hoje vamos estudar...", "temLoot": true, "lootNome": "Pergaminho de Estudo"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { texto: "Aula proveitosa.", temLoot: true, lootNome: `Notas de ${aula}` };
         } catch (e) { return { texto: `Aula em silêncio.`, temLoot: false }; }
     }
@@ -598,7 +711,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             Escreve o conteúdo de um livro histórico oficial de Hogwarts com profundidade extrema, detalhando as origens, os usos e os perigos do tema.
             RETORNA APENAS O JSON, SEM NADA ANTES OU DEPOIS:
             {"titulo": "A História Oculta de...", "texto": "Há séculos atrás..."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { titulo: "Tomo Esquecido", texto: "O livro desfaz-se em pó." };
         } catch(e) { return { titulo: "Tomo Selado", texto: "Protegido por magia antiga." }; }
     }
@@ -623,7 +736,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
         try {
             const prompt = `Gera uma pergunta muito difícil de N.O.M. do universo Harry Potter sobre: ${materia}. 
             RETORNA APENAS JSON: {"pergunta": "Qual é a base da poção Polissuco?", "respostaCerta": "Hemeróbios e Descurainia..."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { pergunta: "O que é magia?", respostaCerta: "Magia" };
         } catch(e) { return { pergunta: "O Ministério cancelou os exames.", respostaCerta: "Nada" }; }
     }
@@ -634,7 +747,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `Exame N.O.M.. Resposta correta: "${respostaCerta}". O aluno respondeu: "${respostaAluno}".
             Sê um examinador muito exigente. Avalia de 0 a 100.
             RETORNA APENAS JSON: {"nota": 80, "feedback": "Argumentaste bem, mas esqueceste-te dos detalhes."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { nota: 50, feedback: "O pergaminho manchou." };
         } catch(e) { return { nota: 50, feedback: "Avaliador ocupado." }; }
     }
@@ -648,7 +761,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             Decide se ele merece uma recompensa.
             RETORNA APENAS JSON ABSOLUTO (Sem formatação markdown): 
             {"relato": "Uma parede de pedra afasta-se, revelando...", "xpGanho": 25, "item": "Moeda de Ouro Antiga", "ouro": 10}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             const parse = this._extrairJSONBlindado(res.choices[0].message.content);
             if(!parse) throw new Error(); return parse;
         } catch(e) { return { relato: "Um feitiço de proteção bloqueou a tua ação.", xpGanho: 0, ouro: 0 }; }
@@ -660,7 +773,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
         try {
             const prompt = `Hogwarts é viva. Cria uma fala curta e independente de um personagem (ex: Pirraça, Murta, Nick, um Quadro) que está em "${zona}". Alunos perto: ${alunosAtivos}.
             RETORNA APENAS JSON: {"personagem": "Pirraça", "texto": "Bomba de bosta no corredor! Hihihi!"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { personagem: "Nenhum", texto: "" };
         } catch(e) { return { personagem: "Nenhum", texto: "" }; }
     }
@@ -671,7 +784,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `És o castelo mágico. O aluno ${jogadorNome} (${casa}) gritou em "${zona}": "${mensagemTexto}".
             Faz com que um fantasma, quadro ou estátua responda de forma inteligente a esta frase.
             RETORNA APENAS JSON: {"personagem": "Quadro da Mulher Gorda", "texto": "Abaixa o tom de voz, jovem!", "pontos": 0}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
     }
@@ -691,7 +804,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             let j = this._extrairJSONBlindado(res.choices[0].message.content);
@@ -717,17 +830,18 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
-            return this._extrairJSONBlindado(res.choices[0].message.content);
+            // Adicionado "|| { sucesso: false }" para salvaguarda!
+            return this._extrairJSONBlindado(res.choices[0].message.content) || { sucesso: false };
         } catch(e) { return { sucesso: false }; }
     }
     async criarFeiticoInedito(aluno, tese) { return null; }
     async gerarTitulo(aluno) {
         try {
             const prompt = `Gera SÓ UM Título épico (ex: 'Mestre das Sombras') para bruxo nível ${aluno.nivel} da casa ${aluno.casa}. NADA DE ASPAS OU JSON.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return res.choices[0].message.content.replace(/["']/g, '').trim();
         } catch(e) { return "Membro da Ordem"; }
     }
@@ -736,7 +850,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
         if (!this.apiKey) return "As tochas cintilam suavemente na pedra fria.";
         try {
             const prompt = `Age como J.K. Rowling. Cria UMA FRASE curta, inédita e altamente imersiva descrevendo o que está a acontecer AGORA em "${zona}" no Castelo de Hogwarts. Descreve cheiros, sons distantes, o clima nas janelas, fantasmas passando ou alunos ao fundo. NUNCA REPITA.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", temperature: 1.0 });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", temperature: 1.0 });
             return res.choices[0].message.content.replace(/["']/g, '').trim();
         } catch(e) { return null; }
     }
@@ -788,14 +902,14 @@ class HogwartsCore {
         this.quadribol = new MotorQuadribol(); 
         this.logs = { salaoPrincipal: [], profetaDiario: [] }; this.cerebroIA = new MotorConscienciaHogwarts();
         this.livroDeFeiticos = {
-            'expelliarmus': { nome: "Expelliarmus", aula: "D.C.A.T.", elemento: 'cinetico', custoFocoBase: 2, aptidao: 'defesa', poderBase: 80, castTimeMs: 800, lore: "Desarma o oponente." },
-            'incendio': { nome: "Incendio", aula: "Feitiços", elemento: 'fogo', custoFocoBase: 4, aptidao: 'feiticos', poderBase: 120, castTimeMs: 1200, lore: "Lança chamas ardentes." },
-            'protego': { nome: "Protego", aula: "D.C.A.T.", elemento: 'escudo', custoFocoBase: 2, aptidao: 'defesa', poderBase: 0, castTimeMs: 100, defende: true, lore: "Escudo mágico instantâneo." },
-            'stupefy': { nome: "Estupefaça", aula: "D.C.A.T.", elemento: 'cinetico', custoFocoBase: 3, aptidao: 'defesa', poderBase: 100, castTimeMs: 1000, lore: "Atordoa o alvo." },
-            'sectumsempra': { nome: "Sectumsempra", aula: "Poções", elemento: 'trevas', custoFocoBase: 6, aptidao: 'artes_trevas', poderBase: 200, castTimeMs: 1500, lore: "Cortes profundos e sangramento." },
-            'aguamenti': { nome: "Aguamenti", aula: "Feitiços", elemento: 'agua', custoFocoBase: 3, aptidao: 'feiticos', poderBase: 90, castTimeMs: 900, lore: "Jato de água de alta pressão." },
-            'crucio': { nome: "Crucio", aula: "Artes das Trevas", elemento: 'trevas', custoFocoBase: 8, aptidao: 'artes_trevas', poderBase: 300, castTimeMs: 2000, lore: "Maldição da Tortura. Implacável." },
-            'expecto_patronum': { nome: "Expecto Patronum", aula: "D.C.A.T.", elemento: 'luz', custoFocoBase: 10, aptidao: 'defesa', poderBase: 400, castTimeMs: 2500, lore: "O feitiço protetor supremo." }
+            'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 2, poderBase: 80, lore: "Desarma o oponente.", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1, trailSize: 15 } },
+            'incendio': { nome: "Incendio", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 4, poderBase: 120, lore: "Lança chamas.", visualConfig: { shape: 'wave', color: '#ff4500', glow: '#ff8800', quantity: 3, trailSize: 8 } },
+            'protego': { nome: "Protego", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 2, poderBase: 0, defende: true, lore: "Escudo instantâneo.", visualConfig: { shape: 'sphere', color: '#3498db' } },
+            'stupefy': { nome: "Estupefaça", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 100, lore: "Atordoa o alvo.", visualConfig: { shape: 'sphere', color: '#e74c3c', glow: '#ff0000', quantity: 1, trailSize: 20 } },
+            'sectumsempra': { nome: "Sectumsempra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 200, lore: "Cortes profundos.", visualConfig: { shape: 'slash', color: '#ffffff', glow: '#888888', quantity: 2, trailSize: 5 } },
+            'aguamenti': { nome: "Aguamenti", tipoMecanica: 'ataque', elemento: 'agua', custoFocoBase: 3, poderBase: 90, lore: "Jato de água.", visualConfig: { shape: 'wave', color: '#0f3c55', glow: '#3498db', quantity: 5, trailSize: 15 } },
+            'crucio': { nome: "Crucio", tipoMecanica: 'status', elemento: 'trevas', custoFocoBase: 8, poderBase: 300, lore: "Maldição da Tortura.", visualConfig: { shape: 'bolt', color: '#8e44ad', glow: '#4b0082', quantity: 3, trailSize: 25 } },
+            'expecto_patronum': { nome: "Expecto Patronum", tipoMecanica: 'ataque', elemento: 'luz', custoFocoBase: 10, poderBase: 400, lore: "O feitiço protetor.", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#a8d5ff', quantity: 1, trailSize: 30 } }
         };
 
         // =========================================================
@@ -876,7 +990,7 @@ class HogwartsCore {
         try {
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -900,7 +1014,7 @@ class HogwartsCore {
             if (!this.cerebroIA || !this.cerebroIA.apiKey) throw new Error("IA Desligada");
 
             const prompt = `Universo Harry Potter. Zona: "${zona}". O jogador procura recursos. Gera APENAS UM ingrediente botânico ou criatura raro. RETORNE JSON ESTRITO: {"item": "Pelo de Unicórnio", "lore": "Brilhava na terra húmida..."}`;
-            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: {type: "json_object"} });
+            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: {type: "json_object"} });
             
             if(!res || !res.choices || !res.choices[0]) throw new Error("Resposta da IA vazia");
             const loot = this.cerebroIA._extrairJSONBlindado(res.choices[0].message.content);
@@ -1024,11 +1138,9 @@ class HogwartsCore {
     // SUBSTITUIR A FUNÇÃO registrarNovaConta INTEIRA
     // =========================================================
     registrarNovaConta(tgId, tgUsername, nomeBruxo, senha) {
-        // 🔥 CORREÇÃO CRÍTICA: O ID tem que ser gerado APENAS pelo Nome. 
-        // Removemos o 'tgId' da Hash para a conta ser permanente e o login funcionar!
-        const nomeStr = String(nomeBruxo).toLowerCase().trim();
-        const idBruxo = 'BRX_' + crypto.createHash('sha256').update(`JOGADOR::${nomeStr}`).digest('hex').substring(0, 10).toUpperCase();
-        
+    // 🔥 Garante que o ID seja sempre o mesmo independente de espaços ou maiúsculas
+    const nomeLimpo = String(nomeBruxo).toLowerCase().trim();
+    const idBruxo = 'BRX_' + crypto.createHash('sha256').update(`JOGADOR::${nomeLimpo}`).digest('hex').substring(0, 10).toUpperCase();
         const senhaHash = crypto.pbkdf2Sync(senha, idBruxo, 1000, 64, 'sha512').toString('hex');
         
         // 1. SISTEMA DE LOGIN (Se a conta já existe)
@@ -1106,7 +1218,7 @@ class HogwartsCore {
         Inicia a tua aula. Fala sobre um feitiço ou criatura. Termina fazendo UMA pergunta direta para os alunos responderem no chat! Mantém a tua personalidade canónica.`;
         
         try {
-            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             let fala = res.choices[0].message.content.trim();
             
             global.io.to('sala_de_aula').emit('nova_mensagem', { canal: 'aula', autor: `🎓 [Prof. ${relogio.professorAtivo}]`, texto: fala });
@@ -1123,28 +1235,93 @@ class HogwartsCore {
             Avalia o que ele disse como sendo uma resposta à matéria. Se estiver correto, elogia e dá 10 XP (escreve "+10 XP" no texto). Se for asneira, retira 5 pontos à casa.
             Responde no tom de ${professor}.
             JSON ESTRITO: {"texto": "Exato senhor ${alunoNome}! Mais 10 XP para si...", "pontos": 10}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: {type: "json_object"} });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: {type: "json_object"} });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
     }
 
 async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
-        const a = this.alunos[atacanteId]; const inst = this.dungeonInstancias[instId];
-        if (!a || !inst || inst.status !== 'combate') return { erro: "Combate finalizado." };
+        const a = this.alunos[atacanteId]; 
+        const inst = this.dungeonInstancias[instId];
+        if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
 
-        let mob = inst.entidades.find(m => m.idx === alvoIdx && m.vivo) || inst.entidades.find(m => m.vivo);
-        if(!mob) return { erro: "Todos os inimigos já caíram." }; // Se o mob já morreu, ignora o projétil extra
-
-        let danoCausado = 0;
-        if (feiticoId !== "dano_recebido" && feiticoId !== "protego_block_reflex") {
-            const feitico = this.livroDeFeiticos[feiticoId];
-            if (!feitico) return { erro: "Feitiço desconhecido." };
-            danoCausado = (feitico.poderBase || 50) + ((a.atributosTotais.feiticos || 5) * 5);
-            if(mob.padrao === 'defensivo') danoCausado = Math.floor(danoCausado * 0.7);
-            mob.hpAtual -= Math.floor(danoCausado);
+        if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
+            return { sucesso: true, relatoAcao: "Impacto registado." };
         }
 
-        // 🔥 FIX 2: Tratamento correto de Morte (Evita a imortalidade)
+        const feitico = this.livroDeFeiticos[feiticoId];
+        if (!feitico) return { erro: "Feitiço desconhecido." };
+
+        // 🔥 SISTEMA DE PROFICIÊNCIA (MAESTRIA)
+        if(!a.maestriaFeiticos[feiticoId]) a.maestriaFeiticos[feiticoId] = { nivel: 1, exp: 0, expProx: 100 };
+        let maestria = a.maestriaFeiticos[feiticoId];
+        
+        // Dá XP por usar a magia no combate!
+        maestria.exp += 15;
+        let upouFeitico = false;
+        if(maestria.exp >= maestria.expProx) {
+            maestria.nivel++;
+            maestria.exp -= maestria.expProx;
+            maestria.expProx = Math.floor(maestria.expProx * 1.5);
+            upouFeitico = true;
+        }
+
+        let mecanica = feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+        
+        // 🔥 APLICAR O UPGRADE AO VALOR DO FEITIÇO (+10 pontos de poder por nível do feitiço)
+        let bonusMaestria = (maestria.nivel - 1) * 10;
+        let forcaDoFeitico = Number(feitico.valorBase || feitico.poderBase || 50) + bonusMaestria;
+        
+        let relatoAcao = "";
+
+        // ===============================================
+        // LÓGICA 1: CURA
+        // ===============================================
+        if (mecanica === 'cura') {
+            let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
+            a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
+            relatoAcao = `Lançaste ${feitico.nome} e recuperaste ${curaAplicada} HP!`;
+            
+            this._salvarBancoDeDados();
+            return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
+        } 
+        
+        // ===============================================
+        // LÓGICA 2: ESCUDO
+        // ===============================================
+        if (mecanica === 'escudo' || mecanica === 'defesa') {
+            relatoAcao = `A barreira de ${feitico.nome} protege-te!`;
+            this._salvarBancoDeDados();
+            return { sucesso: true, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
+        }
+
+        // ===============================================
+        // LÓGICA 3: ATAQUE E STATUS
+        // ===============================================
+        let mob = inst.entidades.find(m => m.idx === alvoIdx && m.vivo) || inst.entidades.find(m => m.vivo);
+        if(!mob) return { erro: "Sem alvos vivos." };
+
+        let danoAplicado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
+        let defendeu = false;
+
+        if (mecanica === 'status') {
+            danoAplicado = Math.floor(danoAplicado * 0.8);
+            mob.padrao = 'vulneravel';
+            relatoAcao = `O ${feitico.nome} quebrou a defesa do inimigo!`;
+        } else {
+            relatoAcao = `O teu ${feitico.nome} atingiu o alvo!`;
+        }
+
+        if(mob.padrao === 'defensivo') {
+            danoAplicado = Math.floor(danoAplicado * 0.6);
+            defendeu = true;
+        }
+
+        let critico = Math.random() > 0.85;
+        if(critico) danoAplicado = Math.floor(danoAplicado * 1.5);
+
+        mob.hpAtual -= Math.floor(danoAplicado);
+
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
             let todosMortos = inst.entidades.every(m => !m.vivo);
@@ -1154,35 +1331,37 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
                 let xpFase = isBoss ? 1500 : 400 * inst.entidades.length;
                 let galeoesFase = isBoss ? 800 : 100 * inst.entidades.length;
 
-                await this._addXp(a, xpFase); a.galeoes += galeoesFase; a.estatisticas.monstrosMortos += inst.entidades.length;
+                await this._addXp(a, xpFase); a.galeoes += galeoesFase; 
+                if(!a.estatisticas) a.estatisticas = { monstrosMortos: 0 };
+                a.estatisticas.monstrosMortos += inst.entidades.length;
                 try { this._progressoQuest(a, 'pve', mob.nome, 1); } catch(ex){}
 
                 if (inst.faseAtual < inst.maxFases) {
                     inst.faseAtual++;
-                    let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * 3) + 1;
+                    let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
+                    let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
                     let novasEntidades = [];
-                    
-                    // 🔥 FIX 3: Aqui havia outro erro de Lag! Só chama a IA uma vez por Fase.
                     let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
                     for(let i=0; i<proxMobs; i++) {
                         novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hp, hpAtual: mData.hp, vivo: true, padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)] });
                     }
                     inst.entidades = novasEntidades; this._salvarBancoDeDados();
-                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP].`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual };
+                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP].`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
                 } else {
                     inst.status = 'finalizado'; clearInterval(inst.timerBossAtaque);
+                    if(!a.pveProgresso) a.pveProgresso = { area: 1, nivel: 1 };
                     a.pveProgresso.area++; if (a.pveProgresso.area > 5) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; }
                     this._salvarBancoDeDados();
-                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP]. Avançaste!`, hpBoss: 0 };
+                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP]`, hpBoss: 0, danoAplicado, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
                 }
             } else {
-                // Se morreu apenas 1 monstro, envia hpBoss: 0 para esvaziar a barra do Frontend!
-                return { mobEliminado: true, relatoAcao: `${mob.nome} foi pulverizado!`, entidades: inst.entidades, hpBoss: 0 };
+                this._salvarBancoDeDados();
+                return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
             }
         }
 
         this._salvarBancoDeDados();
-        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, relatoAcao: `Acertaste no inimigo!` };
+        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado, defendeu, relatoAcao, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
     }
 
     async folhearLivro(alunoId) {
@@ -1423,37 +1602,63 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
     
 
     async estudarMaterial(alunoId, itemId) {
-    const a = this.alunos[alunoId]; if (!a) return { erro: "Fantasma." };
-    const idx = a.mochilaEscolar.findIndex(i => i.id === itemId);
-    if(idx === -1) return { erro: "Não tens esse item na mochila." };
-    
-    const item = a.mochilaEscolar[idx]; 
-    a.mochilaEscolar.splice(idx, 1); // Consome o item
+        const a = this.alunos[alunoId]; if (!a) return { erro: "Fantasma." };
+        const idx = a.mochilaEscolar.findIndex(i => i.id === itemId);
+        if(idx === -1) return { erro: "Não tens esse item na mochila." };
+        
+        const item = a.mochilaEscolar[idx]; 
+        a.mochilaEscolar.splice(idx, 1); // Consome o item
 
-    if(item.tipo === 'pocao_feita') {
-        a.hpAtual = a.hpMax; a.focoAtual = a.maxFoco;
-        this._salvarBancoDeDados(); return { sucesso: true, msg: `Bebeste a ${item.nome}. Sentes-te totalmente renovado!` };
-    }
-    else if(item.tipo === 'comida') {
-        a.fome = 100; a.energia = Math.min(100, a.energia + 30);
-        this._salvarBancoDeDados(); return { sucesso: true, msg: `Comeste ${item.nome}. A tua fome desapareceu.` };
-    }
-    else if(item.tipo === 'brinquedo' && item.nome === 'Bomba de Bosta') {
-        this._salvarBancoDeDados(); return { sucesso: true, msg: `Lançaste uma Bomba de Bosta!`, efeito: 'bomba_bosta' };
-    }
+        if(item.tipo === 'pocao_feita') {
+            a.hpAtual = a.hpMax; a.focoAtual = a.maxFoco;
+            this._salvarBancoDeDados(); return { sucesso: true, msg: `Bebeste a ${item.nome}. Sentes-te totalmente renovado!` };
+        }
+        else if(item.tipo === 'comida') {
+            a.fome = 100; a.energia = Math.min(100, a.energia + 30);
+            this._salvarBancoDeDados(); return { sucesso: true, msg: `Comeste ${item.nome}. A tua fome desapareceu.` };
+        }
+        else if(item.tipo === 'brinquedo' && item.nome === 'Bomba de Bosta') {
+            this._salvarBancoDeDados(); return { sucesso: true, msg: `Lançaste uma Bomba de Bosta!`, efeito: 'bomba_bosta' };
+        }
 
-    // Se for apontamento de aula (EXP e Maestria)
-    await this._addXp(a, 150);
-    let msgExtra = `Estudaste [${item.nome}] (150 EXP).`;
-    let magias = Object.keys(a.maestriaFeiticos);
-    if (magias.length > 0) {
-        let magiaSorteada = magias[Math.floor(Math.random() * magias.length)];
-        a.maestriaFeiticos[magiaSorteada].exp += 80;
-        let nomeM = this.livroDeFeiticos[magiaSorteada] ? this.livroDeFeiticos[magiaSorteada].nome : magiaSorteada;
-        msgExtra += ` A tua aptidão com [${nomeM}] aumentou!`;
+        // ========================================================
+        // 📚 LÓGICA DE APRENDIZADO DE FEITIÇOS NAS AULAS
+        // ========================================================
+        await this._addXp(a, 150);
+        let msgExtra = `Estudaste [${item.nome}] (150 EXP).`;
+        
+        // 1. Pega todos os feitiços do jogo que NÃO foram criados por jogadores (os canônicos)
+        let feiticosBase = Object.keys(this.livroDeFeiticos).filter(k => !this.livroDeFeiticos[k].custom);
+        
+        // 2. Filtra apenas os feitiços que o aluno ainda NÃO TEM
+        if (!a.maestriaFeiticos) a.maestriaFeiticos = {};
+        let feiticosNaoAprendidos = feiticosBase.filter(k => !a.maestriaFeiticos[k]);
+
+        // 3. Sorteia se o aluno vai aprender um feitiço novo ou melhorar um que já tem
+        // (70% de chance de aprender um novo, se ainda houver feitiços para aprender)
+        if (feiticosNaoAprendidos.length > 0 && Math.random() < 0.7) { 
+            let novoFeitico = feiticosNaoAprendidos[Math.floor(Math.random() * feiticosNaoAprendidos.length)];
+            
+            // Adiciona o feitiço ao grimório do aluno
+            a.maestriaFeiticos[novoFeitico] = { nivel: 1, exp: 0, expProx: 100 };
+            
+            let nomeF = this.livroDeFeiticos[novoFeitico].nome;
+            msgExtra += ` 🎇 EUREKA! Acabaste de aprender o feitiço: [${nomeF}]! Vai ao teu Grimório para o equipar.`;
+        } 
+        else {
+            // Se já sabe todos ou caiu nos 30%, aumenta a maestria (Aptidão) de um feitiço que já possui
+            let magias = Object.keys(a.maestriaFeiticos);
+            if (magias.length > 0) {
+                let magiaSorteada = magias[Math.floor(Math.random() * magias.length)];
+                a.maestriaFeiticos[magiaSorteada].exp += 80;
+                let nomeM = this.livroDeFeiticos[magiaSorteada] ? this.livroDeFeiticos[magiaSorteada].nome : magiaSorteada;
+                msgExtra += ` A tua aptidão com [${nomeM}] aumentou!`;
+            }
+        }
+
+        this._salvarBancoDeDados(); 
+        return { sucesso: true, msg: msgExtra };
     }
-    this._salvarBancoDeDados(); return { sucesso: true, msg: msgExtra };
-}
 
     // BIBLIOTECA: LORE E PROVAS (N.O.M.)
     async lerLivroIA(alunoId, assunto) {
@@ -1690,26 +1895,75 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         return { sucesso: true, idInstancia: idInst, estado: { entidades: inimigosAtivos } };
     }
     async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
-        const a = this.alunos[atacanteId]; const inst = this.dungeonInstancias[instId];
-        if (!a || !inst || inst.status !== 'combate') return { erro: "Combate finalizado." };
+        const a = this.alunos[atacanteId]; 
+        const inst = this.dungeonInstancias[instId];
+        if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
 
-        let mob = inst.entidades.find(m => m.idx === alvoIdx && m.vivo) || inst.entidades.find(m => m.vivo);
-        if(!mob) return { erro: "Todos os inimigos já caíram." };
-
-        let danoCausado = 0; let defendeu = false;
-        if (feiticoId !== "dano_recebido" && feiticoId !== "protego_block_reflex") {
-            const feitico = this.livroDeFeiticos[feiticoId];
-            if (!feitico) return { erro: "Feitiço desconhecido." };
-            
-            danoCausado = (feitico.poderBase || 50) + ((a.atributosTotais.feiticos || 5) * 5);
-            // Críticos aleatórios
-            let critico = Math.random() > 0.85;
-            if(critico) danoCausado = Math.floor(danoCausado * 1.5);
-
-            if(mob.padrao === 'defensivo') { danoCausado = Math.floor(danoCausado * 0.5); defendeu = true; }
-            mob.hpAtual -= Math.floor(danoCausado);
+        // Ignora pacotes de impacto visual do Frontend
+        if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
+            return { sucesso: true, relatoAcao: "Impacto registado." };
         }
 
+        const feitico = this.livroDeFeiticos[feiticoId];
+        if (!feitico) return { erro: "Feitiço desconhecido." };
+
+        // LÊ EXATAMENTE AS CHAVES GERADAS PELA TUA IA
+        let mecanica = feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+        let forcaDoFeitico = Number(feitico.valorBase) || Number(feitico.poderBase) || 50;
+        let relatoAcao = "";
+
+        // ===============================================
+        // LÓGICA 1: CURA (Sobe o HP)
+        // ===============================================
+        if (mecanica === 'cura') {
+            let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
+            a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
+            relatoAcao = `Lançaste ${feitico.nome} e recuperaste ${curaAplicada} HP!`;
+            
+            this._salvarBancoDeDados();
+            // IMPORTANTE: O return aqui impede que a cura cause dano aos inimigos!
+            return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades };
+        } 
+        
+        // ===============================================
+        // LÓGICA 2: ESCUDO (Bloqueio Total)
+        // ===============================================
+        if (mecanica === 'escudo' || mecanica === 'defesa') {
+            relatoAcao = `A barreira de ${feitico.nome} está a proteger-te!`;
+            return { sucesso: true, relatoAcao, bossMorto: false, entidades: inst.entidades };
+        }
+
+        // ===============================================
+        // LÓGICA 3: ATAQUE E STATUS (Dá Dano e Altera Boss)
+        // ===============================================
+        let mob = inst.entidades.find(m => m.idx === alvoIdx && m.vivo) || inst.entidades.find(m => m.vivo);
+        if(!mob) return { erro: "Sem alvos vivos." };
+
+        let danoAplicado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
+        let defendeu = false;
+
+        // Se for STATUS, dá menos dano mas QUEBRA o escudo/padrão do inimigo!
+        if (mecanica === 'status') {
+            danoAplicado = Math.floor(danoAplicado * 0.8);
+            mob.padrao = 'vulneravel'; // Tira o escudo do mob
+            relatoAcao = `O feitiço ${feitico.nome} atordoou o inimigo! Defesa quebrada!`;
+        } else {
+            relatoAcao = `O teu ${feitico.nome} atingiu o alvo!`;
+        }
+
+        if(mob.padrao === 'defensivo') {
+            danoAplicado = Math.floor(danoAplicado * 0.6);
+            defendeu = true;
+        }
+
+        let critico = Math.random() > 0.85;
+        if(critico) danoAplicado = Math.floor(danoAplicado * 1.5);
+
+        mob.hpAtual -= Math.floor(danoAplicado);
+
+        // ===============================================
+        // VERIFICAÇÃO DE MORTE
+        // ===============================================
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
             let todosMortos = inst.entidades.every(m => !m.vivo);
@@ -1719,46 +1973,38 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
                 let xpFase = isBoss ? 1500 : 400 * inst.entidades.length;
                 let galeoesFase = isBoss ? 800 : 100 * inst.entidades.length;
 
-                await this._addXp(a, xpFase); 
-                a.galeoes += galeoesFase; 
+                await this._addXp(a, xpFase); a.galeoes += galeoesFase; 
+                if(!a.estatisticas) a.estatisticas = { monstrosMortos: 0 };
                 a.estatisticas.monstrosMortos += inst.entidades.length;
                 try { this._progressoQuest(a, 'pve', mob.nome, 1); } catch(ex){}
 
                 if (inst.faseAtual < inst.maxFases) {
                     inst.faseAtual++;
-                    
-                    // 🔥 Aplica a mesma progressão de Mobs nas próximas fases da floresta
-                    let maxMobsPossiveis = 1;
-                    if (a.pveProgresso.nivel >= 2 || a.pveProgresso.area >= 4) maxMobsPossiveis = 2;
-                    if (a.pveProgresso.nivel >= 4) maxMobsPossiveis = 3;
-                    
-                    let proxMobs = (inst.faseAtual === inst.maxFases) ? 1 : Math.floor(Math.random() * maxMobsPossiveis) + 1;
-                    
+                    let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
+                    let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
                     let novasEntidades = [];
-                    let novaBase = this._gerarMonstroRapido(mob.hpMax * 1.3, inst.local, inst.faseAtual === inst.maxFases);
+                    let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
+                    
                     for(let i=0; i<proxMobs; i++) {
-                        novasEntidades.push({ 
-                            idx: i, nome: (proxMobs > 1 ? `${novaBase.nome} [${i+1}]` : novaBase.nome), 
-                            hpMax: novaBase.hpMax, hpAtual: novaBase.hpAtual, vivo: true, padrao: novaBase.padrao 
-                        });
+                        novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hp, hpAtual: mData.hp, vivo: true, padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)] });
                     }
-                    inst.entidades = novasEntidades; 
-                    this._salvarBancoDeDados();
-                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP]`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado: danoCausado, alvoMorto: mob.idx };
+                    inst.entidades = novasEntidades; this._salvarBancoDeDados();
+                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP].`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado, alvoMorto: mob.idx };
                 } else {
                     inst.status = 'finalizado'; clearInterval(inst.timerBossAtaque);
+                    if(!a.pveProgresso) a.pveProgresso = { area: 1, nivel: 1 };
                     a.pveProgresso.area++; if (a.pveProgresso.area > 5) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; }
                     this._salvarBancoDeDados();
-                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP]. Avançaste!`, hpBoss: 0, danoAplicado: danoCausado, alvoMorto: mob.idx };
+                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP]. Avançaste!`, hpBoss: 0, danoAplicado, alvoMorto: mob.idx };
                 }
             } else {
-                return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoCausado, alvoMorto: mob.idx };
+                this._salvarBancoDeDados();
+                return { mobEliminado: true, relatoAcao: `${mob.nome} foi pulverizado!`, entidades: inst.entidades, hpBoss: 0, danoAplicado, alvoMorto: mob.idx };
             }
         }
 
         this._salvarBancoDeDados();
-        // Retornamos o dano exato para o Frontend exibir no ecrã!
-        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: danoCausado, defendeu: defendeu };
+        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado, defendeu, relatoAcao };
     }
 
     criarGremio(alunoId, nomeGremio) {
@@ -1781,7 +2027,7 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         const prompt = `Avalia o bruxo ${a.nome}. Casa: ${a.casa}. Nível: ${a.nivel}. Duelos vencidos: ${a.estatisticas.duelosVencidos}. Monstros mortos: ${a.estatisticas.monstrosMortos}. Atributo maior: Feitiços (${a.atributosTotais.feiticos}).
         Atua como o Ministro da Magia e decreta UM TÍTULO ÉPICO e EXCLUSIVO (Max 4 palavras, ex: 'O Executor das Sombras', 'Duelista de Fogo'). Retorna SÓ O TÍTULO em texto simples.`;
         try {
-            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             a.titulo = res.choices[0].message.content.replace(/["']/g, '').trim();
             this._salvarBancoDeDados(); return {sucesso: true, titulo: a.titulo};
         } catch(e) { return {erro:"O Ministério ignorou a carta."}; }
