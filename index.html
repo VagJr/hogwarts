@@ -64,7 +64,33 @@
         overflow-x: hidden;
         overscroll-behavior-y: none;
     }
+    /* ==========================================================================
+       MMO SOCIAL & PRESENCE HUD
+       ========================================================================== */
+    .mmo-sidebar {
+        position: fixed; right: 0; top: 66px; width: 200px; height: calc(100vh - 66px);
+        background: rgba(10, 12, 16, 0.95); border-left: 1px solid var(--hp-gold-dark);
+        z-index: 1000; padding: 10px; overflow-y: auto; transition: transform 0.3s;
+    }
+    .mmo-sidebar-header { color: var(--hp-gold); font-family: 'Cinzel', serif; font-size: 0.9em; border-bottom: 1px dashed #555; padding-bottom: 5px; margin-bottom: 10px; text-align: center; }
+    .mmo-player-item { display: flex; align-items: center; gap: 8px; padding: 8px 5px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); transition: 0.2s; }
+    .mmo-player-item:hover { background: rgba(255,255,255,0.1); border-left: 2px solid var(--hp-gold); }
+    .mmo-player-dot { width: 8px; height: 8px; background: #2ecc71; border-radius: 50%; box-shadow: 0 0 5px #2ecc71; }
+    .mmo-player-name { color: #ccc; font-size: 0.85em; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Chat MMO Tabs */
+    .chat-tabs { display: flex; gap: 2px; margin-bottom: 5px; }
+    .chat-tabs button { padding: 5px 10px; font-size: 0.7em; background: #111; color: #888; border: 1px solid #333; border-bottom: none; border-radius: 4px 4px 0 0; }
+    .chat-tabs button.active { background: var(--hp-panel); color: var(--hp-gold); border-color: var(--hp-gold-dark); }
     
+    /* Party HUD no Combate */
+    .party-hud { position: absolute; top: 120px; left: 10px; display: flex; flex-direction: column; gap: 5px; z-index: 10; }
+    .party-member { background: rgba(0,0,0,0.8); border: 1px solid #3498db; padding: 5px; border-radius: 4px; width: 150px; }
+    
+    @media (max-width: 900px) {
+        .mmo-sidebar { transform: translateX(100%); } /* Esconde no mobile por padrão */
+        .container { padding-right: 10px; } /* Ajusta o centro */
+    }
     /* ==========================================================================
        2. DESTAQUES DO JOGADOR E HEADER
        ========================================================================== */
@@ -649,6 +675,13 @@
     <span>🏆 Taça: <span id="taca-lider" style="color:var(--ouro); font-weight:bold;">--</span></span>
     <span>💧 Foco: <span id="hdr-foco" style="color:#40a0ff; font-weight:bold;">0/0</span></span>
     <span style="color: var(--ouro); font-weight:bold;">Aula Atual: <span id="relogio-aula">Sincronizando...</span></span>
+</div>
+
+<div class="mmo-sidebar" id="mmo-sidebar">
+    <div class="mmo-sidebar-header">📍 <span id="hud-zona-sidebar">Salão Principal</span></div>
+    <div id="mmo-online-list">
+        <p style="color:#666; font-size:0.8em; text-align:center;">A procurar bruxos...</p>
+    </div>
 </div>
 
 <div class="container">
@@ -1268,19 +1301,18 @@ window.colherDaEstufa = async function(poteId) {
                     </div>
                     
                     <div id="leitura-aula-result" style="margin-top:20px; padding:15px; background:url('https://www.transparenttextures.com/patterns/aged-paper.png') #efe1c8; color:#2c1e16; font-family:'IM Fell English', serif; font-size:1.1em; display:none; border:1px solid #8c6b32; box-shadow:inset 0 0 15px rgba(0,0,0,0.1);"></div>
-                    <div style="text-align:center; margin-top:15px; border-top: 1px solid rgba(212,175,55,0.3); padding-top: 15px;">
-                        <button onclick="document.getElementById('modal-calendario').classList.remove('oculto')" style="background:transparent; color:#d4af37; border: 1px dashed #d4af37; width:auto; padding:8px 20px;">📜 Ver Horário Escolar</button>
+                        
+                        <div style="text-align:center; margin-top:15px; border-top: 1px solid rgba(212,175,55,0.3); padding-top: 15px;">
+                            <button onclick="document.getElementById('modal-calendario').classList.remove('oculto')" style="background:transparent; color:#d4af37; border: 1px dashed #d4af37; width:auto; padding:8px 20px;">📜 Ver Horário Escolar</button>
+                        </div>
+                    </div> <h4 style="color:var(--hp-gold); margin-bottom:5px;">Debate e Dúvidas</h4>
+                    <div class="chat-container" id="chat-aula-box"></div>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="in-chat-aula" placeholder="Levanta a mão e pergunta ao Professor..." style="margin:0;" onkeypress="if(event.key === 'Enter') enviarChatAula()">
+                        <button onclick="enviarChatAula()" style="width: 100px; margin:0;">Falar</button>
                     </div>
-				</div>
 
-                <h4 style="color:var(--ouro);">Debate e Dúvidas</h4>
-                <div class="chat-container" id="chat-aula-box"></div>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="in-chat-aula" placeholder="Levanta a mão e pergunta ao Professor..." style="margin:0;">
-                    <button onclick="enviarChatAula()" style="width: 100px; margin:0;">Falar</button>
-                </div>
-            </div>
-        </div>
+                </div> </div>
 
         <!-- ABA: BIBLIOTECA E LORE -->
 <div id="aba-biblioteca" class="aba oculto">
@@ -1524,9 +1556,8 @@ async function submeterTese() {
 }
 </script>
 
-        <!-- ABA: EXPLORAR -->
-        <div id="aba-castelo" class="aba oculto">
-		<div class="card" style="border-color: #d4af37; background: rgba(212, 175, 55, 0.05); text-align:center;">
+<div id="aba-castelo" class="aba oculto">
+            <div class="card" style="border-color: #d4af37; background: rgba(212, 175, 55, 0.05); text-align:center;">
                 <h3 style="color:#d4af37; margin-top:0;">O Ciclo da Vida em Hogwarts</h3>
                 <p style="font-size:0.9em; color:#ccc;">Segue estes passos para te tornares o Bruxo mais poderoso:</p>
                 <div style="display:flex; justify-content:space-around; flex-wrap:wrap; gap:10px; font-size:0.85em; color:#aaa; margin-top:15px;">
@@ -1537,14 +1568,15 @@ async function submeterTese() {
                     <div style="flex:1; min-width:120px;"><b>5. 🦉 Mercado & PvP</b><br>Vende os teus saques raros, compra equipamentos e ganha ELO no Quadribol.</div>
                 </div>
             </div>
+
             <div class="card" style="background: rgba(39, 174, 96, 0.1); border-color:#27ae60;">
                 <h3 style="color:#2ecc71;">Rotina do Estudante</h3>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <button onclick="acaoRoleplay('comer')" style="flex:1; background:#8e6c1e; color:#fff; border-color:var(--ouro);">🍗 Comer no Salão</button>
                     <button onclick="acaoRoleplay('dormir')" style="flex:1; background:#2c3e50; color:#fff; border-color:#34495e;">🛏️ Dormir no Quarto</button>
-					<div style="text-align:right; margin-bottom: 10px;">
-                    <button onclick="convidarParaGrupo()" style="background:#8e44ad; color:#fff; border-color:#9b59b6; width:auto; padding:5px 15px; font-size:0.85em;">🤝 Convidar Jogador para Grupo</button>
-                </div>
+                    <div style="text-align:right; margin-bottom: 10px;">
+                        <button onclick="convidarParaGrupo()" style="background:#8e44ad; color:#fff; border-color:#9b59b6; width:auto; padding:5px 15px; font-size:0.85em;">🤝 Convidar Jogador para Grupo</button>
+                    </div>
                 </div>
                 
                 <div style="background: rgba(0,0,0,0.5); border: 1px dashed #2ecc71; padding: 15px; margin-top: 15px; border-radius: 4px; text-align:center;">
@@ -1571,7 +1603,6 @@ async function submeterTese() {
             <div class="card" style="border-color: #3498db; box-shadow: inset 0 0 30px rgba(52, 152, 219, 0.1);">
                 <h3>📍 Zona Atual: <span id="ui-zona-nome" style="color:#fff;">Salão Principal</span></h3>
                 
-                <!-- Ação Livre IA -->
                 <div style="background: rgba(0,0,0,0.5); border: 1px dashed #3498db; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
                     <h4 style="color:#3498db; margin-top:0;">Interação Dinâmica (IA DM)</h4>
                     <p style="font-size:0.85em; color:#aaa; font-style:italic;">Escreve qualquer ação (ex: "Tocar na armadura", "Investigar a parede falsa"). O Mestre de Jogo IA ditará as consequências e recompensas.</p>
@@ -1582,11 +1613,19 @@ async function submeterTese() {
                     <div id="resultado-acao-livre" style="margin-top:15px; color:#2ecc71; font-family:'Courier New', monospace; font-size:0.95em; white-space:pre-wrap; text-shadow:0 0 5px rgba(46,204,113,0.5);"></div>
                 </div>
 
-                <h4 style="color:var(--ouro);">Sons do Corredor</h4>
+                <h4 style="color:var(--hp-gold); margin-bottom:5px;">Comunicação Mágica</h4>
+                <div class="chat-tabs">
+                    <button class="active" onclick="mudarAbaChat('zona', this)">📍 Local</button>
+                    <button onclick="mudarAbaChat('global', this)">🌍 Global</button>
+                    <button onclick="mudarAbaChat('grupo', this)" style="color:#3498db;">🤝 Grupo</button>
+                    <button onclick="mudarAbaChat('gremio', this)" style="color:#9b59b6;">🛡️ Guilda</button>
+                </div>
+                
                 <div class="chat-container" id="chat-zona-box"></div>
+                
                 <div style="display: flex; gap: 10px;">
-                    <input type="text" id="in-chat-zona" placeholder="Fala para o ar ou chama fantasmas..." style="margin:0;">
-                    <button onclick="enviarChatZona()" style="width: 100px;">Falar</button>
+                    <input type="text" id="in-chat-zona" placeholder="Pressiona Enter para falar..." style="margin:0;" onkeypress="if(event.key === 'Enter') enviarChatMMO()">
+                    <button onclick="enviarChatMMO()" style="width: 100px;">Falar</button>
                 </div>
             </div>
         </div>
@@ -4072,13 +4111,33 @@ socket.on('receber_convite_grupo', (dados) => {
     socket.on('pontuacao_atualizada', (pontos) => { safeSet('taca-lider', pontos.lider); });
     
     socket.on('nova_mensagem', (dados) => { 
-        let boxId = dados.canal === 'zona' ? 'chat-zona-box' : (dados.canal === 'aula' ? 'chat-aula-box' : null); if(!boxId) return;
+        // 1. A caixa da Aula recebe as aulas. Tudo o resto (Zona, Global, Grupo, Guilda, Sistema) vai para o Chat MMO Principal!
+        let boxId = (dados.canal === 'aula') ? 'chat-aula-box' : 'chat-zona-box';
         const box = document.getElementById(boxId); 
-        let corNome = dados.autor.includes('[SISTEMA]') ? '#888' : (dados.autor.includes('👻') || dados.autor.includes('✨') ? '#2ecc71' : (dados.autor.includes('Prof') ? '#9b59b6' : 'var(--ouro)'));
-        if(box) { box.innerHTML += `<div class="chat-msg"><span style="color:${corNome}; font-weight:bold;">${dados.autor}:</span> <span style="color:#d0d5dc;">${dados.texto}</span></div>`; box.scrollTop = box.scrollHeight; } 
+        if(!box) return;
+
+        // 2. Define as cores dos remetentes com base na entidade mágica
+        let corNome = 'var(--hp-gold)'; // Jogadores Normais
         
-        // Ativa a narração mágica dependendo de quem fala
-        if (dados.autor.includes('Prof') || dados.autor.includes('Fantasma') || dados.autor.includes('SISTEMA') || dados.autor.includes('AMBIENTE')) {
+        if (dados.autor.includes('SISTEMA') || dados.autor.includes('[SISTEMA]')) {
+            corNome = '#888';
+        } else if (dados.autor.includes('👻') || dados.autor.includes('✨') || dados.autor.includes('🗣️') || dados.autor.includes('AMBIENTE')) {
+            corNome = '#2ecc71'; // IA e Fantasmas do Castelo
+        } else if (dados.autor.includes('Prof') || dados.autor.includes('🎓')) {
+            corNome = '#9b59b6'; // Professores (Aulas)
+        } else if (dados.autor.includes('BATALHA') || dados.autor.includes('ALERTA')) {
+            corNome = '#e74c3c'; // World Bosses Globais
+        } else if (dados.autor.includes('Coruja') || dados.autor.includes('🦉')) {
+            corNome = '#e67e22'; // Mercado
+        }
+
+        // 3. Injeta a mensagem no chat unificado
+        box.innerHTML += `<div class="chat-msg"><span style="color:${corNome}; font-weight:bold;">${dados.autor}:</span> <span style="color:#d0d5dc;">${dados.texto}</span></div>`; 
+        box.scrollTop = box.scrollHeight; 
+        
+        // 4. ATIVA A VOZ DA IA (Text-To-Speech)
+        // Agora lê corretamente professores, sistema de masmorra, fantasmas e ações de ambiente
+        if (dados.autor.includes('Prof') || dados.autor.includes('👻') || dados.autor.includes('✨') || dados.autor.includes('🗣️') || dados.autor.includes('SISTEMA') || dados.autor.includes('AMBIENTE')) {
             falarTextoIA(dados.texto, dados.autor);
         }
     });
@@ -4748,6 +4807,140 @@ function pararDragMovel() {
     document.ontouchmove = null; document.ontouchend = null;
     movelArrasteAtivo = null;
 }
+// ==============================================================================
+    // MMO SOCIAL, CHAT E PRESENÇA NO MUNDO
+    // ==============================================================================
+    let canalChatAtivo = 'zona';
+
+    window.mudarAbaChat = function(canal, btn) {
+        playSFX('click');
+        canalChatAtivo = canal;
+        
+        // Atualiza a interface da aba ativa
+        document.querySelectorAll('.chat-tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // Coloca uma linha divisória para o jogador saber que mudou de canal
+        const box = document.getElementById('chat-zona-box');
+        if (box) {
+            box.innerHTML += `<div class="chat-msg" style="color:#888; text-align:center; font-style:italic;">--- Mudaste para o canal ${canal.toUpperCase()} ---</div>`;
+            box.scrollTop = box.scrollHeight;
+        }
+    };
+
+    window.enviarChatMMO = function() {
+        const msgInput = document.getElementById('in-chat-zona');
+        if(!msgInput || !msgInput.value) return;
+        const msg = msgInput.value;
+        
+        playSFX('click');
+        
+        // Envia para o servidor usando a lógica de canais (Global/Zona/Guilda/Grupo)
+        socket.emit('mensagem_chat', { 
+            remetenteId: meuBruxo.id, 
+            remetenteNome: meuBruxo.nome, 
+            remetenteCasa: meuBruxo.casa, 
+            gremioId: meuBruxo.gremioId, // Passa a guilda para chat de guilda
+            partyId: meuBruxo.partyId,   // Passa a party para chat de grupo
+            canal: canalChatAtivo, 
+            zona: zonaAtual, 
+            texto: msg 
+        });
+        
+        msgInput.value = '';
+    };
+
+    // FUNÇÕES ORIGINAIS RESTAURADAS PARA A IA FUNCIONAR NA ABA AULA E EXPLORAÇÃO
+    window.realizarAcaoLivre = async function() { 
+        playSFX('click'); 
+        const acao = document.getElementById('in-acao-livre').value; 
+        if (!acao) return; 
+        safeSet('resultado-acao-livre', "A Magia reage à tua intenção..."); 
+        try { 
+            const res = await fetch('/api/castelo/interagir', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, zona: zonaAtual, acao: acao }) }); 
+            const d = await res.json(); 
+            safeSet('resultado-acao-livre', d.erro ? `<span style="color:#e74c3c">${d.erro}</span>` : d.relato, true); 
+            document.getElementById('in-acao-livre').value = ''; 
+            syncRequest(); 
+            falarTextoIA(d.relato, "Sistema"); 
+        } catch(e) {} 
+    };
+
+    window.entrarZonaCastelo = function(zona) { 
+        playSFX('click'); 
+        zonaAtual = zona; 
+        safeSet('ui-zona-nome', zonaAtual); 
+        
+        // Manda o socket do MMO atualizar a nossa sala
+        socket.emit('entrar_zona_castelo', { zona: zonaAtual, nome: meuBruxo.nome }); 
+    };
+
+    window.enviarChatAula = function() { 
+        playSFX('click'); 
+        const msg = document.getElementById('in-chat-aula').value; 
+        if(!msg) return; 
+        socket.emit('mensagem_chat', { remetenteId: meuBruxo.id, remetenteNome: meuBruxo.nome, remetenteCasa: meuBruxo.casa, canal: 'aula', texto: msg }); 
+        document.getElementById('in-chat-aula').value = ''; 
+    };
+
+    // ==============================================================================
+    // MMO LISTA DE PRESENÇA (QUEM ESTÁ NA ZONA)
+    // ==============================================================================
+    socket.on('mmo_update_presenca', (jogadores) => {
+        const listDiv = document.getElementById('mmo-online-list');
+        if(!listDiv) return;
+        
+        let html = '';
+        jogadores.forEach(j => {
+            let corCasa = j.casa === 'Gryffindor' ? '#e74c3c' : (j.casa === 'Slytherin' ? '#2ecc71' : (j.casa === 'Ravenclaw' ? '#3498db' : (j.casa === 'Hufflepuff' ? '#f1c40f' : '#ccc')));
+            html += `
+            <div class="mmo-player-item" onclick="inspecionarJogador('${j.id}')">
+                <div class="mmo-player-dot" style="background:${corCasa}; box-shadow: 0 0 5px ${corCasa};"></div>
+                <div class="mmo-player-name">Lv.${j.nivel} ${j.nome}</div>
+            </div>`;
+        });
+        listDiv.innerHTML = html;
+        safeSet('hud-zona-sidebar', zonaAtual);
+    });
+
+    socket.on('mmo_jogador_saiu', (dados) => {
+        // Pedimos ao servidor a lista atualizada simulando uma re-entrada silenciosa
+        socket.emit('pedir_presenca', { zona: zonaAtual });
+    });
+
+    window.inspecionarJogador = async function(idAlvo) {
+        if(idAlvo === meuBruxo.id) return abrirPerfil(); 
+        playSFX('click');
+        
+        try {
+            const res = await fetch(`/api/jogador/perfil/${idAlvo}`);
+            const p = await res.json();
+            if(p.erro) return mostrarNotificacao(p.erro, 'erro');
+            
+            document.getElementById('modal-perfil').classList.remove('oculto');
+            let html = `
+            <div style="text-align:center;">
+                <h3 style="color:#fff; font-size:2em; font-family:'Cinzel'; margin:0;">${p.nome}</h3>
+                <span style="color:var(--hp-gold);">${p.titulo}</span>
+                <p style="color:#aaa;">Casa ${p.casa} | Nível ${p.nivel}</p>
+                <div style="background:rgba(0,0,0,0.5); padding:15px; border-radius:4px; margin-top:15px; border:1px solid #333;">
+                    <p style="color:#2ecc71; margin:5px;"><b>ELO PvP:</b> ${p.elo}</p>
+                    <p style="color:#3498db; margin:5px;"><b>Varinha:</b> ${p.varinha}</p>
+                    <p style="color:#9b59b6; margin:5px;"><b>Guilda:</b> ${p.gremio}</p>
+                </div>
+                <div style="margin-top:20px; display:flex; gap:10px; justify-content:center;">
+                    <button onclick="convidarParaGrupoInspecao('${p.nome}')" style="background:#2c3e50; border-color:#3498db; width:auto;">🤝 Convidar Grupo</button>
+                </div>
+            </div>`;
+            safeSet('perfil-conteudo', html, true);
+        } catch(e) { mostrarNotificacao("O bruxo está sob feitiço de Ocultação.", "erro"); }
+    };
+
+    window.convidarParaGrupoInspecao = function(nomeAlvo) {
+        socket.emit('enviar_convite_grupo', { meuId: meuBruxo.id, meuNome: meuBruxo.nome, alvoNome: nomeAlvo });
+        mostrarNotificacao(`Convite enviado a ${nomeAlvo}!`, 'sucesso');
+        document.getElementById('modal-perfil').classList.add('oculto');
+    };
 </script>
 </body>
 </html>

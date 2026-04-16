@@ -711,32 +711,108 @@ io.on('connection', (socket) => {
         io.to(`priv_${eu.id}`).emit('nova_mensagem', { canal: 'zona', autor: '🤝 GRUPO', texto: `Entraste no grupo de ${lider.nome}!` });
     });
     socket.on('entrar_chat', (dados) => { 
-        socket.join('salaoPrincipal'); 
+        socket.join('salaoPrincipal'); // Canal Global
         if(dados.casa) socket.join(`comum_${dados.casa}`); 
         socket.join(`priv_${dados.idAluno}`); 
+        
+        // Regista o jogador no sistema online
+        socket.alunoId = dados.idAluno;
+        socket.alunoNome = core.alunos[dados.idAluno].nome;
     });
     
     socket.on('entrar_zona_castelo', async (dados) => {
-        socket.rooms.forEach(r => { if(r.startsWith('zona_')) socket.leave(r); });
+        if (socket.zonaAtual) {
+            socket.leave(`zona_${socket.zonaAtual}`);
+            io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
+        }
+        
+        socket.zonaAtual = dados.zona;
         socket.join(`zona_${dados.zona}`);
+        
         io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '🏰 [SISTEMA]', texto: `${dados.nome} entrou em ${dados.zona}.` });
         
         core.cerebroIA.gerarAtmosferaLocal(dados.zona).then(ambienteMsg => {
             if(ambienteMsg) io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '✨ [AMBIENTE]', texto: ambienteMsg });
         });
+
+        atualizarPresencaZona(dados.zona);
+    });
+	socket.on('pedir_presenca', (dados) => {
+        atualizarPresencaZona(dados.zona);
+    });
+	function atualizarPresencaZona(zona) {
+        const clientsInZone = io.sockets.adapter.rooms.get(`zona_${zona}`);
+        let jogadoresNaZona = [];
+        if (clientsInZone) {
+            for (const clientId of clientsInZone) {
+                const clientSocket = io.sockets.sockets.get(clientId);
+                if (clientSocket && clientSocket.alunoId) {
+                    const a = core.alunos[clientSocket.alunoId];
+                    if(a) jogadoresNaZona.push({ id: a.id, nome: a.nome, nivel: a.nivel, casa: a.casa });
+                }
+            }
+        }
+        io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
+    }
+
+    socket.on('disconnect', () => {
+        if (socket.zonaAtual && socket.alunoId) {
+            io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
+        }
+    });
+	
+	socket.on('disconnect', () => {
+        if (socket.zonaAtual && socket.alunoId) {
+            io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
+        }
+    });
+
+    // API para Inspecionar Jogador (Novo Endpoint)
+    app.get('/api/jogador/perfil/:id', (req, res) => {
+        const a = core.alunos[req.params.id];
+        if(!a) return res.json({erro: "Bruxo desaparecido."});
+        res.json({
+            id: a.id, nome: a.nome, titulo: a.titulo, nivel: a.nivel, casa: a.casa,
+            elo: a.elos?.duelos || 1000, 
+            varinha: a.equipamentos.varinha ? a.equipamentos.varinha.nome : "Nenhuma",
+            gremio: a.gremioId ? core.gremios[a.gremioId]?.nome : "Sem Guilda"
+        });
     });
 
     socket.on('mensagem_chat', async (dados) => {
         const payload = { autor: `[${dados.remetenteCasa.substring(0,3)}] ${dados.remetenteNome}`, texto: dados.texto, hora: new Date().toLocaleTimeString() };
-        let roomEmit = dados.canal === 'salaComum' ? `comum_${dados.casaNome}` : (dados.canal === 'zona' ? `zona_${dados.zona}` : 'salaoPrincipal');
-        
-        if (dados.canal === 'aula') {
+        let roomEmit = 'salaoPrincipal'; // Default (Global)
+        let prefixo = '';
+
+        if (dados.canal === 'zona') {
+            roomEmit = `zona_${dados.zona}`;
+            prefixo = '📍 ';
+        } else if (dados.canal === 'grupo' && dados.partyId) {
+            roomEmit = dados.partyId;
+            prefixo = '🤝 ';
+        } else if (dados.canal === 'gremio' && dados.gremioId) {
+            roomEmit = dados.gremioId;
+            prefixo = '🛡️ ';
+        } else if (dados.canal === 'aula') {
             roomEmit = 'sala_de_aula';
             if (!socket.rooms.has('sala_de_aula')) socket.join('sala_de_aula');
+        } else {
+            // Canal Global
+            roomEmit = 'salaoPrincipal';
+            prefixo = '🌍 ';
         }
 
+        payload.autor = prefixo + payload.autor;
+
+        // Se for grupo ou guilda, garante que o socket faz parte da sala (room) para ouvir os amigos
+        if ((dados.canal === 'grupo' || dados.canal === 'gremio') && roomEmit !== 'salaoPrincipal') {
+             if (!socket.rooms.has(roomEmit)) socket.join(roomEmit);
+        }
+
+        // Emite a mensagem falada pelo jogador
         io.to(roomEmit).emit('nova_mensagem', { canal: dados.canal, ...payload });
 
+        // RESPOSTAS INTELIGENTES DA IA (Apenas se o canal for Zona ou Aula)
         if (dados.canal === 'zona') {
             const respIA = await core.cerebroIA.gerarRespostaPersonagemIA(dados.zona, dados.remetenteNome, dados.texto, dados.remetenteCasa);
             if (respIA && respIA.personagem !== "Nenhum" && respIA.texto) {

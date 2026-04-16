@@ -759,21 +759,30 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `És o Castelo de Hogwarts vivo e onisciente. Tu controlas todos os segredos. O aluno ${alunoNome} está em "${zona}" e tenta: "${acao}".
             Reage à ação dele baseado na lore canónica. Pode abrir passagens, fazer quadros falarem ou encontrar objetos.
             Decide se ele merece uma recompensa.
-            RETORNA APENAS JSON ABSOLUTO (Sem formatação markdown): 
+            RETORNA APENAS JSON ESTRITO: 
             {"relato": "Uma parede de pedra afasta-se, revelando...", "xpGanho": 25, "item": "Moeda de Ouro Antiga", "ouro": 10}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
+            
+            const res = await this.groq.chat.completions.create({ 
+                messages: [{ role: "user", content: prompt }], 
+                model: "llama-3.1-8b-instant",
+                response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
+            });
             const parse = this._extrairJSONBlindado(res.choices[0].message.content);
             if(!parse) throw new Error(); return parse;
         } catch(e) { return { relato: "Um feitiço de proteção bloqueou a tua ação.", xpGanho: 0, ouro: 0 }; }
     }
-
-    // VIDA DO CASTELO (O Chat Autónomo)
-    async gerarVidaAutonomaCastelo(zona, alunosAtivos) {
+	
+	async gerarVidaAutonomaCastelo(zona, alunosAtivos) {
         if (!this.apiKey) return { personagem: "Fantasma", texto: "Uma brisa fria atravessa o corredor..." };
         try {
             const prompt = `Hogwarts é viva. Cria uma fala curta e independente de um personagem (ex: Pirraça, Murta, Nick, um Quadro) que está em "${zona}". Alunos perto: ${alunosAtivos}.
-            RETORNA APENAS JSON: {"personagem": "Pirraça", "texto": "Bomba de bosta no corredor! Hihihi!"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
+            RETORNA APENAS JSON ESTRITO: {"personagem": "Pirraça", "texto": "Bomba de bosta no corredor! Hihihi!"}`;
+            
+            const res = await this.groq.chat.completions.create({ 
+                messages: [{ role: "user", content: prompt }], 
+                model: "llama-3.1-8b-instant",
+                response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
+            });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { personagem: "Nenhum", texto: "" };
         } catch(e) { return { personagem: "Nenhum", texto: "" }; }
     }
@@ -783,8 +792,13 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
         try {
             const prompt = `És o castelo mágico. O aluno ${jogadorNome} (${casa}) gritou em "${zona}": "${mensagemTexto}".
             Faz com que um fantasma, quadro ou estátua responda de forma inteligente a esta frase.
-            RETORNA APENAS JSON: {"personagem": "Quadro da Mulher Gorda", "texto": "Abaixa o tom de voz, jovem!", "pontos": 0}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
+            RETORNA APENAS JSON ESTRITO: {"personagem": "Quadro da Mulher Gorda", "texto": "Abaixa o tom de voz, jovem!", "pontos": 0}`;
+            
+            const res = await this.groq.chat.completions.create({ 
+                messages: [{ role: "user", content: prompt }], 
+                model: "llama-3.1-8b-instant",
+                response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
+            });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
     }
