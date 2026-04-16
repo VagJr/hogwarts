@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hogwarts Online | A Tua Carta Chegou</title>
+    <style>
+        /* FONTES CLÁSSICAS MÁGICAS */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400;1,700&display=swap');
+
+        :root {
+            --bg-parchment: #f4ebd8; /* Pergaminho claro e feliz */
+            --ink-dark: #2c1a11; /* Tinta sépia muito escura */
+            --ink-light: #5c3a21; /* Tinta sépia clara para textos secundários */
+            --gold-magic: #c89f3c; /* Dourado de Hogwarts */
+            --gold-glow: #ffdf73;
+            --spell-blue: #2980b9;
+            --spell-green: #27ae60;
+            --spell-red: #c0392b;
+            --gryffindor: #8a0b0c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            background-color: var(--bg-parchment);
+            background-image: url('https://www.transparenttextures.com/patterns/aged-paper.png');
+            color: var(--ink-dark);
+            font-family: 'Crimson Text', serif;
+            font-size: 1.25rem;
+            line-height: 1.7;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Cinzel Decorative', cursive;
+            color: var(--gryffindor);
+            text-align: center;
+            font-weight: 900;
+        }
+
+        /* ANIMAÇÕES GLOBAIS DE FEITIÇOS */
+        @keyframes spellFloat {
+            0% { transform: translateY(0px) scale(1); opacity: 0.3; }
+            50% { transform: translateY(-30px) scale(1.2); opacity: 0.8; }
+            100% { transform: translateY(0px) scale(1); opacity: 0.3; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* NAVEGAÇÃO DO MAPA DO SALTEADOR */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 15px 50px;
+            background: rgba(244, 235, 216, 0.95);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            border-bottom: 2px solid var(--gold-magic);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        nav .logo { font-size: 1.5rem; font-family: 'Cinzel Decorative'; font-weight: 900; color: var(--gryffindor); letter-spacing: 1px;}
+        nav ul { display: flex; gap: 30px; list-style: none; }
+        nav a { color: var(--ink-dark); text-decoration: none; font-size: 1.2rem; font-weight: 700; transition: 0.3s; }
+        nav a:hover { color: var(--gryffindor); text-shadow: 0 0 8px var(--gold-glow); }
+
+        /* HERO SECTION - A CARTA */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            padding: 100px 20px 50px 20px;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.6) 0%, transparent 80%);
+        }
+        .hero-emblem {
+            font-size: 5rem;
+            color: var(--gold-magic);
+            margin-bottom: 10px;
+            animation: fadeIn 0.8s ease-out;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.1));
+        }
+        .hero h1 {
+            font-size: 4.5rem;
+            margin-bottom: 20px;
+            color: var(--gryffindor);
+            letter-spacing: 2px;
+            animation: fadeIn 1.2s ease-out;
+            text-shadow: 2px 2px 0px #fff, 4px 4px 15px rgba(0,0,0,0.1);
+        }
+        .hero p {
+            font-size: 1.6rem;
+            max-width: 800px;
+            color: var(--ink-dark);
+            margin-bottom: 40px;
+            font-style: italic;
+            animation: fadeIn 1.6s ease-out;
+        }
+
+        /* BOTÃO MÁGICO (Estilo Selo de Cera) */
+        .btn-magic {
+            background: linear-gradient(to bottom, #a30000, #730000);
+            color: #fff;
+            border: 2px solid #5a0000;
+            padding: 18px 50px;
+            font-size: 1.4rem;
+            font-family: 'Cinzel Decorative';
+            font-weight: 900;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 8px 20px rgba(138, 11, 12, 0.4), inset 0 2px 5px rgba(255,255,255,0.3);
+            transition: all 0.3s;
+            text-transform: uppercase;
+            text-decoration: none;
+            display: inline-block;
+            letter-spacing: 1px;
+            animation: fadeIn 2s ease-out;
+        }
+        .btn-magic:hover {
+            background: linear-gradient(to bottom, #c20000, #8a0b0c);
+            box-shadow: 0 10px 25px rgba(138, 11, 12, 0.6), 0 0 20px var(--gold-glow);
+            transform: scale(1.05) translateY(-3px);
+            color: #fff;
+        }
+
+        /* SEÇÕES GERAIS */
+        section {
+            padding: 90px 10%;
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+        }
+        .section-title {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: var(--ink-dark);
+        }
+        .section-subtitle {
+            text-align: center;
+            color: var(--ink-light);
+            font-style: italic;
+            margin-bottom: 60px;
+            font-size: 1.3rem;
+        }
+
+        /* GRID DE DESTAQUES (Estilo Páginas de Livro) */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 35px;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid var(--gold-magic);
+            padding: 40px 30px;
+            border-radius: 4px;
+            text-align: center;
+            transition: 0.4s;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        /* Efeito de dobra de página */
+        .feature-card::before {
+            content: ''; position: absolute; top: 0; right: 0;
+            border-width: 0 30px 30px 0;
+            border-style: solid;
+            border-color: rgba(0,0,0,0.1) var(--bg-parchment) transparent transparent;
+            transition: 0.4s;
+        }
+        .feature-card:hover {
+            transform: translateY(-10px);
+            background: #fff;
+            box-shadow: 10px 15px 30px rgba(0,0,0,0.1);
+            border-color: var(--spell-blue);
+        }
+        .feature-icon {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            display: inline-block;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.1));
+        }
+        .feature-card h3 { font-size: 1.8rem; margin-bottom: 15px; color: var(--gryffindor); }
+        .feature-card p { color: var(--ink-dark); font-size: 1.2rem; }
+
+        /* LORE E MÓDULOS (Lado a Lado) */
+        .showcase {
+            display: flex;
+            align-items: center;
+            gap: 50px;
+            margin-bottom: 100px;
+        }
+        .showcase.reverse { flex-direction: row-reverse; }
+        .showcase-text { flex: 1.2; }
+        .showcase-text h2 { font-size: 2.6rem; margin-bottom: 20px; text-align: left; color: var(--gryffindor);}
+        .showcase-text p { font-size: 1.3rem; margin-bottom: 20px; color: var(--ink-dark); text-align: justify;}
+        
+        .showcase-image {
+            flex: 1;
+            position: relative;
+            text-align: center;
+        }
+        .showcase-image img {
+            width: 100%;
+            border-radius: 4px;
+            border: 8px solid #fff;
+            box-shadow: 5px 10px 25px rgba(0,0,0,0.15);
+            transition: 0.5s;
+            transform: rotate(2deg);
+        }
+        .showcase.reverse .showcase-image img { transform: rotate(-2deg); }
+        .showcase:hover .showcase-image img {
+            transform: scale(1.05) rotate(0deg);
+            box-shadow: 10px 20px 40px rgba(212, 175, 55, 0.4);
+        }
+
+        /* LUZES MÁGICAS FLUTUANTES NO FUNDO */
+        .spell-particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: -1;
+            animation: spellFloat infinite ease-in-out;
+            filter: blur(3px);
+        }
+
+        /* BANNER FINAL */
+        .cta-banner {
+            text-align:center; 
+            padding: 80px 20px; 
+            background: url('https://www.transparenttextures.com/patterns/diagmonds-light.png') rgba(212, 175, 55, 0.2); 
+            border-top: 2px solid var(--gold-magic); 
+            border-bottom: 2px solid var(--gold-magic); 
+            margin: 50px 0;
+        }
+        .cta-banner h2 { font-size: 3rem; color: var(--ink-dark); }
+        .cta-banner p { margin: 20px auto; max-width: 700px; color: var(--ink-dark); font-size:1.4rem; font-style:italic; }
+
+        /* FOOTER */
+        footer {
+            text-align: center;
+            padding: 40px;
+            background: var(--ink-dark);
+            color: var(--bg-parchment);
+        }
+        footer p { font-size: 1.1rem; opacity: 0.8; }
+
+        /* ANIMAÇÃO DE REVELAÇÃO NO SCROLL */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.5, 0, 0, 1);
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .showcase, .showcase.reverse { flex-direction: column; text-align: center; gap: 30px; }
+            .showcase-text h2 { text-align: center; }
+            .showcase-text p { text-align: center; }
+            .hero h1 { font-size: 3rem; }
+            nav { padding: 15px; flex-direction: column; gap: 10px; }
+            nav ul { gap: 15px; font-size: 1rem; flex-wrap: wrap; justify-content: center;}
+        }
+    </style>
+</head>
+<body>
+
+    <div class="spell-particle" style="width:15px; height:15px; background:var(--spell-blue); left:10%; top:15%; animation-duration:6s;"></div>
+    <div class="spell-particle" style="width:20px; height:20px; background:var(--gold-magic); right:15%; top:30%; animation-duration:8s; animation-delay:1s;"></div>
+    <div class="spell-particle" style="width:12px; height:12px; background:var(--spell-purple); left:20%; bottom:25%; animation-duration:7s; animation-delay:2s;"></div>
+    <div class="spell-particle" style="width:18px; height:18px; background:var(--spell-green); right:25%; bottom:10%; animation-duration:9s;"></div>
+
+    <nav>
+        <div class="logo">HOGWARTS ONLINE</div>
+        <ul>
+            <li><a href="#vida">A Magia Viva</a></li>
+            <li><a href="#combate">Duelos & Masmorras</a></li>
+            <li><a href="#aulas">As Aulas</a></li>
+            <li><a href="#atividades">Quadribol & Lazer</a></li>
+        </ul>
+    </nav>
+
+    <div class="hero">
+        <div class="hero-emblem">✉️</div>
+        <h1>Temos o prazer de informar...</h1>
+        <p>Que tens uma vaga na maior e mais imersiva Escola de Magia e Bruxaria. Pega na tua varinha, o Expresso de Hogwarts está prestes a partir da Plataforma 9¾!</p>
+        <a href="URL_DO_SEU_JOGO" class="btn-magic">Assinar o Pergaminho Mágico</a>
+    </div>
+
+    <section id="vida">
+        <h2 class="section-title">O Castelo que Respira</h2>
+        <p class="section-subtitle">Esquece os jogos onde todos dizem a mesma frase. Aqui, a magia é real.</p>
+        
+        <div class="features-grid">
+            <div class="feature-card reveal">
+                <span class="feature-icon">🎩</span>
+                <h3>A Mente do Chapéu Seletor</h3>
+                <p>A tua Casa não é escolhida por acaso. Conversa abertamente com o Chapéu Seletor. Ele lerá as tuas intenções, medos e ambições em tempo real para decidir o teu verdadeiro destino.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">🗣️</span>
+                <h3>Fantasmas e Quadros Vivos</h3>
+                <p>Os corredores escutam. Fala com o Pirraça, pede ajuda ao Nick Quase Sem Cabeça ou interage com os quadros. Eles respondem-te de forma única e lembram-se de quem tu és!</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">🔮</span>
+                <h3>O Oráculo do Destino</h3>
+                <p>O teu caminho é único. Consulta as teias do destino e recebe missões exclusivas forjadas para ti. Derrota feras na Floresta, encontra relíquias perdidas e ganha a glória da tua Casa.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="combate">
+        <div class="showcase reveal">
+            <div class="showcase-text">
+                <h2>Varinhas em Riste! O Combate de Ação</h2>
+                <p>A magia não é apertar botões ao acaso. É ritmo, reflexo e estratégia! No nosso sistema de batalha em tempo real, precisas de canalizar o teu foco e ter a mira afiada.</p>
+                <p>Desvia-te de maldições, ergue o teu <b>Protego</b> no milissegundo exato para refletir feitiços e vê o poder da tua magia crescer. Cada vez que usas o <i>Expelliarmus</i> ou o <i>Incendio</i>, a tua maestria evolui, tornando a luz da tua varinha mais intensa e devastadora.</p>
+                <p>Junta-te aos teus amigos para explorar a <b>Floresta Proibida</b> e enfrentem juntos as terríveis Acromântulas e Basiliscos!</p>
+            </div>
+            <div class="showcase-image">
+                <img src="https://images.unsplash.com/photo-1547891654-e66ed7ebb968?q=80&w=800&auto=format&fit=crop" alt="Duelo de Magia">
+            </div>
+        </div>
+
+        <div class="showcase reverse reveal" id="aulas">
+            <div class="showcase-text">
+                <h2>Cria a tua Própria Magia na Biblioteca</h2>
+                <p>Nas aulas do Professor Flitwick ou do Professor Snape, se prestares atenção e debateres com os mestres, serás recompensado com Pontos para a tua Casa.</p>
+                <p>Mas a verdadeira inovação está no <b>Grande Acervo</b>. Tens uma ideia para um feitiço inédito? Escreve um manuscrito com as tuas teorias mágicas! Se a Antiga Magia do Castelo aprovar a tua tese, <b>o feitiço que imaginaste torna-se real!</b> Vais poder equipá-lo no teu Grimório e lançá-lo nos combates, surpreendendo todos os teus oponentes.</p>
+            </div>
+            <div class="showcase-image">
+                <img src="https://images.unsplash.com/photo-1512820790803-83ca734da794?q=80&w=800&auto=format&fit=crop" alt="Livros de Feitiços">
+            </div>
+        </div>
+    </section>
+
+    <section id="atividades">
+        <h2 class="section-title">A Glória do Mundo Bruxo</h2>
+        <p class="section-subtitle">A vida em Hogwarts vai muito além dos livros de feitiços.</p>
+
+        <div class="features-grid">
+            <div class="feature-card reveal">
+                <span class="feature-icon">🧹</span>
+                <h3>Voo de Campeão (Quadribol)</h3>
+                <p>Sente o vento a cortar o rosto! Lança a Goles com precisão pelas argolas inimigas ou mergulha pelos ares para agarrares o esquivo Pomo de Ouro antes da equipa rival.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">🧪</span>
+                <h3>Alquimia e Herbologia</h3>
+                <p>Cultiva Ditamno e Mandrágoras nas Estufas (cuidado com as pragas!). Depois, vai ao Laboratório e controla a temperatura e a agitação do teu caldeirão para não o fazeres explodir!</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">🛋️</span>
+                <h3>A Sala Precisa</h3>
+                <p>O teu refúgio pessoal. Compra mobílias misteriosas, arrasta os teus artefactos livremente pela sala e cria um aposento perfeito para relaxar depois das masmorras.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">🎶</span>
+                <h3>O Baile de Inverno</h3>
+                <p>Desafia os teus reflexos e o teu sentido de ritmo! Combina as notas musicais no momento exato e deslumbra todo o salão com a tua dança mágica para ganhares respeito e reputação.</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">🦉</span>
+                <h3>O Correio Coruja</h3>
+                <p>O comércio flui no Castelo! Envia as tuas corujas para venderes poções raras e relíquias da floresta no Mercado Global, ou coleciona todas as cartas dos Sapos de Chocolate!</p>
+            </div>
+            <div class="feature-card reveal">
+                <span class="feature-icon">⚔️</span>
+                <h3>Clube de Duelos (PvP)</h3>
+                <p>Coloca o teu nome no Cálice de Fogo! Entra na arena contra outros estudantes reais, sobe nas patentes de Elo (Ranked) e grava o teu nome no Salão da Glória.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="cta-banner reveal">
+        <h2>A Magia Espera Por Ti</h2>
+        <p>A tua varinha já te escolheu. Os teus amigos estão à tua espera no Salão Comunal. Veste o teu manto, abre o teu Grimório e vem escrever a tua própria história em Hogwarts!</p>
+        <a href="URL_DO_SEU_JOGO" class="btn-magic" style="margin-top:15px; margin-right:15px;">Entrar no Jogo</a>
+        <a href="URL_DO_SEU_DISCORD" class="btn-magic" style="margin-top:15px; background:transparent; color:var(--gryffindor); border-color:var(--gryffindor);">Juntar-se ao Discord</a>
+    </div>
+
+    <footer>
+        <p>Hogwarts Online &copy; 2026. Feito com amor por fãs. <br>Toda a magia pertence ao nosso coração.</p>
+    </footer>
+
+    <script>
+        // ANIMAÇÃO DE REVELAÇÃO NO SCROLL (Suave)
+        function reveal() {
+            var reveals = document.querySelectorAll(".reveal");
+            for (var i = 0; i < reveals.length; i++) {
+                var windowHeight = window.innerHeight;
+                var elementTop = reveals[i].getBoundingClientRect().top;
+                var elementVisible = 120;
+                if (elementTop < windowHeight - elementVisible) {
+                    reveals[i].classList.add("active");
+                }
+            }
+        }
+        window.addEventListener("scroll", reveal);
+        reveal(); // Executa logo ao abrir a página
+    </script>
+</body>
+</html>

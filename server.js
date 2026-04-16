@@ -44,19 +44,62 @@ async function inicializarServidor() {
                 core.pontuacaoCasas = doc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
                 core.gremios = doc.gremios || {};
                 
-                // 🔥 CORREÇÃO: Carrega os feitiços criados pelos jogadores e junta-os aos feitiços base!
+                // 🔥 CORREÇÃO: Mescla segura do Livro de Feitiços!
+                // Garante que os feitiços originais nunca são apagados e adiciona os novos criados
                 if (doc.livroDeFeiticos) {
-                    core.livroDeFeiticos = { ...core.livroDeFeiticos, ...doc.livroDeFeiticos };
+                    let feiticosPersonalizados = {};
+                    for (let k in doc.livroDeFeiticos) {
+                        if (doc.livroDeFeiticos[k] && doc.livroDeFeiticos[k].custom) {
+                            feiticosPersonalizados[k] = doc.livroDeFeiticos[k];
+                        }
+                    }
+                    core.livroDeFeiticos = { ...core.livroDeFeiticos, ...feiticosPersonalizados };
+                    console.log(`✨ Livro de Feitiços expandido: +${Object.keys(feiticosPersonalizados).length} magias criadas pelos alunos.`);
                 }
-            } else {
-                console.log("✨ Criando nova Matriz de Hogwarts no Atlas...");
             }
+
+           // =========================================================================
+            // 📚 VERIFICAÇÃO E INJEÇÃO DA BIBLIOTECA OFICIAL (LAZY LOADING)
+            // =========================================================================
+            core.db_biblioteca = db.collection('biblioteca_oficial');
+            
+            const materiasParaGerar = [
+                { m: "Feitiços", l: "Livro Padrão de Feitiços" },
+                { m: "Poções", l: "Poções Avançadas" },
+                { m: "Transfiguração", l: "Guia de Transfiguração" },
+                { m: "Herbologia", l: "Mil Ervas Mágicas" },
+                { m: "D.C.A.T.", l: "As Forças das Trevas" },
+                { m: "Trato de Criaturas Mágicas", l: "O Livro Monstruoso dos Monstros" },
+                { m: "Adivinhação", l: "Esclarecendo o Futuro" },
+                { m: "Aritmancia", l: "Numerologia e Gramática" },
+                { m: "Runas Antigas", l: "Dicionário de Runas" },
+                { m: "Astronomia", l: "O Céu Noturno" },
+                { m: "Alquimia", l: "Alquimia, O Guia Prático" },
+                { m: "História da Magia", l: "História da Magia" },
+                { m: "Estudos dos Muggles", l: "Vida Doméstica dos Muggles" }
+            ];
+            
+            // Limpa e atualiza dinamicamente a loja Floreios e Borrões
+            core.lojasBeco.floreios = [];
+            let idCounter = 1;
+
+            for (const mat of materiasParaGerar) {
+                const nomeLivroOficial = `${mat.l} (Ano 1)`;
+                // Coloca o livro à venda no Beco Diagonal IMEDIATAMENTE (Custo 0 na IA)
+                core.lojasBeco.floreios.push({
+                    id: `l_${idCounter++}`,
+                    nome: nomeLivroOficial,
+                    tipo: "livro",
+                    preco: 25
+                });
+            }
+            console.log("✅ Currículo do 1º Ano entregue na Floreios e Borrões (O conteúdo será forjado on-demand!)");
+            // =========================================================================
 
             // 🔥 SALVAMENTO BLINDADO ATUALIZADO
             core._salvarUrgente = async () => {
                 if(!core.collection) return;
                 
-                // 🔥 AQUI ESTAVA O PROBLEMA: Adicionámos o "livroDeFeiticos" ao pacote salvo na base de dados!
                 const data = { 
                     alunos: core.alunos, 
                     mercadoJogadores: core.mercadoJogadores, 
@@ -81,8 +124,6 @@ async function inicializarServidor() {
         }
     }
 }
-
-
 // ==============================================================================
 // 1. ADMISSÃO E BECO DIAGONAL
 // ==============================================================================
@@ -171,8 +212,9 @@ app.post('/api/biblioteca/avaliar_tese', async (req, res) => {
         
         let r = await core.cerebroIA.avaliarTeseMagica(a, manuscrito);
         
-        if (!r) {
-            r = { aprovado: false, feedback: "O pergaminho carbonizou-se! A Consciência não compreendeu a tua magia, tenta reescrever." };
+        if (!r || !r.aprovado) {
+            let msg = (r && r.feedback) ? r.feedback : "O pergaminho carbonizou-se! A Consciência não compreendeu a tua magia, tenta reescrever com mais rigor mecânico e visual.";
+            return res.json({ aprovado: false, feedback: msg });
         }
         
         let xp = r.xpGanha || 50; 
@@ -185,16 +227,46 @@ app.post('/api/biblioteca/avaliar_tese', async (req, res) => {
         a.elos.sabedoria += elo;
         
         if (r.aprovado && r.feitico) {
-            // 🔥 BLINDAGEM INFALÍVEL: Corta qualquer custo de mana superior a 10
-            if (r.feitico.custoMana > 10) r.feitico.custoMana = 10;
-            if (r.feitico.custoFocoBase > 10) r.feitico.custoFocoBase = 10;
+            // 🔥 BLINDAGEM INFALÍVEL: Normaliza os dados do feitiço para nunca quebrar no front-end!
+            let f = r.feitico;
+            let custoReal = Number(f.custoMana) || Number(f.custoFocoBase) || 5;
+            let poderReal = Number(f.valorBase) || Number(f.poderBase) || 150;
+            
+            // Garante que o visualConfig tem a estrutura certa
+            let vc = f.visualConfig || {};
+            
+            const novoFeiticoSanitizado = {
+                nome: String(f.nome || "Magia Desconhecida"),
+                tipoMecanica: String(f.tipoMecanica || 'ataque'),
+                elemento: String(f.elemento || 'cinetico'),
+                custoMana: Math.min(10, custoReal), // Nunca passa de 10
+                poderBase: poderReal,
+                lore: String(f.lore || "Feitiço criado por " + a.nome),
+                criador: a.nome,
+                custom: true, // ESSENCIAL para o salvamento seguro
+                visualConfig: {
+                    shape: vc.shape || 'sphere',
+                    color: vc.color || '#3498db',
+                    glow: vc.glow || '#2980b9',
+                    quantity: Number(vc.quantity) || 1,
+                    speed: Number(vc.speed) || 20,
+                    trailSize: Number(vc.trailSize) || 15,
+                    movement: vc.movement || 'linear',
+                    particleStyle: vc.particleStyle || 'sparks',
+                    impactEffect: vc.impactEffect || 'explosion'
+                }
+            };
 
             const fId = `custom_${Date.now()}`;
-            core.livroDeFeiticos[fId] = { ...r.feitico, criador: a.nome, custom: true };
+            core.livroDeFeiticos[fId] = novoFeiticoSanitizado;
+            
             if(!a.maestriaFeiticos) a.maestriaFeiticos = {};
             a.maestriaFeiticos[fId] = { nivel: 1, exp: 0, expProx: 100 };
             if(!a.feitiçosEquipados) a.feitiçosEquipados = [];
             a.feitiçosEquipados.push(fId);
+            
+            // Subscreve a resposta para enviar para a interface os dados limpos
+            r.feitico = novoFeiticoSanitizado;
         }
         
         core._salvarUrgente();
@@ -433,21 +505,34 @@ app.post('/api/mercado/comprar', (req, res) => { try { const r = core.comprarIte
 // ==============================================================================
 app.post('/api/aulas/assistir', async (req, res) => { try { const r = await core.assistirAula(req.body.id); if(!r.erro) forcarSyncAluno(req.body.id); res.json(r); } catch(e) { res.status(500).json({erro: "Chegaste atrasado."}); } });
 app.post('/api/aulas/estudar_item', async (req, res) => { try { const r = await core.estudarMaterial(req.body.id, req.body.itemId); if(!r.erro) forcarSyncAluno(req.body.id); res.json(r); } catch(e){ res.status(500).json({erro:"Erro ao ler."}); } });
-app.post('/api/aulas/folhear', async (req, res) => { try { const r = await core.folhearLivro(req.body.id); res.json(r); if(!r.erro) forcarSyncAluno(req.body.id); } catch(e) { res.status(500).json({erro: "A magia instabilizou-se."}); } });
+app.post('/api/aulas/folhear', async (req, res) => {
+    try {
+        const a = core.alunos[req.body.id];
+        if (!a) return res.json({erro: "Bruxo não encontrado"});
+        
+        const anoAtual = a.anoLetivo || 1;
+        const relogio = RelogioHogwarts.obterHorarioAtual(anoAtual);
+        if (relogio.aulaAtiva === "Livre") return res.json({erro: "Não há livros na mesa agora."});
+
+        const livroDoc = await core.db_biblioteca.findOne({ materia: relogio.aulaAtiva, ano: anoAtual });
+        if (!livroDoc) return res.json({erro: "O livro do teu ano não está na mesa."});
+
+        res.json({ 
+            sucesso: true, 
+            titulo: livroDoc.nomeLivro, 
+            capitulos: livroDoc.capitulos,
+            capituloSugerido: relogio.capituloAtual 
+        });
+    } catch(e) { res.status(500).json({erro: "Erro ao abrir livro de aula."}); }
+});
 app.post('/api/aulas/iniciar_imersiva', async (req, res) => {
     try {
-        const a = core.alunos[req.body.id]; if(!a) return res.status(404).json({erro:"Estudante não encontrado"});
-        a.focoAtual -= 2; core._salvarBancoDeDados(); forcarSyncAluno(a.id);
-        res.json({sucesso: true});
-        (async () => {
-            try {
-                const relogio = RelogioHogwarts.obterHorarioAtual();
-                const prompt = `És o Prof. ${relogio.professorAtivo} a ensinar ${relogio.aulaAtiva}. O aluno ${a.nome} está no ${a.anoLetivo || 1}º Ano. O livro é "${relogio.requerLivro}". Dá uma introdução curta da aula. NADA DE JSON, texto puro.`;
-                const iaRes = await core.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
-                global.io.emit('nova_mensagem', { canal: 'aula', autor: `🎓 [Prof. ${relogio.professorAtivo}]`, texto: iaRes.choices[0].message.content.trim() });
-            } catch(err) { global.io.emit('nova_mensagem', { canal: 'aula', autor: `🎓 [Sistema]`, texto: `A aula iniciou em silêncio.` }); }
-        })();
-    } catch(e) {}
+        const r = await core.assistirAula(req.body.id);
+        if (!r.erro) forcarSyncAluno(req.body.id);
+        res.json(r);
+    } catch(e) {
+        res.status(500).json({erro: "Erro na secretaria escolar."});
+    }
 });
 app.post('/api/aulas/concluir_imersiva', async (req, res) => {
     try {
@@ -470,11 +555,47 @@ app.post('/api/biblioteca/copiar', (req, res) => {
         core._salvarBancoDeDados(); forcarSyncAluno(a.id); res.json({sucesso: true, msg: "Fizeste uma cópia do pergaminho para a tua mochila! (Custou 5G)"});
     } catch(e) { res.status(500).json({erro: "O tinteiro derramou."}); }
 });
-app.post('/api/livros/abrir', async (req, res) => { 
-    try { 
-        const a = core.alunos[req.body.id]; if(!a || !a.inventario.livros.includes(req.body.nomeLivro)) return res.status(403).json({erro: "Não possuis este livro."});
-        const textoGerado = await core.cerebroIA.gerarCapituloLivro(req.body.nomeLivro); res.json({ sucesso: true, texto: textoGerado }); 
-    } catch(e) { res.status(500).json({erro: "A magia da Biblioteca falhou (Erro 500 evitado)."}); } 
+app.post('/api/livros/abrir', async (req, res) => {
+    try {
+        const a = core.alunos[req.body.id];
+        if(!a || !a.inventario.livros.includes(req.body.nomeLivro)) return res.json({erro: "Não tens este livro."});
+
+        let livroDoc = await core.db_biblioteca.findOne({ nomeLivro: req.body.nomeLivro });
+        
+        // 🔥 LAZY LOADING: O livro nunca foi gerado? A IA escreve-o na hora!
+        if (!livroDoc) {
+            // Mapeamento inverso para saber de que matéria é este livro
+            const materiasMap = {
+                "Livro Padrão de Feitiços": "Feitiços", "Poções Avançadas": "Poções",
+                "Guia de Transfiguração": "Transfiguração", "Mil Ervas Mágicas": "Herbologia",
+                "As Forças das Trevas": "D.C.A.T.", "O Livro Monstruoso dos Monstros": "Trato de Criaturas Mágicas",
+                "Esclarecendo o Futuro": "Adivinhação", "Numerologia e Gramática": "Aritmancia",
+                "Dicionário de Runas": "Runas Antigas", "O Céu Noturno": "Astronomia",
+                "Alquimia, O Guia Prático": "Alquimia", "História da Magia": "História da Magia",
+                "Vida Doméstica dos Muggles": "Estudos dos Muggles"
+            };
+            
+            let baseName = req.body.nomeLivro.replace(" (Ano 1)", "");
+            let materia = materiasMap[baseName] || "Magia Geral";
+            
+            // Avisa o jogador que a IA está a escrever
+            global.io.to(`priv_${a.id}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `A Matriz está a materializar as páginas de ${req.body.nomeLivro}. Aguarda uns segundos...` });
+            
+            const ementa = await core.cerebroIA.gerarLivroDidaticoCompleto(materia, 1);
+            if (ementa && ementa.length > 0) {
+                livroDoc = { materia: materia, ano: 1, nomeLivro: req.body.nomeLivro, capitulos: ementa };
+                await core.db_biblioteca.insertOne(livroDoc); // Salva para sempre para o próximo jogador
+            } else {
+                return res.json({erro: "A magia falhou. As páginas estão em branco."});
+            }
+        }
+
+        res.json({ 
+            sucesso: true, 
+            titulo: livroDoc.nomeLivro, 
+            capitulos: livroDoc.capitulos 
+        });
+    } catch(e) { res.status(500).json({erro: "A biblioteca está trancada."}); }
 });
 
 // ==============================================================================
@@ -840,6 +961,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         socket.join('salaoPrincipal'); // Canal Global
         if(dados.casa) socket.join(`comum_${dados.casa}`); 
         socket.join(`priv_${dados.idAluno}`); 
+        socket.join('sala_de_aula'); // 🔥 GARANTE QUE RECEBE O CHAT DA AULA
         
         // Regista o jogador no sistema online
         socket.alunoId = dados.idAluno;
@@ -986,13 +1108,19 @@ socket.on('mmo_interagir_objeto', async (dados) => {
             }
         }
 
+        // O BLOCO CORRIGIDO DA AULA
         if (dados.canal === 'aula') {
             const relogio = RelogioHogwarts.obterHorarioAtual();
             if(relogio.professorAtivo !== 'Nenhum') {
-                const respProf = await core.cerebroIA.respostaProfessorIA(relogio.professorAtivo, relogio.aulaAtiva, dados.remetenteNome, dados.texto, dados.remetenteCasa);
+                const a = core.alunos[dados.remetenteId];
+                const anoLetivo = a ? a.anoLetivo : 1; // Puxa o ano do aluno que falou!
+                
+                const respProf = await core.cerebroIA.respostaProfessorIA(relogio.professorAtivo, relogio.aulaAtiva, dados.remetenteNome, dados.texto, dados.remetenteCasa, anoLetivo);
+                
                 if(respProf && respProf.texto) {
                     setTimeout(() => { 
                         io.to('sala_de_aula').emit('nova_mensagem', { canal: 'aula', autor: `🎓 [Prof. ${relogio.professorAtivo}]`, texto: respProf.texto });
+                        
                         if(respProf.pontos && respProf.pontos !== 0) { 
                             core.adicionarPontosCasa(dados.remetenteCasa, respProf.pontos); 
                             io.emit('pontuacao_atualizada', core.pontuacaoCasas); 
@@ -1006,7 +1134,8 @@ socket.on('mmo_interagir_objeto', async (dados) => {
     socket.on('boss_ataque_aviso', (data) => { socket.to(data.instId).emit('alerta_boss', { tempoCast: data.tempoCast }); });
     // No bloco de sockets do Quadribol em server.js:
     socket.on('q_entrar', (dados) => { 
-        const r = core.entrarQuadribol(dados.id, dados.pos); 
+        // Substituir a antiga forma de chamada por esta ligada diretamente à classe!
+        const r = core.quadribol.entrarQuadribol(dados.id, dados.pos); 
         if(r.sucesso) socket.join(r.matchId); 
     });
     // MUDE ISTO: (Substitua dx/dy para vx/vy para corresponder ao front)
