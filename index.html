@@ -8209,7 +8209,19 @@ socket.on('grupo_atualizado', (dados) => {
     mostrarNotificacao("Grupo atualizado!", "info");
 });
 
-
+// Atualiza a renderização da lista online para ter o botão de convidar
+socket.on('atualizar_jogadores_zona', (jogadores) => {
+    let html = '';
+    for(let id in jogadores) {
+        if(id !== meuBruxo.id) {
+            html += `<div class="mmo-player-item" style="justify-content:space-between;">
+                        <div><div class="mmo-player-dot"></div> <span class="mmo-player-name">${jogadores[id].nome}</span></div>
+                        <button onclick="socket.emit('grupo_convidar', {alvoId: '${id}'})" style="padding:2px 5px; font-size:0.6em; width:auto;">Convidar</button>
+                     </div>`;
+        }
+    }
+    document.getElementById('mmo-online-list').innerHTML = html || '<p style="color:#666; text-align:center;">Sozinho na sala.</p>';
+});
 </script>
 </body>
 </html>
