@@ -826,14 +826,20 @@
 
 <button id="btn-mobile-sidebar" onclick="toggleMobileSidebar()">👥</button>
     <div class="mmo-sidebar" id="mmo-sidebar">
-        <div class="fecha-sidebar-btn">
-            <button onclick="toggleMobileSidebar()" style="background:#e74c3c; color:#fff; border-radius:4px; padding:5px 10px; font-size:0.8em; border:none; width:auto;">❌ Fechar Aba</button>
-        </div>
-        <div class="mmo-sidebar-header">📍 <span id="hud-zona-sidebar">Salão Principal</span></div>
-        <div id="mmo-online-list">
-            <p style="color:#666; font-size:0.8em; text-align:center;">A procurar bruxos...</p>
-        </div>
+    <div class="fecha-sidebar-btn">
+        <button onclick="toggleMobileSidebar()" style="background:#e74c3c; color:#fff; border-radius:4px; padding:5px 10px; font-size:0.8em; border:none; width:auto;">❌ Fechar Aba</button>
     </div>
+    
+    <div class="mmo-sidebar-header" style="color:#3498db;">🤝 O Meu Grupo</div>
+    <div id="mmo-grupo-list" style="margin-bottom: 15px;">
+        <p style="color:#666; font-size:0.8em; text-align:center;">Não estás num grupo.</p>
+    </div>
+    
+    <div class="mmo-sidebar-header">📍 <span id="hud-zona-sidebar">Salão Principal</span></div>
+    <div id="mmo-online-list">
+        <p style="color:#666; font-size:0.8em; text-align:center;">A procurar bruxos...</p>
+    </div>
+</div>
 
 <div class="container">
 
@@ -6775,6 +6781,29 @@ window.equiparItemMistico = async function(itemId) {
                 m.vy += gravidade;
                 m.x += m.vx;
                 m.y += m.vy;
+				// No teu Engine 2D, quando o vx ou vy forem diferentes de 0:
+if (this.player.isMoving) {
+    // Só envia pacote a cada 100ms para não explodir o servidor
+    if(!this.lastMoveSync || Date.now() - this.lastMoveSync > 100) {
+        socket.emit('mmo_mover', { 
+            zona: zonaAtual, // ex: 'Salão Principal', 'Floresta_Instancia_X'
+            x: this.player.x, 
+            y: this.player.y, 
+            dir: this.player.dir 
+        });
+        this.lastMoveSync = Date.now();
+    }
+}
+
+// Renderiza o movimento dos inimigos
+socket.on('mmo_jogador_moveu', (dados) => {
+    if(this.remotes[dados.id]) {
+        this.remotes[dados.id].alvoX = dados.x;
+        this.remotes[dados.id].alvoY = dados.y;
+        this.remotes[dados.id].dir = dados.dir;
+        this.remotes[dados.id].isMoving = true;
+    }
+});
 
                 // Colisão com o Chão
                 if(m.y + m.r > h) {
@@ -6892,7 +6921,24 @@ window.equiparItemMistico = async function(itemId) {
     // ==============================================================================
     let animacaoMuralhaReproduzida = false;
     let muralhaEmAndamento = false; 
+function organizarFormacaoBatalha(jogadoresAtivos) {
+    // Separa as equipas
+    let equipaA = Object.values(jogadoresAtivos).filter(j => j.equipa === 'A' || j.isPlayer);
+    let equipaB = Object.values(jogadoresAtivos).filter(j => j.equipa === 'B' || j.isMob);
 
+    // Distribui no Eixo Y para não se sobreporem
+    equipaA.forEach((j, index) => {
+        j.x = 150; // Todos do lado esquerdo
+        j.y = 150 + (index * 90); // Afasta 90px para baixo por cada aliado
+        j.rx = j.x; j.ry = j.y;
+    });
+
+    equipaB.forEach((j, index) => {
+        j.x = 650; // Lado direito (ou depende da largura do teu canvas)
+        j.y = 150 + (index * 90);
+        j.rx = j.x; j.ry = j.y;
+    });
+}
     function gerirTelasPorEstado() {
         if (!meuBruxo) { document.getElementById('ui-registo').classList.remove('oculto'); return; }
         
@@ -7882,28 +7928,40 @@ window.equiparItemMistico = async function(itemId) {
     };
 	let currentForestInstId = null;
 
-window.entrarFlorestaExploracao = async function() {
-    playSFX('click');
-    if (!meuBruxo || meuBruxo.focoAtual < 3) return mostrarNotificacao("Precisas de 3 de Foco.", "erro");
-
-    document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
+window.entrarFlorestaExploracao = function() {
+    // Se estiver em grupo e for o líder, puxa o grupo
+    if (meuGrupo && meuGrupo.lider === meuBruxo.id) {
+        socket.emit('conteudo_puxar_grupo', { liderId: meuBruxo.id, tipo: 'floresta' });
+    } else if (meuGrupo && meuGrupo.lider !== meuBruxo.id) {
+        return mostrarNotificacao("Apenas o Líder do grupo pode iniciar o conteúdo!", "erro");
+    } else {
+        // Entrar sozinho se não tiver grupo
+        iniciarFlorestaSozinho(); 
+    }
+}
+socket.on('pvp_iniciar', (dados) => {
+    mostrarNotificacao("Duelo Encontrado! Prepara a varinha!", "info");
+    
+    // Esconde os Menus
+    document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto'));
     document.querySelector('.main-nav-container').classList.add('oculto');
-    document.getElementById('forest-map-container').classList.remove('oculto');
-
-    try {
-        const res = await fetch('/api/dungeon/iniciar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id }) });
-        const d = await res.json();
-        
-        if (d.erro) return mostrarNotificacao(d.erro, "erro");
-
-        currentForestInstId = d.instId;
-        meuBruxo.focoAtual -= 3;
-        atualizarInterfaceMagica();
-        
-        ForestMMOEngine.init();
-        mostrarNotificacao(`Sobrevive, recolhe os baús e foge! Cuidado com invasores...`, "info");
-    } catch(e) { console.error(e); }
-};
+    
+    // Abre a Arena Visualmente
+    document.getElementById('arena-acao').classList.remove('oculto');
+    
+    // Inicia a tua Engine local contra o Oponente
+    // (Substitui iniciarCombateEngine pelo nome real da tua função de abrir a luta PvP)
+    if(typeof iniciarCombateArena === 'function') {
+        iniciarCombateArena(dados.oponente, dados.equipa, dados.matchId);
+    }
+});
+// Socket para receber a "puxada"
+socket.on('conteudo_convite_grupo', (dados) => {
+    if(confirm(`O teu grupo vai iniciar: ${dados.tipo.toUpperCase()}. Queres entrar com eles?`)) {
+        if(dados.tipo === 'floresta') iniciarFlorestaSozinho();
+        // Adiciona outras verificações aqui: quiz, boss, etc.
+    }
+});
 
 window.fugirDaFlorestaParaOCastelo = async function() {
     playSFX('click');
@@ -8132,6 +8190,26 @@ socket.on('forest_dead', () => {
     fugirDaFlorestaParaOCastelo();
     mostrarNotificacao("Foste morto na floresta e perdeste o que tinhas no saco...", "erro");
 });
+let meuGrupo = null; // Armazena o grupo atual
+
+socket.on('grupo_receber_convite', (dados) => {
+    if(confirm(`O bruxo ${dados.deNome} convidou-te para um Grupo! Aceitar?`)) {
+        socket.emit('grupo_aceitar', { liderId: dados.deId });
+    }
+});
+
+socket.on('grupo_atualizado', (dados) => {
+    meuGrupo = dados; // Atualiza a RAM do front-end
+    let html = '';
+    dados.membrosNomes.forEach(m => {
+        let iconeLider = m.id === dados.lider ? '👑 ' : '🧙‍♂️ ';
+        html += `<div class="mmo-player-item"><span style="color:#3498db;">${iconeLider}${m.nome}</span></div>`;
+    });
+    document.getElementById('mmo-grupo-list').innerHTML = html;
+    mostrarNotificacao("Grupo atualizado!", "info");
+});
+
+
 </script>
 </body>
 </html>
