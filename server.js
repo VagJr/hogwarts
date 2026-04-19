@@ -110,6 +110,7 @@ async function inicializarServidor() {
     console.log("📚 Prateleiras da Floreios e Borrões abastecidas com livros em branco (Lazy Loading ativo).");
 
     // 🔥 4. A BLINDAGEM MÁXIMA DA FUNÇÃO DE SALVAR 🔥
+    // 🔥 4. A BLINDAGEM MÁXIMA DA FUNÇÃO DE SALVAR 🔥
     core._salvarUrgente = async () => {
         const data = { 
             alunos: core.alunos, 
@@ -120,13 +121,22 @@ async function inicializarServidor() {
             livroDeFeiticos: core.livroDeFeiticos
         };
         
-        if(core.collection) {
+        if (core.collection) {
             try {
-                await core.collection.updateOne({ _id: 'MATRIZ_HOGWARTS' }, { $set: data }, { upsert: true });
-            } catch(e) { console.error("Erro Mágico ao salvar na Nuvem:", e.message); }
+                await core.collection.updateOne(
+                    { _id: 'MATRIZ_HOGWARTS' }, 
+                    { $set: data }, 
+                    { upsert: true }
+                );
+            } catch(e) { 
+                console.error("❌ ERRO CRÍTICO AO SALVAR NO MONGODB:", e.message); 
+                // Se falhar a nuvem, guarda localmente para não perder os dados na hora!
+                try { fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2), 'utf8'); } catch(ex){}
+            }
         } else {
             try {
                 fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2), 'utf8');
+                console.warn("⚠️ Aviso: Jogo a gravar apenas no disco local (Será apagado no restart do Render).");
             } catch(e) { console.error("Erro ao salvar localmente:", e.message); }
         }
     };
