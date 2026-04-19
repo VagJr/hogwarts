@@ -9,6 +9,7 @@ const { Server } = require('socket.io');
 const path = require('path');
 const { MongoClient } = require('mongodb');
 const crypto = require('crypto'); // 🔥 ADICIONE ISTO NA LINHA 2
+const fs = require('fs');
 
 const { HogwartsCore, AstrolabioMagico, RelogioHogwarts, Ollivanders, MotorConscienciaHogwarts, MotorQuadribol } = require('./HogwartsCore.js');
 const Lexicon = require('./LexiconMagicae.js'); 
@@ -27,103 +28,349 @@ const core = new HogwartsCore();
 
 async function inicializarServidor() {
     console.log("A invocar os feitiços de proteção de Gringotes...");
+    const dbFilePath = path.join(__dirname, 'hogwarts_local_db.json');
+
+    // 1. FUNÇÃO AUXILIAR PARA CARREGAR OS DADOS PARA A MEMÓRIA
+    function carregarDadosNaMemoria(doc) {
+        core.alunos = doc.alunos || {}; 
+        core.mercadoJogadores = doc.mercadoJogadores || []; 
+        core.logs = doc.logs || { salaoPrincipal: [], profetaDiario: [] };
+        core.pontuacaoCasas = doc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
+        core.gremios = doc.gremios || {};
+        
+        if (doc.livroDeFeiticos) {
+            let feiticosPersonalizados = {};
+            for (let k in doc.livroDeFeiticos) {
+                if (doc.livroDeFeiticos[k] && doc.livroDeFeiticos[k].custom) {
+                    feiticosPersonalizados[k] = doc.livroDeFeiticos[k];
+                }
+            }
+            core.livroDeFeiticos = { ...core.livroDeFeiticos, ...feiticosPersonalizados };
+            console.log(`✨ Livro de Feitiços expandido: +${Object.keys(feiticosPersonalizados).length} magias customizadas.`);
+        }
+    }
+
+    // 2. TENTA LIGAR AO MONGO OU USA O FICHEIRO LOCAL
     if (MONGO_URI) {
         try {
             const client = new MongoClient(MONGO_URI); 
             await client.connect();
             const db = client.db('hogwarts_db'); 
             core.collection = db.collection('registos_escolares');
-            
-            const doc = await core.collection.findOne({ _id: 'MATRIZ_HOGWARTS' });
-            
-            if (doc) {
-                console.log("📜 Registos escolares carregados com sucesso do Atlas!");
-                core.alunos = doc.alunos || {}; 
-                core.mercadoJogadores = doc.mercadoJogadores || []; 
-                core.logs = doc.logs || { salaoPrincipal: [], profetaDiario: [] };
-                core.pontuacaoCasas = doc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
-                core.gremios = doc.gremios || {};
-                
-                // 🔥 CORREÇÃO: Mescla segura do Livro de Feitiços!
-                // Garante que os feitiços originais nunca são apagados e adiciona os novos criados
-                if (doc.livroDeFeiticos) {
-                    let feiticosPersonalizados = {};
-                    for (let k in doc.livroDeFeiticos) {
-                        if (doc.livroDeFeiticos[k] && doc.livroDeFeiticos[k].custom) {
-                            feiticosPersonalizados[k] = doc.livroDeFeiticos[k];
-                        }
-                    }
-                    core.livroDeFeiticos = { ...core.livroDeFeiticos, ...feiticosPersonalizados };
-                    console.log(`✨ Livro de Feitiços expandido: +${Object.keys(feiticosPersonalizados).length} magias criadas pelos alunos.`);
-                }
-            }
-
-           // =========================================================================
-            // 📚 VERIFICAÇÃO E INJEÇÃO DA BIBLIOTECA OFICIAL (LAZY LOADING)
-            // =========================================================================
             core.db_biblioteca = db.collection('biblioteca_oficial');
             
-            const materiasParaGerar = [
-                { m: "Feitiços", l: "Livro Padrão de Feitiços" },
-                { m: "Poções", l: "Poções Avançadas" },
-                { m: "Transfiguração", l: "Guia de Transfiguração" },
-                { m: "Herbologia", l: "Mil Ervas Mágicas" },
-                { m: "D.C.A.T.", l: "As Forças das Trevas" },
-                { m: "Trato de Criaturas Mágicas", l: "O Livro Monstruoso dos Monstros" },
-                { m: "Adivinhação", l: "Esclarecendo o Futuro" },
-                { m: "Aritmancia", l: "Numerologia e Gramática" },
-                { m: "Runas Antigas", l: "Dicionário de Runas" },
-                { m: "Astronomia", l: "O Céu Noturno" },
-                { m: "Alquimia", l: "Alquimia, O Guia Prático" },
-                { m: "História da Magia", l: "História da Magia" },
-                { m: "Estudos dos Muggles", l: "Vida Doméstica dos Muggles" }
-            ];
-            
-            // Limpa e atualiza dinamicamente a loja Floreios e Borrões
-            core.lojasBeco.floreios = [];
-            let idCounter = 1;
+            const doc = await core.collection.findOne({ _id: 'MATRIZ_HOGWARTS' });
+            if (doc) carregarDadosNaMemoria(doc);
+            console.log("📜 Registos escolares carregados com sucesso do Atlas!");
 
-            for (const mat of materiasParaGerar) {
-                const nomeLivroOficial = `${mat.l} (Ano 1)`;
-                // Coloca o livro à venda no Beco Diagonal IMEDIATAMENTE (Custo 0 na IA)
-                core.lojasBeco.floreios.push({
-                    id: `l_${idCounter++}`,
-                    nome: nomeLivroOficial,
-                    tipo: "livro",
-                    preco: 25
-                });
-            }
-            console.log("✅ Currículo do 1º Ano entregue na Floreios e Borrões (O conteúdo será forjado on-demand!)");
-            // =========================================================================
-
-            // 🔥 SALVAMENTO BLINDADO ATUALIZADO
-            core._salvarUrgente = async () => {
-                if(!core.collection) return;
-                
-                const data = { 
-                    alunos: core.alunos, 
-                    mercadoJogadores: core.mercadoJogadores, 
-                    logs: core.logs, 
-                    pontuacaoCasas: core.pontuacaoCasas, 
-                    gremios: core.gremios,
-                    livroDeFeiticos: core.livroDeFeiticos // O Conhecimento agora é eterno!
-                };
-                
-                try {
-                    await core.collection.updateOne({ _id: 'MATRIZ_HOGWARTS' }, { $set: data }, { upsert: true });
-                } catch(e) { 
-                    console.error("Erro Mágico ao salvar:", e.message); 
-                }
-            };
-
-            core._salvarBancoDeDados = () => { core._salvarUrgente(); };
-            setInterval(() => { core._salvarUrgente(); }, 10000); 
+            // =====================================================================
+            // 🔥 WIPE ABSOLUTO - OBLITERA TODOS OS LIVROS ANTIGOS DA BASE DE DADOS
+            // =====================================================================
+            console.log("🔥 A QUEIMAR OS ARQUIVOS ANTIGOS DA BIBLIOTECA...");
+            //await core.db_biblioteca.deleteMany({});
+            console.log("✅ WIPE CONCLUÍDO! Todos os livros foram desintegrados.");
 
         } catch (error) { 
             console.error("❌ Falha na conexão a Gringotes!", error.message); 
         }
+    } else {
+        console.log("⚠️ Nenhuma chave MongoDB detetada. A usar o Arquivo de Backup Local (hogwarts_local_db.json)...");
+        if (fs.existsSync(dbFilePath)) {
+            try {
+                const fileData = fs.readFileSync(dbFilePath, 'utf8');
+                const doc = JSON.parse(fileData);
+                carregarDadosNaMemoria(doc);
+                console.log("📜 Registos locais carregados com sucesso do disco rígido!");
+            } catch(e) {
+                console.error("Erro ao ler o arquivo local:", e.message);
+            }
+        }
     }
-}
+
+    // 3. INJEÇÃO DOS LIVROS APENAS NA LOJA (Sem gerar o conteúdo agora para poupar API)
+    // 3. INJEÇÃO DOS 14 LIVROS APENAS NA LOJA
+    const materiasParaGerar = [
+        { m: "Feitiços", l: "Livro Padrão de Feitiços" }, { m: "Poções", l: "Poções Avançadas" },
+        { m: "Transfiguração", l: "Guia de Transfiguração" }, { m: "Herbologia", l: "Mil Ervas Mágicas" },
+        { m: "D.C.A.T.", l: "As Forças das Trevas" }, { m: "Trato de Criaturas Mágicas", l: "O Livro Monstruoso dos Monstros" },
+        { m: "Adivinhação", l: "Esclarecendo o Futuro" }, { m: "Aritmancia", l: "Numerologia e Gramática" },
+        { m: "Runas Antigas", l: "Dicionário de Runas" }, { m: "Astronomia", l: "O Céu Noturno" },
+        { m: "Alquimia", l: "Alquimia, O Guia Prático" }, { m: "História da Magia", l: "História da Magia" },
+        { m: "Estudos dos Muggles", l: "Vida Doméstica dos Muggles" }, { m: "Voo", l: "Quadribol Através dos Séculos" }
+    ];
+
+    core.lojasBeco.floreios = [];
+    let idCounter = 1;
+
+    for (const mat of materiasParaGerar) {
+        const nomeLivroOficial = `${mat.l} (Ano 1)`;
+        // Regista na loja para o jogador poder comprar (O conteúdo será gerado apenas quando ele abrir o livro)
+        core.lojasBeco.floreios.push({ id: `l_${idCounter++}`, nome: nomeLivroOficial, tipo: "livro", preco: 25 });
+    }
+    console.log("📚 Prateleiras da Floreios e Borrões abastecidas com livros em branco (Lazy Loading ativo).");
+
+    // 🔥 4. A BLINDAGEM MÁXIMA DA FUNÇÃO DE SALVAR 🔥
+    core._salvarUrgente = async () => {
+        const data = { 
+            alunos: core.alunos, 
+            mercadoJogadores: core.mercadoJogadores, 
+            logs: core.logs, 
+            pontuacaoCasas: core.pontuacaoCasas, 
+            gremios: core.gremios,
+            livroDeFeiticos: core.livroDeFeiticos
+        };
+        
+        if(core.collection) {
+            try {
+                await core.collection.updateOne({ _id: 'MATRIZ_HOGWARTS' }, { $set: data }, { upsert: true });
+            } catch(e) { console.error("Erro Mágico ao salvar na Nuvem:", e.message); }
+        } else {
+            try {
+                fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2), 'utf8');
+            } catch(e) { console.error("Erro ao salvar localmente:", e.message); }
+        }
+    };
+
+    core._salvarBancoDeDados = () => { core._salvarUrgente(); };
+    setInterval(() => { core._salvarUrgente(); }, 10000); 
+
+    // =====================================================================
+    // 🧙‍♂️ O MONGE ARQUIVISTA (MÁQUINA DE ESCREVER AUTOMATIZADA EM BACKGROUND)
+    // =====================================================================
+    // =====================================================================
+    // 🧙‍♂️ O MONGE ARQUIVISTA (MÁQUINA DE ESCREVER AUTOMATIZADA EM BACKGROUND)
+    // =====================================================================
+    async function iniciarForjaDeLivrosEmBackground() {
+        if (!core.db_biblioteca) {
+            console.log("❌ [SCRIPTORIUM] Base de dados inacessível. O Monge volta a dormir.");
+            return;
+        }
+        console.log("🧙‍♂️ [SCRIPTORIUM] O Monge Arquivista acordou. A forjar livros em background...");
+        
+        for (const mat of materiasParaGerar) {
+            let nomeLivro = `${mat.l} (Ano 1)`;
+            let materia = mat.m;
+
+            let livroDoc = await core.db_biblioteca.findOne({ nomeLivro: nomeLivro });
+            
+            if (!livroDoc) {
+                console.log(`[SCRIPTORIUM] A ditar o Índice para: ${nomeLivro}...`);
+                const ementa = await core.cerebroIA.gerarEmentaLivro(materia, 1);
+                
+                if (ementa && ementa.length > 0) {
+                    livroDoc = { materia: materia, ano: 1, nomeLivro: nomeLivro, capitulos: ementa };
+                    await core.db_biblioteca.insertOne(livroDoc);
+                    console.log(`[SCRIPTORIUM] Índice guardado! A descansar a mente por 10 segundos...`);
+                    await new Promise(resolve => setTimeout(resolve, 10000));
+                } else {
+                    console.log(`[SCRIPTORIUM] Falha no Índice. Tentarei no próximo ciclo.`);
+                    continue; 
+                }
+            }
+
+            // 🔥 Cria o mapa do livro (String com todos os títulos) para a IA não se perder
+            let mapaDoLivro = livroDoc.capitulos.map(c => `Cap.${c.cap}: ${c.titulo}`).join(" | ");
+
+            for (let i = 0; i < livroDoc.capitulos.length; i++) {
+                let cap = livroDoc.capitulos[i];
+                
+                if (!cap.teoria) { 
+                    console.log(`[SCRIPTORIUM] A redigir o Capítulo ${cap.cap} de ${nomeLivro}...`);
+                    
+                    // Envia a Matéria, o Título, o Número do Cap, e o Mapa Completo!
+                    const novoTexto = await core.cerebroIA.escreverCapituloColossal(materia, cap.titulo, cap.cap, mapaDoLivro);
+                    
+                    if (novoTexto && novoTexto.trocarChave) {
+                        console.log(`[SCRIPTORIUM] ⚠️ Tinta gasta! O Monge trocou de pena mágica. A descansar 60 segundos para os limites da API resetarem...`);
+                        await new Promise(resolve => setTimeout(resolve, 60000)); // 🔥 Alterado para 60 segundos
+                        i--; 
+                        continue;
+                    }
+
+                    if (novoTexto && novoTexto.rateLimit) {
+                        console.log(`[SCRIPTORIUM] ⚠️ ENERGIA DIÁRIA TOTAL ESGOTADA!`);
+                        console.log(`[SCRIPTORIUM] 🛌 O Monge vai dormir por 1 HORA para recuperar...`);
+                        await new Promise(resolve => setTimeout(resolve, 3600000));
+                        i--; 
+                        continue;
+                    }
+
+                    if (novoTexto && novoTexto.teoria) {
+                        livroDoc.capitulos[i].teoria = novoTexto.teoria;
+                        livroDoc.capitulos[i].pratica = novoTexto.pratica;
+                        livroDoc.capitulos[i].pergunta = novoTexto.pergunta;
+                        
+                        await core.db_biblioteca.updateOne(
+                            { nomeLivro: nomeLivro }, 
+                            { $set: { capitulos: livroDoc.capitulos } }
+                        );
+                        console.log(`[SCRIPTORIUM] Capítulo ${cap.cap} finalizado com ÊXITO! A descansar 25 segundos...`);
+                        
+                        await new Promise(resolve => setTimeout(resolve, 25000)); 
+                    } else {
+                        console.log(`[SCRIPTORIUM] A pena quebrou no Cap ${cap.cap}. A aguardar 15 segundos para retentar...`);
+                        await new Promise(resolve => setTimeout(resolve, 15000));
+                        i--; 
+                    }
+                }
+            }
+        }
+        console.log("📚 [SCRIPTORIUM] TAREFA CONCLUÍDA! Toda a Biblioteca de Hogwarts foi gerada com sucesso!");
+    }
+     
+
+    // Arranca a forja em background apenas se houver banco de dados ligado!
+    if (MONGO_URI) {
+        iniciarForjaDeLivrosEmBackground();
+    }
+    
+} // <--- ESTE É O FECHO OFICIAL DA FUNÇÃO inicializarServidor() E DEVE ESTAR AQUI!
+// ==============================================================================
+// 🔥 PATCH 2.0: PETS TAMAGOTCHI E XADREZ BRUXO
+// ==============================================================================
+app.post('/api/equipamento/desequipar', async (req, res) => {
+    const { id, slot } = req.body;
+    if (!id || !slot) return res.json({ erro: "Dados incompletos." });
+    
+    // Chama a função que criámos no HogwartsCore
+    const resultado = core.desequiparItem(id, slot);
+    res.json(resultado);
+});
+app.post('/api/pet/adotar', (req, res) => {
+    const { id, tipo, nome } = req.body;
+    const a = core.alunos[id];
+    if(!a) return res.json({erro: "Fantasma."});
+    if(a.galeoes < 150) return res.json({erro: "Adoção custa 150 Galeões."});
+    if(a.pet && a.pet.adotado) return res.json({erro: "Já tens um mascote!"});
+    
+    a.galeoes -= 150;
+    a.pet = { adotado: true, tipo: tipo, nome: nome, fome: 100, felicidade: 100, nivel: 1, xp: 0, ultimaColeta: Date.now() };
+    core._salvarUrgente();
+    res.json({sucesso: true, msg: `Adotaste um ${tipo} chamado ${nome}!`});
+});
+
+app.post('/api/pet/interagir', (req, res) => {
+    const { id, acao } = req.body;
+    const a = core.alunos[id];
+    if(!a || !a.pet || !a.pet.adotado) return res.json({erro: "Sem mascote."});
+    
+    if (acao === 'alimentar') {
+        if(a.inventario.ingredientes['muco'] > 0 || a.inventario.ingredientes['asfodelo'] > 0) {
+            if(a.inventario.ingredientes['muco'] > 0) a.inventario.ingredientes['muco']--;
+            else a.inventario.ingredientes['asfodelo']--;
+            a.pet.fome = 100;
+            res.json({sucesso: true, msg: "Alimentaste o teu Mascote!"});
+        } else {
+            res.json({erro: "Falta-te Ingredientes (Muco ou Asfódelo) para o alimentar."});
+        }
+    } 
+    else if (acao === 'brincar') {
+        if (a.energia < 10) return res.json({erro: "Estás cansado demais para brincar."});
+        a.energia -= 10;
+        a.pet.felicidade = 100;
+        res.json({sucesso: true, msg: "Brincaste com o mascote! (Felicidade Máxima)"});
+    }
+    else if (acao === 'coletar') {
+        const horasPassadas = (Date.now() - a.pet.ultimaColeta) / (1000 * 60 * 60);
+        if (horasPassadas < 4) return res.json({erro: "O teu mascote ainda não achou nada (Requer 4h)."});
+        if (a.pet.fome < 50 || a.pet.felicidade < 50) return res.json({erro: "O mascote está triste/esfomeado e recusa-se a trabalhar."});
+        
+        let drop = a.pet.tipo === 'Pelúcio' ? 'Galeões' : 'Ingredientes';
+        let recompensa = "";
+        if(drop === 'Galeões') { a.galeoes += 80; recompensa = "80 Galeões"; }
+        else { 
+            a.inventario.ingredientes['bezoar'] = (a.inventario.ingredientes['bezoar'] || 0) + 2; 
+            recompensa = "2 Bezoares"; 
+        }
+        
+        a.pet.ultimaColeta = Date.now();
+        a.pet.xp += 50;
+        if(a.pet.xp >= 100) { a.pet.nivel++; a.pet.xp = 0; }
+        res.json({sucesso: true, msg: `O teu ${a.pet.tipo} encontrou: ${recompensa}!`});
+    }
+    core._salvarUrgente();
+});
+// 🔥 PATCH 3.0: GUARDA-ROUPA E COSMÉTICOS
+app.post('/api/equipamento/comprar_misterio', async (req, res) => {
+    const { id, tipo } = req.body;
+    if (!id || !tipo) return res.json({ erro: "Dados insuficientes." });
+    
+    // Agora chama a função de Craft que exige materiais
+    const resultado = await core.craftEquipamento(id, tipo);
+    res.json(resultado);
+});
+
+app.post('/api/equipamento/equipar', async (req, res) => {
+    const { id, itemId } = req.body;
+    const resultado = core.equiparItem(id, itemId);
+    res.json(resultado);
+});
+
+// 🔥 MINIGAME: Xadrez Bruxo
+app.post('/api/minigame/xadrez', (req, res) => {
+    const { id, jogada } = req.body; // jogada: 'Cavalo', 'Bispo', 'Torre'
+    const a = core.alunos[id];
+    if(!a) return res.json({erro: "Erro."});
+    if(a.galeoes < 5) return res.json({erro: "O bilhete de entrada no tabuleiro custa 5 Galeões."});
+    
+    a.galeoes -= 5;
+    const pecasIA = ['Cavalo', 'Bispo', 'Torre'];
+    const jogadaIA = pecasIA[Math.floor(Math.random() * pecasIA.length)];
+    
+    // Regras Mágicas: Cavalo (Agilidade) > Bispo (Magia) > Torre (Força) > Cavalo
+    let resultado = 'empate';
+    if (jogada === 'Cavalo' && jogadaIA === 'Bispo') resultado = 'vitoria';
+    if (jogada === 'Bispo' && jogadaIA === 'Torre') resultado = 'vitoria';
+    if (jogada === 'Torre' && jogadaIA === 'Cavalo') resultado = 'vitoria';
+    
+    if (jogada === 'Bispo' && jogadaIA === 'Cavalo') resultado = 'derrota';
+    if (jogada === 'Torre' && jogadaIA === 'Bispo') resultado = 'derrota';
+    if (jogada === 'Cavalo' && jogadaIA === 'Torre') resultado = 'derrota';
+    
+    if (resultado === 'vitoria') {
+        a.galeoes += 15; // Lucro de 10
+        core.ganharXp(a, 80);
+        res.json({sucesso: true, resultado, jogadaIA, msg: `Xeque-Mate! A tua peça destruiu o ${jogadaIA} inimigo. Ganhaste 15G!`});
+    } else if (resultado === 'derrota') {
+        res.json({sucesso: true, resultado, jogadaIA, msg: `A IA jogou ${jogadaIA} e esmagou a tua peça. Perdeste.`});
+    } else {
+        a.galeoes += 5; // Devolve o dinheiro
+        res.json({sucesso: true, resultado, jogadaIA, msg: `Ambas as peças colidiram! Empate.`});
+    }
+    core._salvarUrgente();
+});
+// 🔥 ROTAS DE PROGRESSÃO E RETENÇÃO MOBILE
+app.post('/api/personagem/distribuir_pontos', (req, res) => {
+    const { id, atributo } = req.body;
+    const a = core.alunos[id];
+    if(!a || !a.atributosRPG || a.atributosRPG.pontosLivres <= 0) return res.json({erro: "Sem pontos livres."});
+    
+    if (a.atributosRPG[atributo] !== undefined) {
+        a.atributosRPG[atributo]++;
+        a.atributosRPG.pontosLivres--;
+        core._obterAtributosTotais(a); // Recalcula HP, Foco, etc baseado nos novos status
+        core._salvarUrgente();
+        res.json({sucesso: true, msg: `${atributo.toUpperCase()} aumentado!`});
+    } else {
+        res.json({erro: "Atributo inválido."});
+    }
+});
+
+app.post('/api/castelo/cozinha_stealth', (req, res) => {
+    const { id, win } = req.body;
+    const a = core.alunos[id];
+    if(!a) return res.json({erro: "Fantasma."});
+    
+    if(win) {
+        a.fome = 100;
+        a.energia = Math.min(100, a.energia + 20); // Comer dá um pouco de energia
+        core._salvarUrgente();
+        res.json({sucesso: true, msg: "Banqueteeaste-te com as sobras! Fome restaurada."});
+    } else {
+        core.adicionarPontosCasa(a.casa, -5);
+        res.json({erro: "Foste apanhado pelo Filch! Menos 5 pontos para a tua casa."});
+    }
+});
 // ==============================================================================
 // 1. ADMISSÃO E BECO DIAGONAL
 // ==============================================================================
@@ -174,7 +421,39 @@ function forcarSyncAluno(id) {
 core.livrosPublicos = [];
 
 // --- ROTAS DA BIBLIOTECA NO SERVER.JS ---
+if (!core.locksIA) core.locksIA = {}; // Cadeado Anti-Spam Global
 
+// --- ROTAS DA BIBLIOTECA NO SERVER.JS ---
+
+app.post('/api/livros/abrir', async (req, res) => {
+    try {
+        const a = core.alunos[req.body.id];
+        if(!a || !a.inventario.livros.includes(req.body.nomeLivro)) return res.json({erro: "Não tens este livro."});
+
+        // 1. Vai buscar o livro diretamente à base de dados
+        let livroDoc = await core.db_biblioteca.findOne({ nomeLivro: req.body.nomeLivro });
+        
+        // 2. Se o Monge Arquivista ainda não começou a escrever sequer o Índice, diz ao jogador para esperar.
+        if (!livroDoc) {
+            return res.json({erro: "Os monges arquivistas ainda não catalogaram este tomo. Tenta voltar amanhã."});
+        }
+
+        // 3. Devolve a Ementa para a interface montar os botões. (O conteúdo do texto só vai no pacote se o monge já o tiver escrito)
+        let indiceLimpo = livroDoc.capitulos.map(c => ({ 
+            cap: c.cap, 
+            titulo: c.titulo, 
+            teoria: c.teoria, // Se o monge já escreveu, isto tem texto. Se não, é null.
+            pratica: c.pratica,
+            gerado: c.teoria !== null 
+        }));
+        
+        res.json({ sucesso: true, titulo: livroDoc.nomeLivro, capitulos: indiceLimpo });
+    } catch(e) { 
+        res.status(500).json({erro: "A biblioteca trancou as portas."}); 
+    }
+});
+
+// --- ROTAS DA BIBLIOTECA NO SERVER.JS (ATUALIZADAS) ---
 // --- ROTAS DA BIBLIOTECA NO SERVER.JS (ATUALIZADAS) ---
 
 app.post('/api/biblioteca/gerar_livro', async (req, res) => {
@@ -555,48 +834,6 @@ app.post('/api/biblioteca/copiar', (req, res) => {
         core._salvarBancoDeDados(); forcarSyncAluno(a.id); res.json({sucesso: true, msg: "Fizeste uma cópia do pergaminho para a tua mochila! (Custou 5G)"});
     } catch(e) { res.status(500).json({erro: "O tinteiro derramou."}); }
 });
-app.post('/api/livros/abrir', async (req, res) => {
-    try {
-        const a = core.alunos[req.body.id];
-        if(!a || !a.inventario.livros.includes(req.body.nomeLivro)) return res.json({erro: "Não tens este livro."});
-
-        let livroDoc = await core.db_biblioteca.findOne({ nomeLivro: req.body.nomeLivro });
-        
-        // 🔥 LAZY LOADING: O livro nunca foi gerado? A IA escreve-o na hora!
-        if (!livroDoc) {
-            // Mapeamento inverso para saber de que matéria é este livro
-            const materiasMap = {
-                "Livro Padrão de Feitiços": "Feitiços", "Poções Avançadas": "Poções",
-                "Guia de Transfiguração": "Transfiguração", "Mil Ervas Mágicas": "Herbologia",
-                "As Forças das Trevas": "D.C.A.T.", "O Livro Monstruoso dos Monstros": "Trato de Criaturas Mágicas",
-                "Esclarecendo o Futuro": "Adivinhação", "Numerologia e Gramática": "Aritmancia",
-                "Dicionário de Runas": "Runas Antigas", "O Céu Noturno": "Astronomia",
-                "Alquimia, O Guia Prático": "Alquimia", "História da Magia": "História da Magia",
-                "Vida Doméstica dos Muggles": "Estudos dos Muggles"
-            };
-            
-            let baseName = req.body.nomeLivro.replace(" (Ano 1)", "");
-            let materia = materiasMap[baseName] || "Magia Geral";
-            
-            // Avisa o jogador que a IA está a escrever
-            global.io.to(`priv_${a.id}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `A Matriz está a materializar as páginas de ${req.body.nomeLivro}. Aguarda uns segundos...` });
-            
-            const ementa = await core.cerebroIA.gerarLivroDidaticoCompleto(materia, 1);
-            if (ementa && ementa.length > 0) {
-                livroDoc = { materia: materia, ano: 1, nomeLivro: req.body.nomeLivro, capitulos: ementa };
-                await core.db_biblioteca.insertOne(livroDoc); // Salva para sempre para o próximo jogador
-            } else {
-                return res.json({erro: "A magia falhou. As páginas estão em branco."});
-            }
-        }
-
-        res.json({ 
-            sucesso: true, 
-            titulo: livroDoc.nomeLivro, 
-            capitulos: livroDoc.capitulos 
-        });
-    } catch(e) { res.status(500).json({erro: "A biblioteca está trancada."}); }
-});
 
 // ==============================================================================
 // 6. INVENTÁRIO (Sapos, Álbum e Poções)
@@ -660,37 +897,42 @@ app.post('/api/pocoes/preparar', async (req, res) => { try { const r = await cor
 // ==============================================================================
 app.post('/api/magia/equipar', (req, res) => { try { const r = core.equiparFeitico(req.body.id, req.body.feiticoId); if (r.sucesso) forcarSyncAluno(req.body.id); res.json(r); } catch(e) { res.status(500).json({erro: "Erro."}); } });
 
+// Substitui a rota antiga da dungeon
 app.post('/api/dungeon/iniciar', async (req, res) => {
     try {
         const { id, local } = req.body;
-        const r = await core.entrarDungeon(id, local);
+        const a = core.alunos[id];
+        if (!a || a.focoAtual < 3) return res.json({ erro: "Precisas de 3 Foco." });
+        
+        a.focoAtual -= 3;
+        
+        // Coloca o jogador no Motor Procedural da Floresta
+        let inst = core.florestaEngine.entrarFloresta(a);
+        
+        // Coloca no Socket Room para receber o Sync 2D
+        let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${id}`));
+        if(s) s.join(`forest_${inst.id}`);
 
-        if(r.sucesso) {
-            // Guarda instantaneamente para evitar rollback
-            if (typeof core._salvarUrgente === 'function') core._salvarUrgente();
-
-            const aluno = core.alunos[id];
-            let roomInst = r.idInstancia;
-
-            // Suporte a Grupos Multiplayer (Party)
-            if(aluno.partyId && core.parties[aluno.partyId]) {
-                core.parties[aluno.partyId].membros.forEach(mId => {
-                    let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${mId}`));
-                    if(s) s.join(roomInst);
-                    if(mId !== id) global.io.to(`priv_${mId}`).emit('puxado_para_dungeon', r);
-                });
-            } else {
-                let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${id}`));
-                if(s) s.join(roomInst);
-            }
-        }
-        res.json(r);
+        core._salvarUrgente();
+        res.json({ sucesso: true, msg: "Entraste na Floresta Sombria...", instId: inst.id });
     } catch(e) {
-        console.error("Falha ao iniciar Masmorra:", e);
-        res.status(500).json({erro: "A masmorra colapsou devido a instabilidade mágica."});
+        res.status(500).json({erro: "A masmorra colapsou."});
     }
 });
 
+
+app.post('/api/dungeon/fugir_floresta_seguro', (req, res) => {
+    // Para quando o jogador clica no botão "Voltar ao Castelo" do mapa 2D
+    const a = core.alunos[req.body.id];
+    core.florestaEngine.extrairLootEVaz(a); // Guarda o loot na conta real
+    
+    // Tira o jogador da instância
+    for(let id in core.florestaEngine.instancias) {
+        delete core.florestaEngine.instancias[id].jogadores[req.body.id];
+    }
+    core._salvarUrgente();
+    res.json({sucesso: true});
+});
 app.post('/api/dungeon/fugir', (req, res) => {
     try { const inst = core.dungeonInstancias[req.body.instId]; if(inst) inst.status = 'fugiu'; res.json({sucesso: true}); }
     catch(e) { res.status(500).json({erro: "Erro ao fugir."}); }
@@ -794,6 +1036,20 @@ io.on('connection', (socket) => {
     socket.emit('relogio_hogwarts', RelogioHogwarts.obterHorarioAtual());
     socket.emit('pontuacao_atualizada', core.pontuacaoCasas);
 	
+socket.on('forest_mover', (dados) => {
+        // Blindagem: impede crash se o servidor reiniciar enquanto jogadores andam
+        if (!core.florestaEngine || !core.florestaEngine.instancias || !dados.instId) return; 
+        
+        let inst = core.florestaEngine.instancias[dados.instId];
+        if (inst && inst.jogadores[socket.alunoId]) {
+            let p = inst.jogadores[socket.alunoId];
+            p.x = dados.x; 
+            p.y = dados.y; 
+            p.dir = dados.dir; 
+            p.isMoving = dados.isMoving;
+        }
+    });
+
 	
 // Ação de Clique em Objeto do Mundo (MMO)
 socket.on('mmo_interagir_objeto', async (dados) => {
@@ -897,7 +1153,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         }
     }
 
-    // --- LÓGICA DE COMBATE COOPERATIVO ---
+   // --- LÓGICA DE COMBATE COOPERATIVO ---
     else if (dados.tipo === 'combate') {
         const mob = sala.entidades.find(m => m.id === dados.idAlvo);
         if (!mob) return;
@@ -918,6 +1174,9 @@ socket.on('mmo_interagir_objeto', async (dados) => {
                         status: 'combate', multiplayer: true, membros: mob.jogadoresConfirmados
                     };
 
+                    // 🔥 CORREÇÃO: LIGA O CÉREBRO E OS ATAQUES DOS MONSTROS DO MAPA ABERTO AQUI!
+                    core.iniciarIACombate(idInst);
+
                     // Puxa todos para a arena
                     mob.jogadoresConfirmados.forEach(pid => {
                         io.to(`priv_${pid}`).emit('puxado_para_dungeon', { idInstancia: idInst, estado: { entidades: core.dungeonInstancias[idInst].entidades } });
@@ -927,11 +1186,10 @@ socket.on('mmo_interagir_objeto', async (dados) => {
                     sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
                     io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
                 }, 5000); // 5 segundos de espera para outros entrarem
-            }
+    }
         }
     }
 });
-
     socket.on('multiplayer_spell', (dados) => {
         // Transmite a renderização visual da magia para os aliados na Masmorra
         socket.to(dados.instId).emit('render_multiplayer_spell', dados);
@@ -968,6 +1226,11 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         socket.alunoNome = core.alunos[dados.idAluno].nome;
     });
     
+    // ==============================================================================
+    // MMO MOTOR DE POSIÇÕES E ZONAS EM TEMPO REAL
+    // ==============================================================================
+    if(!core.playersOnlineMmo) core.playersOnlineMmo = {};
+
     socket.on('entrar_zona_castelo', async (dados) => {
         if (socket.zonaAtual) {
             socket.leave(`zona_${socket.zonaAtual}`);
@@ -977,6 +1240,16 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         socket.zonaAtual = dados.zona;
         socket.join(`zona_${dados.zona}`);
         
+        // Regista o jogador no mapa do servidor
+        const a = core.alunos[socket.alunoId];
+        if (a) {
+            core.playersOnlineMmo[a.id] = {
+                id: a.id, nome: a.nome, casa: a.casa, nivel: a.nivel,
+                x: dados.startX || 400, y: dados.startY || 300, dir: 1, isMoving: false,
+                equipamentos: a.equipamentos // 🔥 ENVIA AS ROUPAS PARA TODOS VEREM!
+            };
+        }
+
         io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '🏰 [SISTEMA]', texto: `${dados.nome} entrou em ${dados.zona}.` });
         
         core.cerebroIA.gerarAtmosferaLocal(dados.zona).then(ambienteMsg => {
@@ -984,6 +1257,43 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         });
 
         atualizarPresencaZona(dados.zona);
+    });
+
+    // 🔥 NOVO: Recebe o movimento a 15fps e retransmite para a sala
+    socket.on('mmo_mover', (dados) => {
+        if (!socket.zonaAtual || !socket.alunoId) return;
+        let p = core.playersOnlineMmo[socket.alunoId];
+        if (p) {
+            p.x = dados.x; p.y = dados.y; p.dir = dados.dir; p.isMoving = dados.isMoving;
+            // Transmite apenas para quem está na mesma zona (Poupa largura de banda)
+            socket.to(`zona_${socket.zonaAtual}`).emit('mmo_movimento_remoto', p);
+        }
+    });
+
+    socket.on('pedir_presenca', (dados) => {
+        atualizarPresencaZona(dados.zona);
+    });
+
+	function atualizarPresencaZona(zona) {
+        const clientsInZone = io.sockets.adapter.rooms.get(`zona_${zona}`);
+        let jogadoresNaZona = [];
+        if (clientsInZone) {
+            for (const clientId of clientsInZone) {
+                const clientSocket = io.sockets.sockets.get(clientId);
+                if (clientSocket && clientSocket.alunoId && core.playersOnlineMmo[clientSocket.alunoId]) {
+                    jogadoresNaZona.push(core.playersOnlineMmo[clientSocket.alunoId]);
+                }
+            }
+        }
+        // Envia todos os jogadores e as suas posições exatas
+        io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
+    }
+
+    socket.on('disconnect', () => {
+        if (socket.zonaAtual && socket.alunoId) {
+            io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
+            delete core.playersOnlineMmo[socket.alunoId];
+        }
     });
 	socket.on('pedir_presenca', (dados) => {
         atualizarPresencaZona(dados.zona);

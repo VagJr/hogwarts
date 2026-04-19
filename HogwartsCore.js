@@ -37,9 +37,13 @@ class RelogioHogwarts {
         const hoje = cronograma[diaNome];
         let infoTurno = (horaReal >= 8 && horaReal < 14) ? hoje.manha : hoje.tarde;
 
+        // 🔥 O NOVO CRONOGRAMA ÉPICO (1 Ano Letivo = 4 Meses Reais = 120 Dias)
         const janeiroPrimeiro = new Date(agora.getFullYear(), 0, 1);
         const diasPassados = Math.floor((agora - janeiroPrimeiro) / (24 * 60 * 60 * 1000));
-        const capituloHoje = (Math.floor(diasPassados / 7) % 10) + 1;
+        
+        // Ciclo contínuo de 120 dias. Um livro tem 20 capítulos. 120 / 20 = 6 dias por capítulo.
+        const diaDoCiclo = diasPassados % 120;
+        const capituloHoje = Math.floor(diaDoCiclo / 6) + 1; // Resultado: 1 a 20
 
         let fase = "Estudo Livre";
         if (horaReal >= 8 && horaReal < 20) fase = (horaReal < 14) ? "Palestra Matinal" : "Sessão Prática de Tarde";
@@ -49,14 +53,13 @@ class RelogioHogwarts {
             horaJogo: `${horaReal.toString().padStart(2,'0')}:00`,
             aulaAtiva: infoTurno.m,
             professorAtivo: infoTurno.p,
-            requerLivro: `${infoTurno.l} (Ano ${anoLetivo})`, // O Livro agora exige o Ano correto!
+            requerLivro: `${infoTurno.l} (Ano ${anoLetivo})`, 
             capituloAtual: capituloHoje,
             faseEscolar: fase,
             toqueRecolher: (horaReal >= 22 || horaReal < 6)
         };
     }
 }
-
 class Ollivanders {
     static forjarVarinhaDestinada(nomeBruxo) {
         const madeiras = [ "Azevinho", "Teixo", "Salgueiro", "Carvalho", "Nogueira", "Ébano", "Salgueiro Lutador", "Jacarandá Escuro", "Amieiro" ];
@@ -383,24 +386,37 @@ class MotorQuadribol {
 }
 class MotorConscienciaHogwarts {
     constructor() {
-        this.apiKey = process.env.GROQ_API_KEY || "";
-        if (this.apiKey) this.groq = new Groq({ apiKey: this.apiKey });
-		this.iaBloqueadaAte = 0; 
+        const chavesEnv = process.env.GROQ_API_KEY || "";
+        // 🔥 A MÁGICA DO POOLING: Separa as chaves por vírgula e cria um arsenal!
+        this.apiKeys = chavesEnv.split(',').map(k => k.trim()).filter(k => k.length > 0);
+        this.currentKeyIndex = 0;
+        this.iaBloqueadaAte = 0; 
         
-        // 🔥 A SOLUÇÃO MÁXIMA PARA ECONOMIA DE IA (A PENSEIRA) 🔥
-        // Guarda gerações para serem reutilizadas em vez de gastar a API!
+        if (this.apiKeys.length > 0) {
+            this.apiKey = this.apiKeys[this.currentKeyIndex];
+            this.groq = new Groq({ apiKey: this.apiKey });
+            console.log(`🔑 [SISTEMA IA] Arsenal Mágico carregado com ${this.apiKeys.length} Varinhas (Chaves Groq)!`);
+        }
+
         this.Penseira = {
-            livrosDaBiblioteca: {}, // Guarda assuntos lidos
-            capitulosAulas: {},     // Guarda livros folheados
-            quizzes: [],            // Pool de perguntas (se tiver 30, para de gerar)
-            atmosferas: {},         // Atmosferas de zonas (Salão, Floresta)
-            noticias: [],           // Pool de notícias do Profeta
-            chatCooldowns: {},      // Impede spam de chat na IA
-            mobDrops: {},           // Drops de criaturas para não gerar de novo
-            pocoesIneditas: {}      // Poções já tentadas
+            livrosDaBiblioteca: {}, capitulosAulas: {}, quizzes: [], 
+            atmosferas: {}, noticias: [], chatCooldowns: {}, 
+            mobDrops: {}, pocoesIneditas: {}
         };
     }
-	
+
+    // 🔥 NOVA FUNÇÃO: Troca de chave instantaneamente quando a atual esgota!
+    rodarChave() {
+        this.currentKeyIndex++;
+        if (this.currentKeyIndex >= this.apiKeys.length) {
+            console.log("❌ [SISTEMA IA] TODAS as chaves do arsenal esgotaram o limite diário!");
+            return false;
+        }
+        console.log(`🔄 [SISTEMA IA] Chave esgotada! A equipar a Chave nº ${this.currentKeyIndex + 1}...`);
+        this.apiKey = this.apiKeys[this.currentKeyIndex];
+        this.groq = new Groq({ apiKey: this.apiKey }); // Inicia nova conexão fresca!
+        return true;
+    }	
 	// Adicione um verificador
     podeUsarIA() {
         if (!this.apiKey) return false;
@@ -423,67 +439,115 @@ class MotorConscienciaHogwarts {
             return null; 
         }
     }
-	
-	async gerarLivroDidaticoCompleto(materia, anoLetivo = 1) {
-        if (!this.apiKey) return this._gerarLivroEstatico(materia, anoLetivo);
+	async gerarAtmosferaLocal(zona) {
+        if (!this.apiKey) {
+            return "As tochas cintilam suavemente na pedra fria.";
+        }
+        try {
+            // Modelo 8B é o melhor para coisas curtas para poupar o limite de 6000 TPM
+            const prompt = `Age como J.K. Rowling. Cria UMA FRASE curta, inédita e altamente imersiva descrevendo o que está a acontecer AGORA em "${zona}" no Castelo de Hogwarts. Descreve cheiros, sons distantes, o clima nas janelas, fantasmas passando ou alunos ao fundo. NUNCA REPITA.`;
+            const res = await this.groq.chat.completions.create({ 
+                messages: [{ role: "user", content: prompt }], 
+                model: "llama-3.1-8b-instant", 
+                max_tokens: 500, // Limite baixo para isto não gerar erro 413
+                temperature: 1.0 
+            });
+            return res.choices[0].message.content.replace(/["']/g, '').trim();
+        } catch(e) { 
+            console.error(`🔴 Erro na IA Atmosfera em ${zona}:`, e.message); 
+            return "Um eco misterioso ressoa pelas paredes de pedra..."; 
+        }
+    }
+	// 1. Gera apenas o Esqueleto do Livro (20 Capítulos Rápidos)
+    async gerarEmentaLivro(materia, anoLetivo = 1) {
+        if (!this.apiKey) return null;
+        const prompt = `És o Diretor Académico de Hogwarts. Cria o Índice (Tabela de Conteúdos) para o manual oficial de "${materia}" do ${anoLetivo}º ano.
+        O livro terá EXATAMENTE 20 Capítulos, cobrindo o ano inteiro desde os fundamentos até a magias avançadas e perigosas no fim.
+        Retorna APENAS o JSON estrito:
+        { "titulos": ["1. Origens da Matéria", "2. Segurança Básica", "3. ... até o 20"] }`;
 
-        const prompt = `És o Arquivista-Chefe de Hogwarts. Redige o currículo oficial de ${materia} para alunos do ${anoLetivo}º Ano.
-        Cria 7 capítulos densos e altamente detalhados.
-        
-        REGRAS LITERÁRIAS:
-        1. A "teoria" DEVE SER LONGA (2 a 3 parágrafos ricos). Inclui lore profunda, história da magia, regras e mecânicas do universo de Harry Potter. Usa \\n\\n para separar os parágrafos.
-        2. A "pratica" DEVE descrever minuciosamente o movimento da varinha, a postura física e a intenção mental.
-        
-        OBRIGATÓRIO - RETORNE APENAS JSON ESTRITO NESTE FORMATO (Um objeto raiz contendo a array "capitulos"):
-        {
-          "capitulos": [
-            {
-              "cap": 1, 
-              "titulo": "O Título do Capítulo", 
-              "teoria": "Primeiro parágrafo longo...\\n\\nSegundo parágrafo longo com lore e detalhes...", 
-              "pratica": "Instruções rigorosas de execução...", 
-              "pergunta": "Uma pergunta teórica difícil para a turma."
-            }
-          ]
-        }`;
-        
         try {
             const res = await this.groq.chat.completions.create({
-                messages: [{ role: "user", content: prompt }],
-                model: "meta-llama/llama-4-scout-17b-16e-instruct", // 🔥 NOVO MODELO: Excelente com JSON, textos longos e 500k tokens por dia!
-                response_format: { type: "json_object" }, 
-                temperature: 0.5 
+                messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: { type: "json_object" }
             });
-            
             const data = this._extrairJSONBlindado(res.choices[0].message.content);
-            
-            if (data && data.capitulos && Array.isArray(data.capitulos)) {
-                return data.capitulos;
+            if (data && data.titulos && data.titulos.length > 0) {
+                // Formata os capítulos para o banco de dados (Vazios de conteúdo, apenas o título)
+                return data.titulos.map((t, i) => ({ cap: i + 1, titulo: t, teoria: null, pratica: null, pergunta: null }));
             }
-            throw new Error("Formato da matriz de capítulos não encontrado.");
-            
-        } catch (e) { 
-            console.error("⚠️ Limite da IA atingido! A injetar Livro de Reserva...", e.message);
-            return this._gerarLivroEstatico(materia, anoLetivo); 
-        }
+        } catch (e) { console.error("Erro Ementa:", e.message); } return null;
     }
 
-    // O TEU FALLBACK (Nunca o apagues, ele salva o servidor de crashar)
-    _gerarLivroEstatico(materia, ano) {
-        let caps = [];
-        for(let i=1; i<=7; i++) {
-            caps.push({
-                cap: i,
-                titulo: `Fundamentos de ${materia} - Parte ${i}`,
-                teoria: `Este é um capítulo de estudo autónomo de ${materia}.\n\nDevido a uma anomalia mágica temporária nas linhas de Ley do Castelo, as antigas runas deste tomo estão ocultas à visão. O Ministério da Magia já foi notificado.\n\nNo entanto, o foco absoluto e a precisão mental continuam a ser essenciais nesta disciplina. Lê as entrelinhas e descansa a tua mente.`,
-                pratica: "Ergue a varinha, limpa os pensamentos, visualiza a intenção mágica com clareza e executa o movimento com firmeza.",
-                pergunta: `Quais são as consequências de uma mente distraída na prática de ${materia}?`
+    // 2. Gera O CAPÍTULO COLOSSAL quando solicitado!
+   // 2. Gera O CAPÍTULO COLOSSAL quando solicitado!
+    // 2. Gera O CAPÍTULO COLOSSAL com Contexto de Continuidade
+    async escreverCapituloColossal(materia, tituloCapitulo, numeroCapitulo, ementaCompleta) {
+        if (!this.apiKey) return null;
+        
+        // 🔥 O TRUQUE DE MESTRE: Damos o mapa do livro à IA para ela saber onde está!
+        const prompt = `És o Arquivista Supremo de Hogwarts. Estás a escrever o manual oficial de "${materia}".
+        
+        A EMENTA COMPLETA DO LIVRO É ESTA: [ ${ementaCompleta} ]
+        
+        A TUA TAREFA: Escreve APENAS o conteúdo do Capítulo ${numeroCapitulo}: "${tituloCapitulo}".
+        
+        REGRAS DE CONTINUIDADE E ESCRITA:
+        1. Foca-te EXCLUSIVAMENTE no tema deste capítulo. Olha para a Ementa acima e NUNCA repitas temas de capítulos passados, nem dês spoilers de capítulos futuros. Mantém a progressão didática!
+        2. A secção "teoria" deve ser COLOSSAL e PROFUNDA. Explora a história, os acidentes documentados e a física mágica.
+        3. VITAL: A "teoria" deve ser OBRIGATORIAMENTE uma LISTA (Array) contendo entre 6 a 10 parágrafos DENSOS. Não resuma.
+        4. A secção "pratica" deve explicar passo-a-passo a posição da varinha.
+        5. A "pergunta" será usada pelo professor para debater na aula.
+
+        Retorna APENAS o JSON estrito:
+        {
+          "teoria": [
+             "Parágrafo colossal 1...",
+             "Parágrafo colossal 2...",
+             "Parágrafo colossal 3...",
+             "Parágrafo colossal 4...",
+             "Parágrafo colossal 5...",
+             "Parágrafo colossal 6..."
+          ],
+          "pratica": "Instruções práticas exaustivas aqui...",
+          "pergunta": "Uma pergunta teórica desafiadora?"
+        }`;
+
+        try {
+            const res = await this.groq.chat.completions.create({
+                messages: [
+                    { role: "system", content: "Escreves textos imersivos e massivos sobre o universo de J.K.Rowling." },
+                    { role: "user", content: prompt }
+                ],
+                model: "llama-3.1-8b-instant", 
+                response_format: { type: "json_object" },
+                temperature: 0.7,
+                max_tokens: 4500 
             });
+            
+            let data = this._extrairJSONBlindado(res.choices[0].message.content);
+            
+            if (data && Array.isArray(data.teoria)) {
+                data.teoria = data.teoria.join('\n\n');
+                return data;
+            } else if (data && typeof data.teoria === 'string') {
+                return data; 
+            }
+            
+            return null;
+        } catch (e) { 
+            // 🔥 CORREÇÃO: Agora ele deteta o erro 413 e o aviso de "tokens"
+            if (e.message.includes('429') || e.message.includes('Rate limit') || e.message.includes('413') || e.message.includes('tokens')) {
+                console.log(`⚠️ [ALERTA DE LIMITE GROQ]: TPM Esgotado ou Payload grande. Tentando rodar a chave...`);
+                if (this.rodarChave()) {
+                    return { trocarChave: true }; 
+                } else {
+                    return { rateLimit: true }; 
+                }
+            }
+            console.error("Erro Capítulo Colossal:", e.message); 
+            return null; 
         }
-        return caps;
-    }
-
-    
+	}
 	// Dentro da classe MotorConscienciaHogwarts em HogwartsCore.js
 // Adicione estes métodos dentro da classe MotorConscienciaHogwarts em HogwartsCore.js
 async gerarMobiliaMagica() {
@@ -505,11 +569,45 @@ async gerarMobiliaMagica() {
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct", 
+                model: "llama-3.3-70b-versatile", 
                 response_format: { type: "json_object" } 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
+    }
+	
+	// 🔥 PATCH 3.0: GERAÇÃO PROCEDURAL INFINITA DE EQUIPAMENTOS
+    async gerarEquipamentoRPG(tipoPeca, nivelJogador) {
+        if (!this.podeUsarIA()) return this._fallbackEquipamento(tipoPeca, nivelJogador);
+
+        const prompt = `Cria um equipamento mágico épico do tipo "${tipoPeca}" para um bruxo de nível ${nivelJogador}.
+        O tipo DEVE SER: "cabeca" (Chapéus/Capuzes), "corpo" (Vestes/Armaduras) ou "pescoco" (Cachecóis/Amuletos).
+        Gera atributos bónus (intelecto, destreza, vigor, percepcao) somando no máximo ${nivelJogador * 2} pontos no total.
+        RETORNE APENAS JSON ESTRITO:
+        {
+            "nome": "Capa do Corvo da Noite",
+            "tipo": "corpo",
+            "lore": "Tecida com penas caídas na Floresta Proibida.",
+            "atributos": { "intelecto": 2, "vigor": 1, "destreza": 0, "percepcao": 0 },
+            "visual": { "cor1": "#1a1c23", "cor2": "#34495e", "estilo": "rasgado" }
+        }`;
+
+        try {
+            const res = await this.groq.chat.completions.create({
+                messages: [{ role: "user", content: prompt }],
+                model: "llama-3.3-70b-versatile",
+                response_format: { type: "json_object" },
+                max_tokens: 800
+            });
+            return this._extrairJSONBlindado(res.choices[0].message.content) || this._fallbackEquipamento(tipoPeca, nivelJogador);
+        } catch(e) { return this._fallbackEquipamento(tipoPeca, nivelJogador); }
+    }
+
+    _fallbackEquipamento(tipo, nivel) {
+        return { 
+            nome: `${tipo === 'cabeca' ? 'Chapéu' : (tipo==='corpo'?'Veste':'Cachecol')} Desgastado`, tipo: tipo, lore: "Cheira a naftalina.",
+            atributos: { intelecto: 1, vigor: 1, destreza: 0, percepcao: 0 }, visual: { cor1: "#444", cor2: "#222", estilo: "basico" }
+        };
     }
 async gerarLivroCompleto(alunoNome, assunto, estilo) {
         if (!this.apiKey) return { titulo: "Tomo Vazio", conteudo: "A magia da IA está desligada no servidor." };
@@ -527,7 +625,7 @@ async gerarLivroCompleto(alunoNome, assunto, estilo) {
 
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }, // 🔥 BLOQUEIO INFALÍVEL
                 temperature: 0.7
             });
@@ -551,7 +649,7 @@ async avaliarEstudoParaAprender(alunoSummary, feiticoOriginal) {
     try {
         const res = await this.groq.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
-            model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            model: "llama-3.3-70b-versatile",
             response_format: { type: "json_object" }
         });
         return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -689,10 +787,26 @@ origem → movimento → trajetória → impacto → dissipação
                 "visualConfig": { "shape": "sphere", "color": "#8e44ad", "glow": "#4b0082", "quantity": 1, "speed": 18, "trailSize": 10, "movement": "linear", "particleStyle": "void", "impactEffect": "implosion" },
                 "lore": "Colapso de pressão atmosférica."
             }
-        }`;
-        
+        REGRAS DE SINERGIA E STATUS (NOVO E PROFUNDO):
+        - A tua tarefa é criar combos MTG/MMORPG. Podes adicionar 'efeitoSecundario' à magia. Efeitos válidos:
+          'queimar' (DoT de fogo), 'sangrar' (DoT de trevas), 'envenenar' (DoT de natureza), 'atordoar' (Impede ataque), 'congelado' (Impede ataque + combo cinético), 'desarmar' (Impede ataque), 'vulneravel' (Alvo sofre o dobro do dano), 'molhado' (Combo elétrico), 'anti_cura' (Quebra escudos).
+        - Podes adicionar 'buffJogador' para classes de Suporte/Tank: 'regeneracao' (Cura por tempo), 'espinhos' (Reflete dano), 'pressa' (Reduz custo de feitiços).
+        - Podes adicionar 'duracao' (em turnos 1 a 5).
+        - Podes adicionar 'lifesteal' (ex: 0.3 para 30% do dano curar o jogador).
+        - Podes adicionar 'purificar': true (remove status negativos do jogador).
+        RETORNE JSON ESTRITO (Exemplo para Implosão de Vácuo):
+        {
+            "aprovado": true,
+            "feedback": "Uma teoria fascinante sobre a física do vácuo.",
+            "feitico": {
+                "nome": "Implosio Totalis", "tipoMecanica": "status", "elemento": "cinetico",
+                "valorBase": 200, "custoMana": 8, "efeitoSecundario": "atordoar", "duracao": 2,
+                "visualConfig": { "shape": "sphere", "color": "#8e44ad", "glow": "#4b0082", "quantity": 1, "speed": 18, "trailSize": 10, "movement": "linear", "particleStyle": "void", "impactEffect": "implosion" },
+                "lore": "Colapso de pressão atmosférica."
+            }
+        }`;       
         try {
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct", response_format: { type: "json_object" } });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch (e) { return { aprovado: false, feedback: "Falha na conexão astral." }; }
     }
@@ -707,7 +821,7 @@ origem → movimento → trajetória → impacto → dissipação
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" } 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { texto: "Página rasgada." };
@@ -725,7 +839,7 @@ origem → movimento → trajetória → impacto → dissipação
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct", 
+                model: "llama-3.3-70b-versatile", 
                 response_format: {type: "json_object"} 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -736,7 +850,7 @@ origem → movimento → trajetória → impacto → dissipação
         if (!this.apiKey) return "Avistamentos de Nargles na Escócia reportados por Luna Lovegood.";
         try {
             const prompt = `Escreve uma manchete super criativa e curta (1 frase) para o jornal 'O Profeta Diário' do mundo de Harry Potter. Pode ser sobre o Ministério, Quidditch, ou coisas engraçadas no mundo bruxo. APENAS O TEXTO DA NOTÍCIA, sem aspas.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
 			return res.choices[0].message.content.replace(/["']/g, '').trim();
         } catch(e) { return "O Ministério aprova nova lei sobre caldeirões de espessura padrão."; }
     }
@@ -744,7 +858,7 @@ async gerarCapituloLivro(nomeLivro) {
         if (!this.apiKey) return "A magia deste tomo está adormecida. Não detetei a chave da IA (GROQ_API_KEY). Verifica o teu terminal ou ficheiro .env.";
         try {
             const prompt = `És J.K. Rowling. Escreve um capítulo imersivo (cerca de 3 parágrafos) do livro "${nomeLivro}". O texto deve conter conhecimento mágico real (feitiços, poções ou criaturas) que um aluno de Hogwarts leria. Sem saudações, apenas o texto do livro.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct", temperature: 1.0 });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", temperature: 1.0 });
 			return res.choices[0].message.content.trim();
         } catch (e) {
             return "As páginas estão manchadas de tinta e ilegíveis.";
@@ -772,7 +886,7 @@ async gerarCapituloLivro(nomeLivro) {
                 "recompensaGaleoes": 200,
                 "recompensaXp": 500
             }`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct", response_format: {type: "json_object"} });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: {type: "json_object"} });
             let q = this._extrairJSONBlindado(res.choices[0].message.content);
             if(q) { q.progresso = 0; q.concluida = false; return q; }
             return null;
@@ -784,7 +898,7 @@ async gerarCapituloLivro(nomeLivro) {
         try {
             const prompt = `Age como o Chapéu Seletor de Hogwarts. Analisa: "${respostaAberta}". Retorna EXATAMENTE O JSON ABAIXO, substituindo a casa por Gryffindor, Slytherin, Ravenclaw ou Hufflepuff, e criando uma fala realista:
             {"casa": "Gryffindor", "relato": "Uma mente astuta, vejo... mas há coragem!"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { casa: fallback, relato: "Vejo o teu destino..." };
         } catch (e) { return { casa: fallback, relato: "Vou pelo palpite." }; }
     }
@@ -812,7 +926,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
 }`;
         const res = await this.groq.chat.completions.create({ 
             messages: [{ role: "user", content: prompt }], 
-            model: "meta-llama/llama-4-scout-17b-16e-instruct",
+            model: "llama-3.3-70b-versatile",
             response_format: { type: "json_object" } // Força o modo JSON
         });
         
@@ -831,7 +945,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `És o Professor ${professor} a dar aula de ${aula} a ${alunoNome}. O teu conhecimento de Harry Potter é infinito. 
             Dá uma aula real, explicando detalhadamente um feitiço, poção ou criatura exata dos livros. Termina a tua fala perguntando algo diretamente à turma.
             RETORNE SÓ JSON: {"texto": "Silêncio na sala! Hoje vamos estudar...", "temLoot": true, "lootNome": "Pergaminho de Estudo"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { texto: "Aula proveitosa.", temLoot: true, lootNome: `Notas de ${aula}` };
         } catch (e) { return { texto: `Aula em silêncio.`, temLoot: false }; }
     }
@@ -852,7 +966,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             Escreve o conteúdo de um livro histórico oficial de Hogwarts com profundidade extrema, detalhando as origens, os usos e os perigos do tema.
             RETORNA APENAS O JSON:
             {"titulo": "A História Oculta de...", "texto": "Há séculos atrás..."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
             let livro = this._extrairJSONBlindado(res.choices[0].message.content);
             
             if(livro && livro.titulo) {
@@ -897,7 +1011,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }
             });
             const dados = this._extrairJSONBlindado(res.choices[0].message.content);
@@ -914,7 +1028,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
         try {
             const prompt = `Gera uma pergunta muito difícil de N.O.M. do universo Harry Potter sobre: ${materia}. 
             RETORNA APENAS JSON: {"pergunta": "Qual é a base da poção Polissuco?", "respostaCerta": "Hemeróbios e Descurainia..."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { pergunta: "O que é magia?", respostaCerta: "Magia" };
         } catch(e) { return { pergunta: "O Ministério cancelou os exames.", respostaCerta: "Nada" }; }
     }
@@ -925,7 +1039,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `Exame N.O.M.. Resposta correta: "${respostaCerta}". O aluno respondeu: "${respostaAluno}".
             Sê um examinador muito exigente. Avalia de 0 a 100.
             RETORNA APENAS JSON: {"nota": 80, "feedback": "Argumentaste bem, mas esqueceste-te dos detalhes."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { nota: 50, feedback: "O pergaminho manchou." };
         } catch(e) { return { nota: 50, feedback: "Avaliador ocupado." }; }
     }
@@ -942,7 +1056,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
             });
             const parse = this._extrairJSONBlindado(res.choices[0].message.content);
@@ -958,7 +1072,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
             });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { personagem: "Nenhum", texto: "" };
@@ -983,7 +1097,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }
             });
             
@@ -1008,7 +1122,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }
             });
             let j = this._extrairJSONBlindado(res.choices[0].message.content);
@@ -1034,7 +1148,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }
             });
             // Adicionado "|| { sucesso: false }" para salvaguarda!
@@ -1045,34 +1159,13 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
     async gerarTitulo(aluno) {
         try {
             const prompt = `Gera SÓ UM Título épico (ex: 'Mestre das Sombras') para bruxo nível ${aluno.nivel} da casa ${aluno.casa}. NADA DE ASPAS OU JSON.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
             return res.choices[0].message.content.replace(/["']/g, '').trim();
         } catch(e) { return "Membro da Ordem"; }
     }
 
-    async gerarAtmosferaLocal(zona) {
-        if (!this.apiKey) return "As tochas cintilam suavemente na pedra fria.";
-        
-        // ECONOMIA: Inicializa o array da zona
-        if (!this.Penseira.atmosferas[zona]) this.Penseira.atmosferas[zona] = [];
-        let memorias = this.Penseira.atmosferas[zona];
-
-        // Se já geramos 5 atmosferas para esta zona, 80% de chance de reciclar uma grátis!
-        if (memorias.length >= 5 && Math.random() < 0.8) {
-            return memorias[Math.floor(Math.random() * memorias.length)];
-        }
-
-        try {
-            const prompt = `Age como J.K. Rowling. Cria UMA FRASE curta, inédita e altamente imersiva descrevendo o que está a acontecer AGORA em "${zona}" no Castelo de Hogwarts. Descreve cheiros, sons distantes, o clima nas janelas, fantasmas passando ou alunos ao fundo. NUNCA REPITA.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct", temperature: 1.0 });
-            let texto = res.choices[0].message.content.replace(/["']/g, '').trim();
-            
-            memorias.push(texto); // Guarda na Penseira
-            return texto;
-        } catch(e) { return null; }
     }
-}	
-
+            
 class HogwartsCore {
     constructor() {
         global.coreInstance = this; // 🔥 PREVINE O CRASH DO QUADRIBOL
@@ -1080,6 +1173,7 @@ class HogwartsCore {
         this.gremios = {};
         this.parties = {};
         this.grupos = {};
+		this.florestaEngine = new MotorFlorestaProcedural(this);
         this.pontuacaoCasas = { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
         
        this.lojasBeco = {
@@ -1128,22 +1222,28 @@ class HogwartsCore {
         this.listaZonas = ["Salão Principal", "Grande Escadaria", "Masmorras", "Torre de Astronomia", "Biblioteca", "Floresta Proibida", "Banheiro da Murta", "Hogsmeade"];
         this.listaZonas.forEach(z => this.zonasVivas[z] = { entidades: [], itens: [] });
 
+        // NOVO GRIMÓRIO (Sistema de Classes: DPS, Healer, Tank, Control)
         this.livroDeFeiticos = {
-            'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 2, poderBase: 80, lore: "Desarma o oponente.", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1, trailSize: 15 } },
-            'incendio': { nome: "Incendio", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 4, poderBase: 120, lore: "Lança chamas.", visualConfig: { shape: 'wave', color: '#ff4500', glow: '#ff8800', quantity: 3, trailSize: 8 } },
-            'protego': { nome: "Protego", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 2, poderBase: 0, defende: true, lore: "Escudo instantâneo.", visualConfig: { shape: 'sphere', color: '#3498db' } },
-            'stupefy': { nome: "Estupefaça", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 100, lore: "Atordoa o alvo.", visualConfig: { shape: 'sphere', color: '#e74c3c', glow: '#ff0000', quantity: 1, trailSize: 20 } },
-            'sectumsempra': { nome: "Sectumsempra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 200, lore: "Cortes profundos.", visualConfig: { shape: 'slash', color: '#ffffff', glow: '#888888', quantity: 2, trailSize: 5 } },
-            'aguamenti': { nome: "Aguamenti", tipoMecanica: 'ataque', elemento: 'agua', custoFocoBase: 3, poderBase: 90, lore: "Jato de água.", visualConfig: { shape: 'wave', color: '#0f3c55', glow: '#3498db', quantity: 5, trailSize: 15 } },
-            'crucio': { nome: "Crucio", tipoMecanica: 'status', elemento: 'trevas', custoFocoBase: 8, poderBase: 300, lore: "Maldição da Tortura.", visualConfig: { shape: 'bolt', color: '#8e44ad', glow: '#4b0082', quantity: 3, trailSize: 25 } },
-            'expecto_patronum': { nome: "Expecto Patronum", tipoMecanica: 'ataque', elemento: 'luz', custoFocoBase: 10, poderBase: 400, lore: "O feitiço protetor.", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#a8d5ff', quantity: 1, trailSize: 30 } }
+            'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 2, poderBase: 40, efeitoSecundario: 'desarmar', duracao: 2, lore: "Desarma o oponente (Impede o inimigo de atacar por 2 turnos).", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1, trailSize: 15 } },
+            'incendio': { nome: "Incendio", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 4, poderBase: 80, efeitoSecundario: 'queimar', duracao: 4, lore: "Dano + Queimadura. Sinergia: Detona 'Veneno' para 300% de dano extra.", visualConfig: { shape: 'wave', color: '#ff4500', glow: '#ff8800', quantity: 3, trailSize: 8 } },
+            'protego': { nome: "Protego", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 3, poderBase: 300, defende: true, buffJogador: 'espinhos', duracaoBuff: 3, lore: "Escudo denso. Reflete 20% do dano recebido (Espinhos por 3 turnos).", visualConfig: { shape: 'sphere', color: '#3498db' } },
+            'stupefy': { nome: "Estupefaça", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 120, efeitoSecundario: 'atordoar', duracao: 1, lore: "Dano massivo. Sinergia: Shatter (Quebra o alvo se Congelado multiplicando dano).", visualConfig: { shape: 'sphere', color: '#e74c3c', glow: '#ff0000', quantity: 1, trailSize: 20 } },
+            'sectumsempra': { nome: "Sectumsempra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 150, efeitoSecundario: 'sangrar', duracao: 4, lifesteal: 0.5, lore: "Cortes profundos. (Sangramento 4 turnos + 50% Roubo de Vida).", visualConfig: { shape: 'slash', color: '#ffffff', glow: '#888888', quantity: 2, trailSize: 5 } },
+            'aguamenti': { nome: "Aguamenti", tipoMecanica: 'status', elemento: 'agua', custoFocoBase: 3, poderBase: 50, efeitoSecundario: 'molhado', duracao: 3, lore: "Jato de água. Sinergia: Feitiços elétricos em alvos molhados causam Paralisia e Dano x2.", visualConfig: { shape: 'wave', color: '#0f3c55', glow: '#3498db', quantity: 5, trailSize: 15 } },
+            'crucio': { nome: "Crucio", tipoMecanica: 'maldicao', elemento: 'trevas', custoFocoBase: 8, poderBase: 80, efeitoSecundario: 'vulneravel', duracao: 3, lore: "Maldição. O alvo recebe +100% de dano de TODAS as fontes (Quebra Defesa).", visualConfig: { shape: 'bolt', color: '#8e44ad', glow: '#4b0082', quantity: 3, trailSize: 25 } },
+            'expecto_patronum': { nome: "Expecto Patronum", tipoMecanica: 'cura', elemento: 'luz', custoFocoBase: 10, poderBase: 400, purificar: true, buffJogador: 'regeneracao', duracaoBuff: 5, lore: "Cura 400 HP, purifica e concede Regeneração de Vida contínua (HoT).", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#a8d5ff', quantity: 1, trailSize: 30 } },
+            'glacius': { nome: "Glacius", tipoMecanica: 'status', elemento: 'gelo', custoFocoBase: 4, poderBase: 40, efeitoSecundario: 'congelado', duracao: 2, lore: "Congela o alvo (Impede ataque). O próximo ataque cinético causa Dano Crítico Absoluto.", visualConfig: { shape: 'beam', color: '#a2d2df', glow: '#ffffff', quantity: 1, speed: 30, trailSize: 25 } },
+            'diffindo': { nome: "Diffindo", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 2, poderBase: 80, efeitoSecundario: 'anti_cura', duracao: 3, lore: "Corta a magia do inimigo, impedindo-o de se curar ou defender.", visualConfig: { shape: 'slash', color: '#ffcc00', glow: '#ff9900', quantity: 1, speed: 35, trailSize: 10 } }
         };
 
         this.receitasPocoes = {
             'wiggenweld': { nome: 'Poção Wiggenweld', ingredientes: ['ditamno', 'muco'], cura: 500, visual: { corPrincipal: "#0f5", tipo: "pocao" } },
             'antidoto': { nome: 'Antídoto Universal', ingredientes: ['bezoar', 'ditamno'], cura: 200, visual: { corPrincipal: "#fff", tipo: "pocao" } },
-            'restauradora': { nome: 'Poção Restauradora', ingredientes: ['mandragora', 'asfodelo'], cura: 1000, visual: { corPrincipal: "#8b4513", tipo: "pocao" } }
-        };
+           'restauradora': { nome: 'Poção Restauradora', ingredientes: ['mandragora', 'asfodelo'], cura: 1000, visual: { corPrincipal: "#8b4513", tipo: "pocao" } },
+            // 🔥 NOVA POÇÃO DO ECOSSISTEMA
+            'foco_lucido': { nome: 'Elixir do Foco Lúcido', ingredientes: ['mandragora', 'veneno_aranha'], cura: 100, foca: 15, visual: { corPrincipal: "#40a0ff", tipo: "pocao" } }
+			};
+		
 
         this._salvarBancoDeDados = () => {}; 
     }
@@ -1155,14 +1255,18 @@ class HogwartsCore {
 
         // 25% de chance de spawnar algo na zona a cada "tick"
         if (Math.random() < 0.25) {
+            // Posicionamento aleatório inteligente dentro dos limites do mapa 2D
+            let rx = 400 + Math.random() * 1200; 
+            let ry = 400 + Math.random() * 1200;
+            
             if (Math.random() < 0.40 && sala.entidades.length < 3) {
                 const mob = this._gerarMonstroRapido(400, zonaSorteada, false);
                 const idEv = `mob_${Date.now()}`;
-                sala.entidades.push({ id: idEv, ...mob, tipo: 'combate' });
+                sala.entidades.push({ id: idEv, ...mob, tipo: 'combate', x: rx, y: ry });
                 if (global.io) global.io.to(`zona_${zonaSorteada}`).emit('mmo_world_update', sala);
             } else if (sala.itens.length < 5) {
-                const itens = ["Saco de Galeões", "Erva Mágica Estranha", "Pergaminho Perdido"];
-                const item = { id: `itm_${Date.now()}`, nome: itens[Math.floor(Math.random()*itens.length)], tipo: 'coleta' };
+                const itens = ["Saco de Galeões", "Baú Escondido", "Erva Mágica Rara", "Relíquia Brilhante"];
+                const item = { id: `itm_${Date.now()}`, nome: itens[Math.floor(Math.random()*itens.length)], tipo: 'coleta', x: rx, y: ry };
                 sala.itens.push(item);
                 if (global.io) global.io.to(`zona_${zonaSorteada}`).emit('mmo_world_update', sala);
             }
@@ -1192,6 +1296,11 @@ class HogwartsCore {
 
         if (subiu) {
             aluno.anoLetivo = Math.min(7, Math.floor(aluno.nivel / 10) + 1);
+            
+            // 🔥 NOVO: Dá 3 pontos de atributos ao jogador por nível!
+            if(!aluno.atributosRPG) aluno.atributosRPG = { intelecto: 5, destreza: 5, vigor: 5, percepcao: 5, pontosLivres: 0 };
+            aluno.atributosRPG.pontosLivres += 3;
+
             this._obterAtributosTotais(aluno); 
             aluno.hpAtual = aluno.hpMax;
             aluno.focoAtual = aluno.maxFoco;
@@ -1220,7 +1329,7 @@ class HogwartsCore {
         try {
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -1244,7 +1353,7 @@ class HogwartsCore {
             if (!this.cerebroIA || !this.cerebroIA.apiKey) throw new Error("IA Desligada");
 
             const prompt = `Universo Harry Potter. Zona: "${zona}". O jogador procura recursos. Gera APENAS UM ingrediente botânico ou criatura raro. RETORNE JSON ESTRITO: {"item": "Pelo de Unicórnio", "lore": "Brilhava na terra húmida..."}`;
-            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct", response_format: {type: "json_object"} });
+            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: {type: "json_object"} });
             
             if(!res || !res.choices || !res.choices[0]) throw new Error("Resposta da IA vazia");
             const loot = this.cerebroIA._extrairJSONBlindado(res.choices[0].message.content);
@@ -1336,31 +1445,54 @@ class HogwartsCore {
     }
 
     _obterAtributosTotais(aluno) {
-        // 🔥 PATCH RETROATIVO: ELOs e Estufa para todos os jogadores
-        if (!aluno.estufa) {
-            aluno.estufa = [ { id: 1, plantada: false }, { id: 2, plantada: false }, { id: 3, plantada: false } ];
-        }
-        if (!aluno.elos) {
-            aluno.elos = {
-                duelos: (aluno.estatisticas && aluno.estatisticas.eloPvP) ? aluno.estatisticas.eloPvP : 1000,
-                quadribol: (aluno.estatisticas && aluno.estatisticas.eloQuadribol) ? aluno.estatisticas.eloQuadribol : 1000,
-                baile: 1000, quiz: 1000, pocoes: 1000, sabedoria: 1000
-            };
-            this._salvarBancoDeDados();
-        }
+        if (!aluno.estufa) aluno.estufa = [ { id: 1, plantada: false }, { id: 2, plantada: false }, { id: 3, plantada: false } ];
+        if (!aluno.elos) aluno.elos = { duelos: 1000, quadribol: 1000, baile: 1000, quiz: 1000, pocoes: 1000, sabedoria: 1000 };
 
         let base = { feiticos: 10, defesa: 10, pocoes: 10, transfiguracao: 10, furtividade: 10, artes_trevas: 5 };
-        if (aluno.atributos) { for (let a in base) base[a] += Number(aluno.atributos[a]) || 0; }
-        if (aluno.equipamentos && aluno.equipamentos.varinha) {
-            let v = aluno.equipamentos.varinha;
-            if (base[v.afinidade] !== undefined) base[v.afinidade] += Math.floor((v.poderBase || 10) * (1 + ((v.lealdade || 0) / 100)));
-        }
-        aluno.hpMax = Math.floor(1000 + (base.defesa * 100) + (aluno.nivel * 150));
-        aluno.maxFoco = Math.floor(10 + (base.transfiguracao * 0.5) + (aluno.nivel / 2));
-        if (aluno.focoAtual > aluno.maxFoco) aluno.focoAtual = aluno.maxFoco;
-        aluno.atributosTotais = base; aluno.centelhaArcana = Lexicon.CalcularCentelhaArcana(aluno); return base;
-    }
+        let passivas = { crit_chance: 0.05, lifesteal: 0, esquiva: 0.05, mana_regen: 0 }; // Status Base Ocultos
 
+        let rpg = aluno.atributosRPG || { intelecto: 5, destreza: 5, vigor: 5, percepcao: 5 };
+        
+        base.feiticos += (rpg.intelecto * 2); base.pocoes += (rpg.intelecto * 1);
+        base.defesa += (rpg.vigor * 2); base.furtividade += (rpg.destreza * 2);
+        passivas.esquiva += (rpg.destreza * 0.005); // Destreza dá esquiva natural
+        passivas.crit_chance += (rpg.percepcao * 0.01); // Percepção dá chance de crítico
+
+        const somarEquip = (equip) => {
+            if(!equip || !equip.atributos) return;
+            if(equip.atributos.intelecto) base.feiticos += (equip.atributos.intelecto * 3);
+            if(equip.atributos.vigor) base.defesa += (equip.atributos.vigor * 3);
+            if(equip.atributos.destreza) base.furtividade += (equip.atributos.destreza * 3);
+            
+            // Soma as passivas geradas proceduralmente nos itens
+            if(equip.passivas) {
+                if(equip.passivas.crit_chance) passivas.crit_chance += equip.passivas.crit_chance;
+                if(equip.passivas.lifesteal) passivas.lifesteal += equip.passivas.lifesteal;
+                if(equip.passivas.esquiva) passivas.esquiva += equip.passivas.esquiva;
+                if(equip.passivas.mana_regen) passivas.mana_regen += equip.passivas.mana_regen;
+            }
+        };
+
+        if(aluno.equipamentos) {
+            somarEquip(aluno.equipamentos.cabeca);
+            somarEquip(aluno.equipamentos.corpo);
+            somarEquip(aluno.equipamentos.pescoco);
+            
+            let v = aluno.equipamentos.varinha;
+            if (v && base[v.afinidade] !== undefined) {
+                base[v.afinidade] += Math.floor((v.poderBase || 10) * (1 + ((v.lealdade || 0) / 100)));
+            }
+        }
+
+        aluno.hpMax = Math.floor(1000 + (base.defesa * 50) + (rpg.vigor * 100));
+        aluno.maxFoco = Math.floor(10 + (rpg.intelecto * 1));
+        if (aluno.focoAtual > aluno.maxFoco) aluno.focoAtual = aluno.maxFoco;
+        
+        aluno.atributosTotais = base; 
+        aluno.passivasCombate = passivas; // Guarda as passivas na RAM para o motor de combate
+        aluno.centelhaArcana = Lexicon.CalcularCentelhaArcana(aluno); 
+        return base;
+    }
     // =========================================================
     // SUBSTITUIR A FUNÇÃO registrarNovaConta INTEIRA
     // =========================================================
@@ -1390,7 +1522,12 @@ class HogwartsCore {
             estadoJogo: "BECO_DIAGONAL", casa: "Nenhuma", nivel: 1, xp: 0, xpProx: 100, 
             galeoes: 755, hpAtual: 1000, hpMax: 1000, focoAtual: 10, maxFoco: 10, energia: 100, fome: 100, cofreGringotes: 0,
             atributos: { feiticos: 5, defesa: 5, pocoes: 5, transfiguracao: 5, furtividade: 5, artes_trevas: 1 }, 
-            lifeSkills: { herbologia: 1, magizoologia: 1, encantamentos: 1 },
+            // 🔥 NOVO: Atributos de RPG para Progressão Vertical
+            atributosRPG: { intelecto: 5, destreza: 5, vigor: 5, percepcao: 5, pontosLivres: 0 },
+            lifeSkills: { herbologia: 1, magizoologia: 1, encantamentos: 1 }, 
+			// 🔥 NOVO: Sistema Tamagotchi (Mascote)
+            pet: { adotado: false, tipo: null, nome: "Mascote", fome: 100, felicidade: 100, nivel: 1, xp: 0 },
+       
             equipamentos: { varinha: null, veste: null, anel: null }, 
             inventario: { livros: [], ingredientes: { 'ditamno': 2, 'muco': 1 }, materiais: [] }, 
 			manuscritos: [],
@@ -1442,39 +1579,46 @@ class HogwartsCore {
         const relogio = RelogioHogwarts.obterHorarioAtual(anoAtual);
         if (relogio.aulaAtiva === "Livre") return { erro: "Não há aulas neste momento." };
 
-        // 1. Busca o material oficial da biblioteca na base de dados
         let material = await this.db_biblioteca.findOne({ materia: relogio.aulaAtiva, ano: anoAtual });
         if (!material) {
-            global.io.to(`priv_${a.id}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: 'A Matriz está a conjurar o currículo. Aguarde...' });
-            const ementa = await this.cerebroIA.gerarLivroDidaticoCompleto(relogio.aulaAtiva, anoAtual);
-            if (ementa && ementa.length > 0) {
-                material = { materia: relogio.aulaAtiva, ano: anoAtual, nomeLivro: relogio.requerLivro, capitulos: ementa };
-                await this.db_biblioteca.insertOne(material);
-            } else {
-                return { erro: "O professor perdeu os apontamentos." };
-            }
+            global.io.to(`priv_${a.id}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: 'O Ministério está a entregar os novos livros. Aguarde...' });
+            return { erro: "O professor ainda não recebeu os manuais da biblioteca." };
         }
 
         a.focoAtual -= 2;
         this._salvarBancoDeDados();
 
-        // Puxa exatamente o capítulo que o professor deve lecionar hoje!
+        // Identifica exatamente qual capítulo deve ser lecionado hoje
         const capitulo = material.capitulos.find(c => c.cap === relogio.capituloAtual) || material.capitulos[0];
 
-        // 2. A IA gera a fala baseada na teoria e faz a pergunta oficial do livro
+        // 🔥 BLINDAGEM ANTI-BLOQUEIO (413): Cortamos o texto para o Professor não ler o livro inteiro de uma vez
+        // Ele lê os primeiros 1500 caracteres da Teoria e os primeiros 500 da Prática para preparar a aula.
+        const excertoTeoria = capitulo.teoria.substring(0, 1500);
+        const excertoPratica = capitulo.pratica.substring(0, 500);
+
         setTimeout(async () => {
             try {
-                const prompt = `És o Professor ${relogio.professorAtivo}. Estás a dar aula de ${relogio.aulaAtiva} a alunos do ${anoAtual}º Ano de Hogwarts.
-                TÓPICO DE HOJE: Capítulo ${relogio.capituloAtual} - ${capitulo.titulo || 'Introdução'}.
-                CONTEÚDO PARA ENSINAR: ${capitulo.teoria || 'Conceitos base da magia.'}.
+                // O Prompt Absoluto de Roleplay Académico
+                // O Prompt Absoluto de Roleplay Académico
+                const prompt = `És o Professor ${relogio.professorAtivo} de Hogwarts. Estás a dar aula de ${relogio.aulaAtiva} ao ${anoAtual}º Ano.
+                O livro oficial em cima da mesa dos alunos tem 4 Capítulos e chama-se: "${material.nomeLivro}".
+                O Capítulo selecionado para lecionares hoje é o Capítulo ${relogio.capituloAtual} - "${capitulo.titulo}".
+                Base da Matéria do Livro para te orientares: "${excertoTeoria}" e a prática é: "${excertoPratica}".
 
-                A tua tarefa: Escreve a tua fala (como um diálogo direto) introduzindo a aula baseada APENAS neste conteúdo didático. 
-                No final, FAZ UMA PERGUNTA aos alunos baseada nisto: "${capitulo.pergunta || 'O que acham disto?'}".
-                NADA DE JSON. Apenas o texto puro do teu diálogo. Sê imersivo e mantém a personalidade de ${relogio.professorAtivo}.`;
+                A TUA TAREFA (Nesta ordem estrita):
+                1. Cumprimenta a turma com a tua personalidade. Informa-os que hoje irão estudar o Capítulo ${relogio.capituloAtual}.
+                2. Explica a matéria baseando-te no texto do livro. Sê imersivo, como um professor a discursar.
+                3. Passa uma LIÇÃO DE CASA baseada na matéria.
+                4. Termina a tua fala a fazer ESTRITAMENTE esta pergunta à turma para eles debaterem no chat: "${capitulo.pergunta}".
 
+                NADA DE JSON. Apenas o teu discurso puro, direto e imersivo.`;
                 const iaRes = await this.cerebroIA.groq.chat.completions.create({
-                    messages: [{ role: "user", content: prompt }],
-                    model: "meta-llama/llama-4-scout-17b-16e-instruct"
+                    messages: [
+                        { role: "system", content: "És um professor exigente de Hogwarts. As tuas aulas são rigorosas, imersivas e segues sempre o manual escolar." },
+                        { role: "user", content: prompt }
+                    ],
+                    model: "llama-3.1-8b-instant", // Rápido, inteligente e poupa os teus limites
+                    max_tokens: 1000 // Garante que a resposta cabe no chat sem dar erro de TPM
                 });
                 
                 global.io.to('sala_de_aula').emit('nova_mensagem', { 
@@ -1483,161 +1627,52 @@ class HogwartsCore {
                     texto: iaRes.choices[0].message.content.trim() 
                 });
             } catch(err) { 
-                global.io.to('sala_de_aula').emit('nova_mensagem', { canal: 'aula', autor: `🎓 [Sistema]`, texto: `O professor pigarreou e a aula iniciou em silêncio.` }); 
+                console.error("Erro Professor IA:", err.message);
+                global.io.to('sala_de_aula').emit('nova_mensagem', { canal: 'aula', autor: `🎓 [Sistema]`, texto: `O Professor abriu o livro no Capítulo ${relogio.capituloAtual} e começou a ler a matéria em silêncio. Abram os vossos livros.` }); 
             }
         }, 1500);
 
-        return { sucesso: true, msg: "A Aula Iniciou-se! Presta atenção no chat do Professor." };
+        return { sucesso: true, msg: `Sentaste-te na carteira. Abre o teu livro no Capítulo ${relogio.capituloAtual} e presta atenção!` };
     }
 
-    // Em MotorConscienciaHogwarts
-    async respostaProfessorIA(professor, materia, alunoNome, mensagem, casa) {
+    async respostaProfessorIA(professor, materia, alunoNome, mensagem, casa, anoLetivo) {
         if (!this.apiKey) return null;
         try {
-            const prompt = `Prof ${professor} de ${materia}. O aluno ${alunoNome} (${casa}) disse na aula: "${mensagem}". 
-            Avalia o que ele disse como sendo uma resposta à matéria. Se estiver correto, elogia e dá 10 XP (escreve "+10 XP" no texto). Se for asneira, retira 5 pontos à casa.
-            Responde no tom de ${professor}.
-            JSON ESTRITO: {"texto": "Exato senhor ${alunoNome}! Mais 10 XP para si...", "pontos": 10}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct", response_format: {type: "json_object"} });
+            const relogio = RelogioHogwarts.obterHorarioAtual(anoLetivo);
+            
+            // O professor lembra-se de que capítulo está a dar para avaliar a resposta do aluno!
+            const prompt = `És o Professor ${professor} de ${materia}. A tua turma do ${anoLetivo}º Ano está a estudar o Capítulo ${relogio.capituloAtual}. 
+            O aluno ${alunoNome} (${casa}) levantou a mão e disse: "${mensagem}". 
+            
+            Avalia a resposta do aluno.
+            - Se ele demonstrou que leu o livro e respondeu com lógica mágica, elogia-o, diz-lhe que a lição de casa está dispensada hoje e dá 10 XP (escreve "+10 XP" no texto).
+            - Se ele disse uma asneira ou algo fora de contexto, repreende-o severamente, dobra-lhe a lição de casa e retira 5 pontos à casa (escreve "-5 Pontos" no texto).
+            
+            Responde ESTRITAMENTE com a tua personalidade de professor. Sê curto (máx 2 frases).
+            RETORNA APENAS O JSON: {"texto": "Exato senhor ${alunoNome}! Leu bem o capítulo. Mais 10 XP...", "pontos": 10}`;
+            
+            const res = await this.groq.chat.completions.create({ 
+                messages: [{ role: "user", content: prompt }], 
+                model: "llama-3.1-8b-instant", 
+                response_format: {type: "json_object"},
+                max_tokens: 300
+            });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
     }
 
-async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
-        const a = this.alunos[atacanteId]; 
-        const inst = this.dungeonInstancias[instId];
-        if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
-
-        if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
-            return { sucesso: true, relatoAcao: "Impacto registado." };
-        }
-
-        const feitico = this.livroDeFeiticos[feiticoId];
-        if (!feitico) return { erro: "Feitiço desconhecido." };
-
-        // 🔥 SISTEMA DE PROFICIÊNCIA (MAESTRIA)
-        if(!a.maestriaFeiticos[feiticoId]) a.maestriaFeiticos[feiticoId] = { nivel: 1, exp: 0, expProx: 100 };
-        let maestria = a.maestriaFeiticos[feiticoId];
-        
-        // Dá XP por usar a magia no combate!
-        maestria.exp += 15;
-        let upouFeitico = false;
-        if(maestria.exp >= maestria.expProx) {
-            maestria.nivel++;
-            maestria.exp -= maestria.expProx;
-            maestria.expProx = Math.floor(maestria.expProx * 1.5);
-            upouFeitico = true;
-        }
-
-        let mecanica = feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
-        
-        // 🔥 APLICAR O UPGRADE AO VALOR DO FEITIÇO (+10 pontos de poder por nível do feitiço)
-        let bonusMaestria = (maestria.nivel - 1) * 10;
-        let forcaDoFeitico = Number(feitico.valorBase || feitico.poderBase || 50) + bonusMaestria;
-        
-        let relatoAcao = "";
-
-        // ===============================================
-        // LÓGICA 1: CURA
-        // ===============================================
-        if (mecanica === 'cura') {
-            let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
-            a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
-            relatoAcao = `Lançaste ${feitico.nome} e recuperaste ${curaAplicada} HP!`;
-            
-            this._salvarBancoDeDados();
-            return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
-        } 
-        
-        // ===============================================
-        // LÓGICA 2: ESCUDO
-        // ===============================================
-        if (mecanica === 'escudo' || mecanica === 'defesa') {
-            relatoAcao = `A barreira de ${feitico.nome} protege-te!`;
-            this._salvarBancoDeDados();
-            return { sucesso: true, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
-        }
-
-        // ===============================================
-        // LÓGICA 3: ATAQUE E STATUS
-        // ===============================================
-        let mob = inst.entidades.find(m => m.idx === alvoIdx && m.vivo) || inst.entidades.find(m => m.vivo);
-        if(!mob) return { erro: "Sem alvos vivos." };
-
-        let danoAplicado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
-        let defendeu = false;
-
-        if (mecanica === 'status') {
-            danoAplicado = Math.floor(danoAplicado * 0.8);
-            mob.padrao = 'vulneravel';
-            relatoAcao = `O ${feitico.nome} quebrou a defesa do inimigo!`;
-        } else {
-            relatoAcao = `O teu ${feitico.nome} atingiu o alvo!`;
-        }
-
-        if(mob.padrao === 'defensivo') {
-            danoAplicado = Math.floor(danoAplicado * 0.6);
-            defendeu = true;
-        }
-
-        let critico = Math.random() > 0.85;
-        if(critico) danoAplicado = Math.floor(danoAplicado * 1.5);
-
-        mob.hpAtual -= Math.floor(danoAplicado);
-
-        if (mob.hpAtual <= 0) {
-            mob.vivo = false; mob.hpAtual = 0;
-            let todosMortos = inst.entidades.every(m => !m.vivo);
-
-            if(todosMortos) {
-                let isBoss = (inst.faseAtual === inst.maxFases);
-                let xpFase = isBoss ? 1500 : 400 * inst.entidades.length;
-                let galeoesFase = isBoss ? 800 : 100 * inst.entidades.length;
-
-                await this._addXp(a, xpFase); a.galeoes += galeoesFase; 
-                if(!a.estatisticas) a.estatisticas = { monstrosMortos: 0 };
-                a.estatisticas.monstrosMortos += inst.entidades.length;
-                try { this._progressoQuest(a, 'pve', mob.nome, 1); } catch(ex){}
-
-                if (inst.faseAtual < inst.maxFases) {
-                    inst.faseAtual++;
-                    let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
-                    let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
-                    let novasEntidades = [];
-                    let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
-                    for(let i=0; i<proxMobs; i++) {
-                        novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hp, hpAtual: mData.hp, vivo: true, padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)] });
-                    }
-                    inst.entidades = novasEntidades; this._salvarBancoDeDados();
-                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP].`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
-                } else {
-                    inst.status = 'finalizado'; clearInterval(inst.timerBossAtaque);
-                    if(!a.pveProgresso) a.pveProgresso = { area: 1, nivel: 1 };
-                    a.pveProgresso.area++; if (a.pveProgresso.area > 5) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; }
-                    this._salvarBancoDeDados();
-                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP]`, hpBoss: 0, danoAplicado, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
-                }
-            } else {
-                this._salvarBancoDeDados();
-                return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
-            }
-        }
-
-        this._salvarBancoDeDados();
-        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado, defendeu, relatoAcao, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
-    }
-
-    async folhearLivro(alunoId) {
-        const a = this.alunos[alunoId]; if (!a || a.focoAtual < 1) return { erro: "Foco Insuficiente (Requer 1)." };
-        const relogio = RelogioHogwarts.obterHorarioAtual();
-        if (relogio.aulaAtiva === "Livre") return { erro: "A sala está vazia. Não há livros na tua mesa." };
-        
-        a.focoAtual -= 1;
-        const lido = await this.cerebroIA.folhearLivroAula(relogio.aulaAtiva, relogio.requerLivro || "Tomo Antigo");
-        this.ganharXp(a, 25);
-        this._salvarBancoDeDados();
-        return { sucesso: true, texto: lido.texto };
-    }
+async folhearLivro(alunoId) {
+    const a = this.alunos[alunoId]; 
+    if (!a || a.focoAtual < 1) return { erro: "Foco Insuficiente (Requer 1)." };
+    const relogio = RelogioHogwarts.obterHorarioAtual();
+    if (relogio.aulaAtiva === "Livre") return { erro: "A sala está vazia. Não há livros na tua mesa." };
+    
+    a.focoAtual -= 1;
+    const lido = await this.cerebroIA.folhearLivroAula(relogio.aulaAtiva, relogio.requerLivro || "Tomo Antigo");
+    this.ganharXp(a, 25);
+    this._salvarBancoDeDados();
+    return { sucesso: true, texto: lido.texto };
+}
 
     // Função de XP auxiliar isolada
     ganharXp(aluno, valor) {
@@ -1770,9 +1805,13 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
 
 
             _verificarAvancoBeco(aluno) {
-        // Blindagem contra variáveis vazias
-        let temLivros = (aluno.inventario && aluno.inventario.livros) ? aluno.inventario.livros.length >= 3 : false; 
-        let temVeste = (aluno.equipamentos && aluno.equipamentos.veste !== null);
+        // Exige os 14 livros
+        let temLivros = (aluno.inventario && aluno.inventario.livros) ? aluno.inventario.livros.length >= 14 : false; 
+        
+        // O mesmo truque infalível da Veste
+        let strInventario = JSON.stringify(aluno);
+        let temVeste = strInventario.includes('Veste Escolar Simples');
+        
         let i = (aluno.inventario && aluno.inventario.ingredientes) ? aluno.inventario.ingredientes : {};
         
         let temIngredientes = (
@@ -1808,14 +1847,19 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         const idx = a.mochilaEscolar.findIndex(i => i.id === itemMochilaId);
         if(idx === -1) return {erro:"Não tens esse item na mochila."};
         
+        // 🔥 NOVO: Taxa do Ministério para travar inflação (5%)
+        let taxa = Math.ceil(preco * 0.05);
+        if(a.galeoes < taxa) return {erro:`O Ministério exige uma taxa de ${taxa} G para anunciar a oferta.`};
+        a.galeoes -= taxa;
+
         const item = a.mochilaEscolar[idx];
-        a.mochilaEscolar.splice(idx, 1); // Retira da mochila
+        a.mochilaEscolar.splice(idx, 1); 
         
         const ofertaId = crypto.randomBytes(4).toString('hex');
         if(!this.mercadoJogadores) this.mercadoJogadores = [];
         this.mercadoJogadores.push({ id: ofertaId, vendedorId: a.id, vendedorNome: a.nome, item: item, preco: Number(preco), data: Date.now() });
         this._salvarBancoDeDados();
-        return {sucesso: true, msg: "A tua coruja partiu com a oferta para o Mercado Global!"};
+        return {sucesso: true, msg: `Pagaste ${taxa}G de taxa. A tua coruja partiu com a oferta!`};
     }
 
     comprarItemMercado(alunoId, ofertaId) {
@@ -1877,7 +1921,11 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         a.mochilaEscolar.splice(idx, 1); // Consome o item
 
         if(item.tipo === 'pocao_feita') {
-            a.hpAtual = a.hpMax; a.focoAtual = a.maxFoco;
+            a.hpAtual = a.hpMax; 
+            // Se for elixir de foco, dá FOCO EXTRA!
+            if(item.nome.includes('Foco')) a.focoAtual = Math.min(a.maxFoco, a.focoAtual + 15);
+            else a.focoAtual = a.maxFoco;
+            
             this._salvarBancoDeDados(); return { sucesso: true, msg: `Bebeste a ${item.nome}. Sentes-te totalmente renovado!` };
         }
         else if(item.tipo === 'comida') {
@@ -2077,20 +2125,42 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
     // COMBATE PVE MULTI-MOB - COM JUICE E IA DE ATAQUE
     // ==========================================
     
-    _gerarMonstroRapido(hpBase, local, isBoss) {
-        const nomesBoss = ["Basilisco Sombrio", "Acromântula Rainha", "Dementador Ancião", "Trasgo Feroz", "Lobisomem Alfa"];
-        const nomesNormal = ["Aranha Venenosa", "Lobisomem Menor", "Esqueleto Amaldiçoado", "Espírito das Trevas", "Trasgo Jovem"];
-        let nomeFinal = isBoss ? nomesBoss[Math.floor(Math.random() * nomesBoss.length)] : nomesNormal[Math.floor(Math.random() * nomesNormal.length)];
+    // 🔥 GERADOR DE MONSTROS AAA (COM ELEMENTOS E TIER SCALING)
+    _gerarMonstroRapido(hpBase, local, isBoss, areaAndar = 1) {
+        // Tiers: 1 (Normal), 2 (Elite/MiniBoss), 3 (Boss)
+        let isElite = (!isBoss && areaAndar % 3 === 0);
         
-        // Padrões de IA que geram mecânicas diferentes no Frontend
-        const padroes = ['agressivo', 'defensivo', 'tanque', 'venenoso'];
+        const bestiario = [
+            { nome: "Aranha Venenosa", padrao: "venenoso", elemento: "natureza", fraco: "fogo", resiste: "cinetico" },
+            { nome: "Lobisomem Menor", padrao: "agressivo", elemento: "cinetico", fraco: "trevas", resiste: "gelo" },
+            { nome: "Assassino das Sombras", padrao: "assassino", elemento: "trevas", fraco: "luz", resiste: "cinetico" },
+            { nome: "Trasgo da Caverna", padrao: "tanque", elemento: "cinetico", fraco: "fogo", resiste: "cinetico" },
+            { nome: "Espírito Penado", padrao: "mago_sombrio", elemento: "gelo", fraco: "luz", resiste: "cinetico" },
+            { nome: "Cultista das Trevas", padrao: "mago_sombrio", elemento: "trevas", fraco: "cinetico", resiste: "trevas" }
+        ];
+
+        const bosses = [
+            { nome: "Acromântula Rainha", padrao: "venenoso", elemento: "natureza", fraco: "fogo", resiste: "cinetico" },
+            { nome: "Dementador Ancião", padrao: "mago_sombrio", elemento: "trevas", fraco: "luz", resiste: "gelo" },
+            { nome: "Basilisco Desperto", padrao: "assassino", elemento: "natureza", fraco: "luz", resiste: "agua" },
+            { nome: "Gigante da Montanha", padrao: "tanque", elemento: "cinetico", fraco: "trevas", resiste: "cinetico" }
+        ];
+
+        let pool = isBoss ? bosses : bestiario;
+        let mData = pool[Math.floor(Math.random() * pool.length)];
         
+        let prefixo = isElite ? "💀 Elite: " : "";
+        let multElite = isElite ? 1.8 : 1.0;
+
         return { 
-            nome: nomeFinal, 
-            hpMax: Math.floor(hpBase), 
-            hpAtual: Math.floor(hpBase), 
+            nome: prefixo + mData.nome, 
+            hpMax: Math.floor(hpBase * multElite), 
+            hpAtual: Math.floor(hpBase * multElite), 
             vivo: true, 
-            padrao: padroes[Math.floor(Math.random() * padroes.length)] 
+            elemento: mData.elemento, 
+            padrao: mData.padrao,
+            fracoContra: mData.fraco,
+            resisteContra: mData.resiste
         };
     }
 
@@ -2102,8 +2172,12 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         lider.focoAtual -= 3;
         const idInst = `dungeon_${crypto.randomBytes(4).toString('hex')}`;
         
-        let dificuldadeMult = 1 + (lider.pveProgresso.nivel * 0.3) + (lider.pveProgresso.area * 0.05);
+       
+        // 🔥 NOVO SCALING: Andares 1-5 são muito fáceis. A partir do 6, a dificuldade explode.
+        let areaA = lider.pveProgresso.area;
+        let dificuldadeMult = areaA <= 5 ? (0.4 + (areaA * 0.1)) : (1.0 + ((areaA - 5) * 0.3));
         let hpBase = Math.floor((lider.centelhaArcana || 50) * 4 * dificuldadeMult);
+		
         let isAreaBoss = (lider.pveProgresso.area === 7);
         
         // 🔥 SISTEMA DE PROGRESSÃO: Regula a quantidade de Mobs pelo nível!
@@ -2134,6 +2208,17 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
             entidades: inimigosAtivos, status: 'combate', liderId: liderId 
         };
         
+       // Substitui todo o bloco antigo do setInterval por isto:
+        this.iniciarIACombate(idInst);
+        
+        this._salvarBancoDeDados();
+        return { sucesso: true, idInstancia: idInst, estado: { entidades: inimigosAtivos } };
+	}
+	// 🔥 FIX: NOVA FUNÇÃO QUE CONTROLA A INTELIGÊNCIA ARTIFICIAL DE QUALQUER COMBATE
+   // 🔥 IA DE COMBATE CORRIGIDA E MELHORADA
+    iniciarIACombate(idInst) {
+        if(this.dungeonInstancias[idInst].timerBossAtaque) clearInterval(this.dungeonInstancias[idInst].timerBossAtaque);
+
         this.dungeonInstancias[idInst].timerBossAtaque = setInterval(() => {
             const inst = this.dungeonInstancias[idInst];
             if(!inst || inst.status !== 'combate') { 
@@ -2141,95 +2226,213 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
                 return; 
             }
             
-            inst.entidades.forEach(mob => {
-                if(!mob.vivo) return;
-                
-                let tempoCast = 2000; let cor = "#e74c3c"; let tipoAtk = "normal"; let chance = 0.5;
-                if(mob.padrao === 'agressivo') { tempoCast = 1000; cor = "#ff3300"; tipoAtk = "rápido"; chance = 0.7; }
-                else if(mob.padrao === 'tanque') { tempoCast = 3500; cor = "#8e44ad"; tipoAtk = "pesado"; chance = 0.4; }
-                else if(mob.padrao === 'venenoso') { tempoCast = 2500; cor = "#2ecc71"; tipoAtk = "veneno"; chance = 0.6; }
+            let jogadorAlterado = false;
+            let membrosObjs = inst.membros ? inst.membros.map(id => this.alunos[id]).filter(a => a) : (inst.liderId ? [this.alunos[inst.liderId]] : []);
 
-                if(Math.random() < chance && global.io) {
-                    global.io.emit('alerta_boss', { 
-                        instId: idInst, tempoCast: tempoCast, mobIdx: mob.idx, mobNome: mob.nome, cor: cor, tipo: tipoAtk
-                    }); 
+            membrosObjs.forEach(lider => {
+                if (lider && lider.buffs) {
+                    lider.buffs.forEach(b => {
+                        if (b.tipo === 'regeneracao') {
+                            lider.hpAtual = Math.min(lider.hpMax, lider.hpAtual + 80);
+                            jogadorAlterado = true;
+                        }
+                        b.duracao--;
+                    });
+                    lider.buffs = lider.buffs.filter(b => b.duracao > 0);
                 }
             });
-        }, 1800); 
-        
-        this._salvarBancoDeDados();
-        return { sucesso: true, idInstancia: idInst, estado: { entidades: inimigosAtivos } };
+
+            inst.entidades.forEach(mob => {
+                if(!mob.vivo) return;
+
+                let danoDoT = 0; let ccAtivo = false;
+                if (!mob.efeitos) mob.efeitos = [];
+                mob.efeitos.forEach(e => {
+                    if (e.tipo === 'queimar') danoDoT += 60;
+                    if (e.tipo === 'sangrar') danoDoT += 80;
+                    if (e.tipo === 'envenenar') danoDoT += 100;
+                    if (e.tipo === 'atordoar' || e.tipo === 'congelado' || e.tipo === 'desarmar') ccAtivo = true;
+                    e.duracao--;
+                });
+                mob.efeitos = mob.efeitos.filter(e => e.duracao > 0);
+
+                if (danoDoT > 0) {
+                    mob.hpAtual -= danoDoT;
+                    if(mob.hpAtual < 0) mob.hpAtual = 0;
+                    if (global.io) {
+                        membrosObjs.forEach(lider => {
+                            global.io.to(`priv_${lider.id}`).emit('mmo_combat_update', { 
+                                hpBoss: mob.hpAtual, efeitosBoss: mob.efeitos, hpJogador: lider.hpAtual, buffsJogador: lider.buffs
+                            });
+                        });
+                    }
+                }
+
+                if (!ccAtivo) {
+                    let diffMult = inst.mult || 1.0; 
+                    let tempoBase = 2000; let cor = "#e74c3c"; let tipoAtk = "normal"; let chance = 0.5;
+                    let nomeAtaque = "Ataque";
+                    
+                    if(mob.padrao === 'agressivo') { tempoBase = 1200; cor = "#ff3300"; tipoAtk = "rápido"; chance = 0.7; nomeAtaque = "Golpe Feroz"; }
+                    else if(mob.padrao === 'tanque') { tempoBase = 3500; cor = "#8e44ad"; tipoAtk = "pesado"; chance = 0.4; nomeAtaque = "Esmagar"; }
+                    else if(mob.padrao === 'venenoso') { tempoBase = 2500; cor = "#2ecc71"; tipoAtk = "veneno"; chance = 0.6; nomeAtaque = "Cuspir Ácido"; }
+                    else if(mob.padrao === 'frenesi') { tempoBase = 800; cor = "#ff00ff"; tipoAtk = "caos"; chance = 0.85; nomeAtaque = "Frenesi"; }
+                    else if(mob.padrao === 'defensivo') { tempoBase = 3000; cor = "#3498db"; tipoAtk = "gelo"; chance = 0.3; nomeAtaque = "Raio Congelante"; }
+                    else if(mob.padrao === 'assassino') { tempoBase = 900; cor = "#111111"; tipoAtk = "furtivo"; chance = 0.75; nomeAtaque = "Lâmina das Sombras"; }
+                    else if(mob.padrao === 'mago_sombrio') { tempoBase = 2800; cor = "#4a0000"; tipoAtk = "magia_negra"; chance = 0.5; nomeAtaque = "Maldição"; }
+
+                    // Auto-Cura do Mago Sombrio
+                    if (mob.padrao === 'mago_sombrio' && mob.hpAtual < mob.hpMax * 0.4 && Math.random() < 0.35) {
+                        let cura = Math.floor(mob.hpMax * 0.20);
+                        mob.hpAtual += cura;
+                        if (global.io) membrosObjs.forEach(lider => global.io.to(`priv_${lider.id}`).emit('nova_mensagem', { canal: 'zona', autor: 'ALERTA', texto: `🩸 O ${mob.nome} conjurou Magia de Sangue e curou ${cura} HP!` }));
+                    }
+
+                    let tempoCast = Math.max(600, Math.floor(tempoBase / diffMult));
+                    chance = Math.min(0.95, chance * diffMult);
+
+                    if(Math.random() < chance && global.io) {
+                        membrosObjs.forEach(lider => {
+                            global.io.to(`priv_${lider.id}`).emit('alerta_boss', { 
+                                instId: idInst, tempoCast: tempoCast, mobIdx: mob.idx, mobNome: mob.nome, cor: cor, tipo: nomeAtaque
+                            }); 
+                        });
+                    }
+                }
+            });
+
+            if(jogadorAlterado) this._salvarBancoDeDados();
+
+        }, 1800);
     }
     async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         const a = this.alunos[atacanteId]; 
         const inst = this.dungeonInstancias[instId];
         if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
 
-        // Ignora pacotes de impacto visual do Frontend
         if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
-            return { sucesso: true, relatoAcao: "Impacto registado." };
+            if (feiticoId === "dano_recebido") {
+                // O dano inimigo agora escala com a dificuldade da dungeon!
+                let danoInimigo = Math.floor((inst.entidades[0].hpMax || 1000) * 0.08 * (inst.mult || 1));
+                a.hpAtual = Math.max(0, a.hpAtual - danoInimigo);
+                this._salvarBancoDeDados();
+                return { sucesso: true, relatoAcao: "Sofreste dano!", hpJogador: a.hpAtual };
+            }
+            return { sucesso: true, relatoAcao: "Impacto registado.", hpJogador: a.hpAtual };
         }
 
         const feitico = this.livroDeFeiticos[feiticoId];
         if (!feitico) return { erro: "Feitiço desconhecido." };
 
-        // LÊ EXATAMENTE AS CHAVES GERADAS PELA TUA IA
+        if(!a.maestriaFeiticos[feiticoId]) a.maestriaFeiticos[feiticoId] = { nivel: 1, exp: 0, expProx: 100 };
+        let maestria = a.maestriaFeiticos[feiticoId];
+        maestria.exp += 15; let upouFeitico = false;
+        if(maestria.exp >= maestria.expProx) {
+            maestria.nivel++; maestria.exp -= maestria.expProx; maestria.expProx = Math.floor(maestria.expProx * 1.5); upouFeitico = true;
+        }
+
         let mecanica = feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
-        let forcaDoFeitico = Number(feitico.valorBase) || Number(feitico.poderBase) || 50;
+        let bonusMaestria = (maestria.nivel - 1) * 10;
+        let forcaDoFeitico = Number(feitico.valorBase || feitico.poderBase || 50) + bonusMaestria;
         let relatoAcao = "";
 
-        // ===============================================
-        // LÓGICA 1: CURA (Sobe o HP)
-        // ===============================================
         if (mecanica === 'cura') {
             let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
             a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
+            if (feitico.purificar) a.efeitos = []; 
             relatoAcao = `Lançaste ${feitico.nome} e recuperaste ${curaAplicada} HP!`;
-            
             this._salvarBancoDeDados();
-            // IMPORTANTE: O return aqui impede que a cura cause dano aos inimigos!
-            return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades };
+            return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
         } 
         
-        // ===============================================
-        // LÓGICA 2: ESCUDO (Bloqueio Total)
-        // ===============================================
         if (mecanica === 'escudo' || mecanica === 'defesa') {
-            relatoAcao = `A barreira de ${feitico.nome} está a proteger-te!`;
-            return { sucesso: true, relatoAcao, bossMorto: false, entidades: inst.entidades };
+            return { sucesso: true, relatoAcao: `A barreira de ${feitico.nome} protege-te!`, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
         }
 
-        // ===============================================
-        // LÓGICA 3: ATAQUE E STATUS (Dá Dano e Altera Boss)
-        // ===============================================
         let mob = inst.entidades.find(m => m.idx === alvoIdx && m.vivo) || inst.entidades.find(m => m.vivo);
         if(!mob) return { erro: "Sem alvos vivos." };
 
-        let danoAplicado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
-        let defendeu = false;
-
-        // Se for STATUS, dá menos dano mas QUEBRA o escudo/padrão do inimigo!
-        if (mecanica === 'status') {
-            danoAplicado = Math.floor(danoAplicado * 0.8);
-            mob.padrao = 'vulneravel'; // Tira o escudo do mob
-            relatoAcao = `O feitiço ${feitico.nome} atordoou o inimigo! Defesa quebrada!`;
-        } else {
-            relatoAcao = `O teu ${feitico.nome} atingiu o alvo!`;
+        // 🔥 A MECÂNICA DO ASSASSINO (CORRIGIDA)
+        // O assassino esquiva-se de 30% dos ataques, A NÃO SER QUE esteja congelado ou atordoado.
+        let isImobilizado = mob.efeitos && mob.efeitos.some(e => e.tipo === 'congelado' || e.tipo === 'atordoar');
+        if (mob.padrao === 'assassino' && !isImobilizado && Math.random() < 0.30) {
+            return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: 0, defendeu: true, relatoAcao: `💨 O ${mob.nome} esquivou-se pelas sombras! (Dica: Usa Feitiços de Controle/Gelo)`, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
         }
 
-        if(mob.padrao === 'defensivo') {
-            danoAplicado = Math.floor(danoAplicado * 0.6);
+        if (!mob.efeitos) mob.efeitos = [];
+        let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
+        let danoFinal = danoBaseCalculado;
+        let multiplicador = 1.0;
+        let defendeu = false;
+   // 🔥 APLICA AS PASSIVAS DO JOGADOR
+        let isCríticoPassivo = Math.random() < (a.passivasCombate.crit_chance || 0.05);
+        if (isCríticoPassivo) {
+            multiplicador += 1.0; // Dobra o dano base
+            relatoAcao += `⚡ CRÍTICO! `;
+        }
+        let danoDoT = 0;
+        mob.efeitos.forEach(e => {
+            if (e.tipo === 'queimar') danoDoT += 45;
+            if (e.tipo === 'sangrar') danoDoT += 60;
+            e.duracao--;
+        });
+        mob.efeitos = mob.efeitos.filter(e => e.duracao > 0);
+        if (danoDoT > 0) { mob.hpAtual -= danoDoT; relatoAcao += `[DoT: -${danoDoT} HP] `; }
+
+        let alvoVeneno = mob.efeitos.find(e => e.tipo === 'envenenar');
+        let alvoMolhado = mob.efeitos.find(e => e.tipo === 'molhado');
+        let alvoCongelado = mob.efeitos.find(e => e.tipo === 'congelado');
+        let alvoVulneravel = mob.efeitos.find(e => e.tipo === 'vulneravel');
+        let alvoAntiCura = mob.efeitos.find(e => e.tipo === 'anti_cura');
+
+        if (alvoVulneravel) multiplicador += 1.0; 
+
+        // 🔥 NOVO: SISTEMA DE FRAQUEZAS ELEMENTAIS
+        if (mob.fracoContra && feitico.elemento === mob.fracoContra) {
+            multiplicador += 1.0; // Dano a Dobrar!
+            relatoAcao += `💥 ATAQUE SUPER EFICAZ! `;
+        }
+        if (mob.resisteContra && feitico.elemento === mob.resisteContra) {
+            multiplicador -= 0.8; // Corta 80% do dano!
+            relatoAcao += `🛡️ O monstro resistiu ao teu feitiço... `;
             defendeu = true;
         }
 
+        // Combos (Sinergias)
+        if (feitico.elemento === 'fogo' && alvoVeneno) { multiplicador += 2.0; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'envenenar'); relatoAcao += "💥 DETONAÇÃO TÓXICA CRÍTICA! "; }
+        else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; } 
+        else if (feitico.elemento === 'cinetico' && alvoCongelado) { multiplicador += 2.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'congelado'); relatoAcao += "❄️ SHATTER! Gelo estilhaçado! "; }
+        else if (feitico.elemento === 'fogo' && alvoMolhado) { multiplicador -= 0.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'molhado'); relatoAcao += "💨 Evaporação. "; }
+
+        if (feitico.efeitoSecundario) {
+            let eExistente = mob.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
+            if (eExistente) eExistente.duracao = feitico.duracao || 3;
+            else mob.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: feitico.duracao || 3 });
+        }
+
+        if (mob.padrao === 'defensivo' && mecanica !== 'status' && !alvoAntiCura) {
+            danoFinal = Math.floor(danoFinal * 0.4); defendeu = true;
+        }
+
+        danoFinal = Math.max(1, Math.floor(danoBaseCalculado * multiplicador));
+
+        if (feitico.buffJogador) {
+            if(!a.buffs) a.buffs = [];
+            a.buffs.push({ tipo: feitico.buffJogador, duracao: feitico.duracaoBuff || 3 });
+        }
+
         let critico = Math.random() > 0.85;
-        if(critico) danoAplicado = Math.floor(danoAplicado * 1.5);
+        if(critico) danoFinal = Math.floor(danoFinal * 1.5);
 
-        mob.hpAtual -= Math.floor(danoAplicado);
+        if (feitico.lifesteal) {
+            let roubo = Math.floor(danoFinal * feitico.lifesteal);
+            a.hpAtual = Math.min(a.hpMax, a.hpAtual + roubo);
+            relatoAcao += `[Roubo de Vida: +${roubo}] `;
+        }
 
-        // ===============================================
-        // VERIFICAÇÃO DE MORTE
-        // ===============================================
+        mob.hpAtual -= danoFinal;
+        relatoAcao += `Infligiu ${danoFinal} Dano!`;
+
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
             let todosMortos = inst.entidades.every(m => !m.vivo);
@@ -2239,38 +2442,208 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
                 let xpFase = isBoss ? 1500 : 400 * inst.entidades.length;
                 let galeoesFase = isBoss ? 800 : 100 * inst.entidades.length;
 
-                await this._addXp(a, xpFase); a.galeoes += galeoesFase; 
+                if (inst.isForestNode) {
+                    if (!a.lootTemporario) a.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+                    a.lootTemporario.galeoes += galeoesFase;
+                    a.lootTemporario.xp += xpFase;
+                } else {
+                    await this._addXp(a, xpFase); a.galeoes += galeoesFase; 
+                }
+
                 if(!a.estatisticas) a.estatisticas = { monstrosMortos: 0 };
                 a.estatisticas.monstrosMortos += inst.entidades.length;
                 try { this._progressoQuest(a, 'pve', mob.nome, 1); } catch(ex){}
 
+                // 🔥 NOVO: ENGINE DE DROPS PROCEDURAIS E ESPÓLIOS AAA
+                let chanceDrop = isBoss ? 0.35 : 0.08; // Muito mais difícil cair gear
+                
+                // 1. Drop de Espólios Fixos (Para Forja Híbrida)
+                if (inst.isForestNode) {
+                    if (!a.inventario.ingredientes) a.inventario.ingredientes = {};
+                    if (mob.nome.includes("Aranha") || mob.nome.includes("Acromântula")) a.inventario.ingredientes['veneno_aranha'] = (a.inventario.ingredientes['veneno_aranha']||0) + (isBoss?3:1);
+                    if (mob.nome.includes("Lobisomem")) a.inventario.ingredientes['pelo_lobo'] = (a.inventario.ingredientes['pelo_lobo']||0) + (isBoss?3:1);
+                    if (mob.nome.includes("Basilisco") || mob.nome.includes("Cobra")) a.inventario.ingredientes['escama_basilisco'] = (a.inventario.ingredientes['escama_basilisco']||0) + (isBoss?3:1);
+                }
+
+                // 2. Drop de Equipamentos (RNG Hardcore)
+                if (Math.random() < chanceDrop) { 
+                    let tipoRnd = ['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)];
+                    let equipNovo = await this.cerebroIA.gerarEquipamentoRPG(tipoRnd, a.nivel);
+                    equipNovo.id = `eq_${crypto.randomBytes(4).toString('hex')}`;
+                    
+                    // Tabela de Raridade Pesada
+                    let randRarity = Math.random();
+                    if (isBoss) {
+                        if (randRarity < 0.1) equipNovo.raridade = "Mítico";
+                        else if (randRarity < 0.4) equipNovo.raridade = "Lendário";
+                        else equipNovo.raridade = "Épico";
+                    } else {
+                        if (randRarity < 0.005) equipNovo.raridade = "Mítico";
+                        else if (randRarity < 0.03) equipNovo.raridade = "Lendário";
+                        else if (randRarity < 0.10) equipNovo.raridade = "Épico";
+                        else if (randRarity < 0.30) equipNovo.raridade = "Raro";
+                        else if (randRarity < 0.60) equipNovo.raridade = "Incomum";
+                        else equipNovo.raridade = "Comum";
+                    }
+
+                    // Geração Procedural de Passivas Mágicas
+                    equipNovo.passivas = {};
+                    if (equipNovo.raridade === "Épico" || equipNovo.raridade === "Lendário" || equipNovo.raridade === "Mítico") {
+                        if (Math.random() > 0.5) equipNovo.passivas.crit_chance = parseFloat((Math.random() * 0.15).toFixed(3));
+                        if (Math.random() > 0.6) equipNovo.passivas.esquiva = parseFloat((Math.random() * 0.10).toFixed(3));
+                        if (Math.random() > 0.8) equipNovo.passivas.lifesteal = parseFloat((Math.random() * 0.20).toFixed(3));
+                    }
+                    
+                    if (inst.isForestNode) {
+                        if(!a.lootTemporario.itens) a.lootTemporario.itens = [];
+                        a.lootTemporario.itens.push(equipNovo);
+                    }
+                    else { if(!a.inventario.armario) a.inventario.armario = []; a.inventario.armario.push(equipNovo); }
+                    relatoAcao += ` 🎁 DROP: [${equipNovo.raridade}] ${equipNovo.nome}!`;
+                }
+
+                // 📡 Atualiza o ecrã do jogador na Floresta em Tempo Real
+                if (inst.isForestNode && global.io) {
+                    global.io.to(`priv_${a.id}`).emit('forest_loot_update', { 
+                        gold: a.lootTemporario.galeoes, xp: a.lootTemporario.xp, 
+                        itens: a.lootTemporario.itens ? a.lootTemporario.itens.length : 0 
+                    });
+                }
+
                 if (inst.faseAtual < inst.maxFases) {
-                    inst.faseAtual++;
+            inst.faseAtual++;
                     let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
                     let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
                     let novasEntidades = [];
-                    let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
+                    let isProximoBoss = (inst.faseAtual === inst.maxFases);
+                    
+                    // 🔥 Usa o Gerador com base no Andar Real do jogador
+                    let mData = this._gerarMonstroRapido(mob.hpMax * 1.3, inst.local, isProximoBoss, a.pveProgresso ? a.pveProgresso.area : 1);
                     
                     for(let i=0; i<proxMobs; i++) {
-                        novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hp, hpAtual: mData.hp, vivo: true, padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)] });
+                        novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hpMax, hpAtual: mData.hpMax, vivo: true, padrao: mData.padrao, elemento: mData.elemento, fracoContra: mData.fracoContra, resisteContra: mData.resisteContra, efeitos: [] });
                     }
                     inst.entidades = novasEntidades; this._salvarBancoDeDados();
-                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP].`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado, alvoMorto: mob.idx };
+                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP]. ${relatoAcao}`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
                 } else {
-                    inst.status = 'finalizado'; clearInterval(inst.timerBossAtaque);
+                    inst.status = 'finalizado'; 
+                    if (inst.timerBossAtaque) clearInterval(inst.timerBossAtaque);
+                    
                     if(!a.pveProgresso) a.pveProgresso = { area: 1, nivel: 1 };
-                    a.pveProgresso.area++; if (a.pveProgresso.area > 5) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; }
+                    a.pveProgresso.area++; if (a.pveProgresso.area > 7) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; } // Scaling a cada 7 andares!
                     this._salvarBancoDeDados();
-                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP]. Avançaste!`, hpBoss: 0, danoAplicado, alvoMorto: mob.idx };
+
+                    if (this.florestaEngine && inst.isForestNode) {
+                        let membrosVivos = inst.membros || [a.id];
+                        membrosVivos.forEach(mId => {
+                            this.florestaEngine.retornarDaBatalha(mId, true, false, inst.isForestNode, inst.forestInstId, global.io);
+                        });
+                    }
+
+                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP] ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
                 }
             } else {
                 this._salvarBancoDeDados();
-                return { mobEliminado: true, relatoAcao: `${mob.nome} foi pulverizado!`, entidades: inst.entidades, hpBoss: 0, danoAplicado, alvoMorto: mob.idx };
+                return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+            }
+        } 
+
+        this._salvarBancoDeDados();
+        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: danoFinal, defendeu, relatoAcao, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual, buffsJogador: a.buffs };
+    }
+	// ==========================================
+// RECEITAS DE FORJA (CRAFTING)
+// ==========================================
+// ==========================================
+    // SISTEMA DE FORJA (CRAFTING)
+    // ==========================================
+    async craftEquipamento(alunoId, tipo) {
+        // 🔥 NOVO ECOSSISTEMA DE CRAFTING CRUZADO
+        // O jogador precisa de plantar (Estufa) E matar monstros (Floresta)
+        const RECEITAS_CRAFT = {
+            cabeca: { galeoes: 1200, materiais: { mandragora: 5, veneno_aranha: 3 } },
+            corpo: { galeoes: 2500, materiais: { asfodelo: 8, escama_basilisco: 1 } },
+            pescoco: { galeoes: 900, materiais: { ditamno: 10, pelo_lobo: 4 } }
+        };
+
+        const a = this.alunos[alunoId];
+        const receita = RECEITAS_CRAFT[tipo];
+        if (!a || !receita) return { erro: "Receita não encontrada." };
+
+        if (a.galeoes < receita.galeoes) return { erro: `O ferreiro duende exige ${receita.galeoes} G.` };
+        
+        for (let mat in receita.materiais) {
+            if ((a.inventario.ingredientes[mat] || 0) < receita.materiais[mat]) {
+                let mName = mat.replace('_', ' ').toUpperCase();
+                return { erro: `Faltam materiais: ${mName} (${a.inventario.ingredientes[mat] || 0}/${receita.materiais[mat]})` };
             }
         }
 
+        a.galeoes -= receita.galeoes;
+        for (let mat in receita.materiais) { a.inventario.ingredientes[mat] -= receita.materiais[mat]; }
+
+        const item = await this.cerebroIA.gerarEquipamentoRPG(tipo, a.nivel);
+        item.id = `eq_craft_${crypto.randomBytes(4).toString('hex')}`;
+        
+        // Itens craftados têm muito mais chance de serem bons!
+        const rand = Math.random();
+        if (rand < 0.15) item.raridade = "Mítico";
+        else if (rand < 0.40) item.raridade = "Lendário";
+        else if (rand < 0.80) item.raridade = "Épico";
+        else item.raridade = "Raro";
+
+        const mults = { "Raro": 1.7, "Épico": 2.5, "Lendário": 4.0, "Mítico": 8.0 };
+        const m = mults[item.raridade];
+        for (let attr in item.atributos) { item.atributos[attr] = Math.ceil((item.atributos[attr]+1) * m); }
+
+        item.passivas = { crit_chance: parseFloat((Math.random() * 0.15).toFixed(3)) }; // Crafted gear always has crit!
+
+        if (!a.inventario.armario) a.inventario.armario = [];
+        a.inventario.armario.push(item);
+        
         this._salvarBancoDeDados();
-        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado, defendeu, relatoAcao };
+        return { sucesso: true, msg: `Obra Prima! Forjaste um item [${item.raridade}]!`, item };
+    }
+    // ==========================================
+    // SISTEMA DE DESEQUIPAR / EQUIPAR
+    // ==========================================
+    desequiparItem(alunoId, slot) {
+        const a = this.alunos[alunoId];
+        if (!a || !a.equipamentos[slot]) return { erro: "Nada equipado." };
+        
+        const item = a.equipamentos[slot];
+        if (!a.inventario.armario) a.inventario.armario = [];
+        
+        // Devolve o item para a lista de inventário (Armário)
+        a.inventario.armario.push(item);
+        a.equipamentos[slot] = null;
+
+        this._obterAtributosTotais(a); // Recalcula os bónus
+        this._salvarBancoDeDados();
+        return { sucesso: true, msg: `Removeste [${item.nome}] e guardaste no armário.` };
+    }
+
+    equiparItem(alunoId, itemId) {
+        const a = this.alunos[alunoId];
+        if (!a || !a.inventario.armario) return { erro: "Armário vazio." };
+
+        const idx = a.inventario.armario.findIndex(i => i.id === itemId);
+        if (idx === -1) return { erro: "Item não encontrado." };
+
+        const item = a.inventario.armario[idx];
+        const slot = item.tipo; // 'cabeca', 'corpo' ou 'pescoco'
+
+        // Se já tiver algo equipado, troca (desequipa o antigo primeiro)
+        if (a.equipamentos[slot]) {
+            a.inventario.armario.push(a.equipamentos[slot]);
+        }
+
+        a.equipamentos[slot] = item;
+        a.inventario.armario.splice(idx, 1); // Remove do armário pois está no corpo
+
+        this._obterAtributosTotais(a);
+        this._salvarBancoDeDados();
+        return { sucesso: true, msg: `Equipaste [${item.nome}].` };
     }
 
     criarGremio(alunoId, nomeGremio) {
@@ -2301,7 +2674,7 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         try {
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }
             });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { nome: nomeBase, tipo: "reliquia", descricao: "Misterioso.", efeito: "vida", valor: 10 };
@@ -2311,35 +2684,42 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
     }
 
     // 2. A IA QUE OUVE O CHAT E CONJURA MONSTROS/ITENS NO MAPA!
+   // 2. A IA QUE OUVE O CHAT E CONJURA MONSTROS/ITENS NO MAPA!
     async gerarRespostaPersonagemIA(zona, jogadorNome, mensagemTexto, casa) {
         if (!this.apiKey) return null;
-        try {
-            const prompt = `És a magia onipresente do castelo de Hogwarts, controlando os fantasmas, quadros e o próprio ambiente. O aluno ${jogadorNome} (${casa}) disse em "${zona}": "${mensagemTexto}".
-            Responde como um habitante local (Fantasma, Quadro, etc). 
-            
-            NOVA REGRA DE MATERIALIZAÇÃO FÍSICA NO JOGO:
-            - Se o aluno te pedir para invocar um inimigo, para treinar, ou se o contexto justificar um ataque (ex: "Quero lutar!", "Traz-me um trasgo"), preenche "spawnMob" com o nome da criatura.
-            - Se o aluno pedir ajuda para encontrar um objeto, ou se a conversa levar a uma recompensa material (ex: "Tenho fome", "Preciso de uma poção"), preenche "spawnItem" com o nome do objeto (ex: "Sapo de Chocolate").
-            - Se for apenas uma conversa normal, deixa spawnMob e spawnItem como null.
+        
+        const agora = Date.now();
+        if (this.Penseira.chatCooldowns[zona] && agora < this.Penseira.chatCooldowns[zona]) {
+            return null; 
+        } // <--- A CHAVETA QUE FALTAVA AQUI!
 
-            RETORNA APENAS JSON ESTRITO: 
+        try {
+            const prompt = `És a magia onipresente de Hogwarts, respondendo pelo próprio ambiente, quadros ou fantasmas. O aluno ${jogadorNome} (${casa}) gritou em "${zona}": "${mensagemTexto}".
+            
+            REGRAS DE RESPOSTA (PORTUGUÊS):
+            1. O teu "texto" tem de ser imersivo, ter personalidade (Pode ser sarcástico se for o Pirraça, melancólico se for o Barão Sangrento, ou épico se for a própria sala).
+            2. Se o aluno pedir um desafio, treino ou luta (ex: "Quero lutar!", "Aparece monstro"), preenche "spawnMob" com o nome de uma besta perigosa apropriada.
+            3. Se pedir comida, itens, ou ajuda material, preenche "spawnItem".
+            
+            RETORNA APENAS JSON: 
             {
-                "personagem": "Nick Quase Sem Cabeça", 
-                "texto": "Ah, jovem! Queres provar o teu valor? Então enfrenta esta besta que acabou de sair das sombras!", 
+                "personagem": "Nome do Fantasma/Quadro/Armadura", 
+                "texto": "Um texto rico, com personalidade, rindo ou lamentando a ação do aluno...", 
                 "pontos": 0,
-                "spawnMob": "Trasgo Montanhês Furioso",
+                "spawnMob": null,
                 "spawnItem": null
             }`;
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "meta-llama/llama-4-scout-17b-16e-instruct",
+                model: "llama-3.3-70b-versatile", // Aqui usamos o mais rápido para não dar lag no chat!
                 response_format: { type: "json_object" }
             });
+            
+            this.Penseira.chatCooldowns[zona] = agora + 8000; // 8 Segundos de cooldown para não spammar a API
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch(e) { return null; }
     }
-	
 	async requisitarTituloIA(alunoId) {
         const a = this.alunos[alunoId]; if(!a) return {erro:"Fantasma"};
         if(a.focoAtual < 5) return {erro:"Requer 5 de Foco para refletir sobre a tua jornada."};
@@ -2347,7 +2727,7 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         const prompt = `Avalia o bruxo ${a.nome}. Casa: ${a.casa}. Nível: ${a.nivel}. Duelos vencidos: ${a.estatisticas.duelosVencidos}. Monstros mortos: ${a.estatisticas.monstrosMortos}. Atributo maior: Feitiços (${a.atributosTotais.feiticos}).
         Atua como o Ministro da Magia e decreta UM TÍTULO ÉPICO e EXCLUSIVO (Max 4 palavras, ex: 'O Executor das Sombras', 'Duelista de Fogo'). Retorna SÓ O TÍTULO em texto simples.`;
         try {
-            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "meta-llama/llama-4-scout-17b-16e-instruct" });
+            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
             a.titulo = res.choices[0].message.content.replace(/["']/g, '').trim();
             this._salvarBancoDeDados(); return {sucesso: true, titulo: a.titulo};
         } catch(e) { return {erro:"O Ministério ignorou a carta."}; }
@@ -2415,7 +2795,7 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         }
 
         // Verifica se alguém morreu
-        if (inimigo.hpAtual <= 0) {
+         if (inimigo.hpAtual <= 0) {
             partida.status = 'finalizado';
             const aInimigo = this.alunos[inimigo.id];
             
@@ -2436,6 +2816,13 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
             
             delete this.pvpPartidas[instId];
             this._salvarBancoDeDados();
+
+            // 🔥 INSERE O CÓDIGO DA FLORESTA PVP AQUI 🔥
+            if (this.florestaEngine && partida.isForestInvade) {
+                // 'eu' é quem atacou e matou. 'inimigo' é quem morreu.
+                this.florestaEngine.retornarDaBatalha(eu.id, true, true, partida.isForestInvade, partida.forestInstId, ioGlobal);
+                this.florestaEngine.retornarDaBatalha(inimigo.id, false, true, partida.isForestInvade, partida.forestInstId, ioGlobal);
+            }
         }
         return { sucesso: true };
 }
@@ -2445,13 +2832,19 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         Lexicon.PulsarEternidade(); 
 
         if (this.quadribol) this.quadribol.processarTick(global.io);
-        
-        // 🔥 GERA A VIDA NO MUNDO!
         this.processarCicloMundoVivo();
-        // CICLO DE VIDA DA ESTUFA
+        
         for (let id in this.alunos) {
             let a = this.alunos[id];
-            if(a.estufa) {
+            
+            // 🔥 NOVO: Juros de Gringotes (Gold Sink positivo) - 0.1% a cada 100 ticks
+            if (a.cofreGringotes > 0 && Math.random() < 0.01) {
+                let rendimento = Math.max(1, Math.floor(a.cofreGringotes * 0.001));
+                a.cofreGringotes += rendimento;
+            }
+
+            // ... (Resto do tickServerGlobal mantém-se igual)
+			if(a.estufa) {
                 a.estufa.forEach(p => {
                     if(p.plantada && !p.morta && !p.colhida) {
                         p.agua -= 2; // Perde água a cada tick
@@ -2471,6 +2864,13 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
             if (a.estadoJogo !== "CASTELO") continue;
             
             if(Math.random() < 0.05) { a.fome -= 1; a.energia -= 1; }
+			// 🔥 NOVO: Ciclo de vida do Pet (Tamagotchi)
+            if (a.pet && a.pet.adotado) {
+                if (Math.random() < 0.15) { 
+                    a.pet.fome = Math.max(0, a.pet.fome - 1); 
+                    a.pet.felicidade = Math.max(0, a.pet.felicidade - 1); 
+                }
+            }
             if(a.fome < 0) a.fome = 0; if(a.energia < 0) a.energia = 0;
 
             if(Math.random() < 0.05) { 
@@ -2500,5 +2900,280 @@ async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         }
     } // <--- FECHA O tickServerGlobal()
 } // <--- FECHA A CLASSE HogwartsCore
+// ==============================================================================
+// 🌲 MOTOR PROCEDURAL DA FLORESTA PROIBIDA (ROGUELIKE & PVP)
+// ==============================================================================
+// ==============================================================================
+// 🌲 MOTOR PROCEDURAL DA FLORESTA PROIBIDA (ROGUELIKE & PVP)
+// ==============================================================================
+class MotorFlorestaProcedural {
+    constructor(coreObj) {
+        this.core = coreObj;
+        this.instancias = {};
+        setInterval(() => this.tickFloresta(global.io), 100); 
+    }
 
-module.exports = { HogwartsCore, AstrolabioMagico, RelogioHogwarts, Ollivanders, MotorConscienciaHogwarts, MotorQuadribol };
+    entrarFloresta(aluno) {
+        let instId = null;
+        let areaAlvo = aluno.pveProgresso ? aluno.pveProgresso.area : 1;
+        
+        for (let id in this.instancias) {
+            let inst = this.instancias[id];
+            if (inst.area === areaAlvo && Object.keys(inst.jogadores).length < 10) {
+                instId = id; break;
+            }
+        }
+
+        if (!instId) {
+            instId = `forest_${crypto.randomBytes(4).toString('hex')}`;
+            this.instancias[instId] = this.gerarNivelFloresta(areaAlvo, instId);
+        }
+
+        let inst = this.instancias[instId];
+        aluno.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+        
+        inst.jogadores[aluno.id] = {
+            id: aluno.id, nome: aluno.nome, casa: aluno.casa, partyId: aluno.partyId,
+            x: inst.spawn.x + (Math.random()*100 - 50), 
+            y: inst.spawn.y + (Math.random()*100 - 50),
+            vx: 0, vy: 0, dir: 1, isMoving: false, emCombate: false
+        };
+
+        return inst;
+    }
+
+    gerarNivelFloresta(areaNivel, instId) {
+        let size = 2000 + (areaNivel * 500); 
+        let inst = {
+            id: instId, area: areaNivel, w: size, h: size,
+            jogadores: {}, mobs: [], baus: [], arvores: [],
+            spawn: { x: size/2, y: size - 200 },
+            portal: { x: size/2, y: 200, ativo: false } 
+        };
+
+        for(let i=0; i < (size/10); i++) {
+            let ax = Math.random() * size; let ay = Math.random() * size;
+            if (Math.hypot(ax - inst.spawn.x, ay - inst.spawn.y) > 300 && Math.hypot(ax - inst.portal.x, ay - inst.portal.y) > 300) {
+                inst.arvores.push({ x: ax, y: ay, r: 30 + Math.random()*30 });
+            }
+        }
+
+        let qtdMobs = 5 + (areaNivel * 3);
+        for(let i=0; i<qtdMobs; i++) {
+            let baseHp = 400 * (1 + (areaNivel*0.2));
+            let mData = this.core._gerarMonstroRapido(baseHp, "Floresta", false);
+            inst.mobs.push({
+                id: `fmob_${crypto.randomBytes(3).toString('hex')}`,
+                nome: mData.nome, hpMax: mData.hpMax, hpAtual: mData.hpMax,
+                padrao: mData.padrao, elemento: mData.elemento, // Guarda IA
+                x: Math.random() * size, y: Math.random() * size,
+                vx: Math.random()*2-1, vy: Math.random()*2-1, isBoss: false
+            });
+        }
+
+        let bossData = this.core._gerarMonstroRapido(1500 * areaNivel, "Floresta", true);
+        inst.mobs.push({
+            id: `fboss_${crypto.randomBytes(3).toString('hex')}`,
+            nome: bossData.nome, hpMax: bossData.hpMax, hpAtual: bossData.hpMax,
+            padrao: bossData.padrao, elemento: bossData.elemento, 
+            x: inst.portal.x, y: inst.portal.y + 100, vx: 0, vy: 0, isBoss: true
+        });
+
+        let qtdBaus = 3 + Math.floor(Math.random() * 3);
+        for(let i=0; i<qtdBaus; i++) {
+            inst.baus.push({ id: `chest_${crypto.randomBytes(3).toString('hex')}`, x: Math.random() * size, y: Math.random() * size, looted: false });
+        }
+        return inst;
+    }
+
+    tickFloresta(ioGlobal) {
+        for (let instId in this.instancias) {
+            let inst = this.instancias[instId];
+            let playersInMap = Object.values(inst.jogadores).filter(p => !p.emCombate);
+
+            inst.mobs.forEach(mob => {
+                if (!mob.isBoss) {
+                    let alvoMaisProximo = null;
+                    let menorDist = 350; // Raio de Aggro/Perseguição do mapa 2D
+
+                    playersInMap.forEach(p => {
+                        if (p.imune && Date.now() < p.imune) return;
+                        let dist = Math.hypot(p.x - mob.x, p.y - mob.y);
+                        if (dist < menorDist) { menorDist = dist; alvoMaisProximo = p; }
+                    });
+
+                    // 🔥 IA DE PERSEGUIÇÃO: Os Monstros vão ativamente correr atrás dos jogadores!
+                    if (alvoMaisProximo && mob.padrao !== 'defensivo') {
+                        let ang = Math.atan2(alvoMaisProximo.y - mob.y, alvoMaisProximo.x - mob.x);
+                        let speed = mob.padrao === 'frenesi' ? 6 : 3.5;
+                        mob.vx = Math.cos(ang) * speed;
+                        mob.vy = Math.sin(ang) * speed;
+                        mob.x += mob.vx; mob.y += mob.vy;
+                    } else {
+                        // WANDER: Continua a vaguear de forma aleatória se ninguém estiver perto
+                        mob.x += mob.vx * 2; mob.y += mob.vy * 2;
+                        if(Math.random() < 0.05) { mob.vx = Math.random()*2-1; mob.vy = Math.random()*2-1; }
+                    }
+
+                    if(mob.x < 50 || mob.x > inst.w - 50) mob.vx *= -1;
+                    if(mob.y < 50 || mob.y > inst.h - 50) mob.vy *= -1;
+                }
+
+                // Valida a colisão
+                playersInMap.forEach(p => {
+                    if (p.imune && Date.now() < p.imune) return;
+                    if (Math.hypot(p.x - mob.x, p.y - mob.y) < 40) {
+                        this.iniciarCombate(inst, mob, p, ioGlobal, false);
+                    }
+                });
+            });
+
+            inst.baus.forEach(bau => {
+                if(bau.looted) return;
+                playersInMap.forEach(p => {
+                    if (p.imune && Date.now() < p.imune) return;
+                    if (Math.hypot(p.x - bau.x, p.y - bau.y) < 40) {
+                        bau.looted = true;
+                        let a = this.core.alunos[p.id];
+                        let goldDrop = Math.floor(Math.random() * 100) + (inst.area * 50);
+                        if(a) a.lootTemporario.galeoes += goldDrop;
+                        ioGlobal.to(`priv_${p.id}`).emit('forest_msg', { msg: `📦 Abriste um baú! +${goldDrop} G.` });
+                    }
+                });
+            });
+
+            for (let i = 0; i < playersInMap.length; i++) {
+                for (let j = i + 1; j < playersInMap.length; j++) {
+                    let p1 = playersInMap[i]; let p2 = playersInMap[j];
+                    if ((p1.imune && Date.now() < p1.imune) || (p2.imune && Date.now() < p2.imune)) continue;
+
+                    if (Math.hypot(p1.x - p2.x, p1.y - p2.y) < 30) {
+                        if (!p1.partyId || p1.partyId !== p2.partyId) {
+                            this.iniciarCombate(inst, p2, p1, ioGlobal, true);
+                        }
+                    }
+                }
+            }
+
+            let bossMorto = !inst.mobs.some(m => m.isBoss);
+            if(bossMorto) inst.portal.ativo = true;
+
+            playersInMap.forEach(p => {
+                if (inst.portal.ativo && Math.hypot(p.x - inst.portal.x, p.y - inst.portal.y) < 50) {
+                    let a = this.core.alunos[p.id];
+                    if(a) {
+                        a.pveProgresso.area++;
+                        delete inst.jogadores[p.id]; // Remove da instância antiga
+                        
+                        let novaInst = this.entrarFloresta(a); // Cria/Puxa o jogador para a nova instância
+                        
+                        // 🔥 Força a sala do Socket.IO a mudar para o novo Andar (Isto resolve a invisibilidade!)
+                        if (ioGlobal) {
+                            let s = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${p.id}`));
+                            if (s) {
+                                s.leave(`forest_${inst.id}`);
+                                s.join(`forest_${novaInst.id}`);
+                            }
+                            ioGlobal.to(`priv_${p.id}`).emit('forest_floor_changed', { newInstId: novaInst.id, area: a.pveProgresso.area });
+                            ioGlobal.to(`priv_${p.id}`).emit('forest_msg', { msg: `🌀 Entraste no portal para o Andar ${a.pveProgresso.area}!` });
+                        }
+                    }
+                }
+            });
+            
+            // 🔥 FALTAVA ISTO AQUI PARA FECHAR O LOOP E A FUNÇÃO CORRETAMENTE!
+            ioGlobal.to(`forest_${instId}`).emit('forest_sync', inst);
+        }
+    } // <--- FECHA O tickFloresta
+
+    iniciarCombate(inst, alvo, atacante, ioGlobal, isPvPLocal) {
+        atacante.emCombate = true;
+        let alunosParty = [atacante];
+        if (atacante.partyId) {
+            Object.values(inst.jogadores).forEach(aliado => {
+                if (aliado.id !== atacante.id && aliado.partyId === atacante.partyId && !aliado.emCombate) {
+                    aliado.emCombate = true;
+                    alunosParty.push(aliado);
+                }
+            });
+        }
+
+        if (!isPvPLocal) {
+            inst.mobs = inst.mobs.filter(m => m.id !== alvo.id);
+
+            const idInst = `dungeon_${crypto.randomBytes(4).toString('hex')}`;
+            let entidadeMob = { 
+                idx: 0, nome: alvo.nome, hpMax: alvo.hpMax, hpAtual: alvo.hpMax, 
+                vivo: true, padrao: alvo.padrao || 'agressivo', elemento: alvo.elemento || 'cinetico' 
+            };
+            
+            this.core.dungeonInstancias[idInst] = { 
+                id: idInst, local: 'Floresta', faseAtual: 1, maxFases: 1, mult: 1,
+                entidades: [entidadeMob], status: 'combate', 
+                membros: alunosParty.map(a => a.id),
+                isForestNode: true, forestInstId: inst.id 
+            };
+
+            // Inicia a Inteligência Artificial Dinâmica de Combate
+            this.core.iniciarIACombate(idInst);
+
+            alunosParty.forEach(p => {
+                let s = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${p.id}`));
+                if(s) s.join(idInst);
+                ioGlobal.to(`priv_${p.id}`).emit('puxado_para_dungeon', { idInstancia: idInst, estado: { entidades: [entidadeMob] } });
+            });
+            this.core._salvarBancoDeDados();
+        } else {
+            alvo.emCombate = true;
+            const instIdPvP = `pvp_${crypto.randomBytes(4).toString('hex')}`;
+            const a1 = this.core.alunos[atacante.id];
+            const a2 = this.core.alunos[alvo.id];
+
+            this.core.pvpPartidas[instIdPvP] = {
+                id: instIdPvP,
+                p1: { id: a1.id, nome: a1.nome, hpAtual: a1.hpMax, hpMax: a1.hpMax },
+                p2: { id: a2.id, nome: a2.nome, hpAtual: a2.hpMax, hpMax: a2.hpMax },
+                status: 'jogando',
+                isForestInvade: true, forestInstId: inst.id
+            };
+
+            ioGlobal.to(`priv_${a1.id}`).emit('pvp_start', { instId: instIdPvP, inimigoNome: a2.nome, maxHpInimigo: a2.hpMax, isInvade: true });
+            ioGlobal.to(`priv_${a2.id}`).emit('pvp_start', { instId: instIdPvP, inimigoNome: a1.nome, maxHpInimigo: a1.hpMax, isInvade: true });
+        }
+    }
+
+    retornarDaBatalha(alunoId, win, isPvP, isForestNode, forestInstId, ioGlobal) {
+        if (!isForestNode || !this.instancias) return;
+        const a = this.core.alunos[alunoId];
+        const inst = this.instancias[forestInstId];
+        if (!inst || !a) return;
+
+        if (win) {
+            a.estadoJogo = 'FLORESTA'; 
+            if (inst.jogadores[a.id]) {
+                inst.jogadores[a.id].emCombate = false;
+                inst.jogadores[a.id].imune = Date.now() + 4000; 
+            }
+            ioGlobal.to(`priv_${a.id}`).emit('forest_return_map', { hp: a.hpAtual });
+        } else {
+            a.estadoJogo = 'CASTELO'; 
+            a.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+            delete inst.jogadores[a.id];
+            ioGlobal.to(`priv_${a.id}`).emit('forest_dead');
+        }
+    }
+
+    extrairLootEVaz(aluno) {
+        if (aluno.lootTemporario) {
+            aluno.galeoes += (aluno.lootTemporario.galeoes || 0);
+            this.core.ganharXp(aluno, (aluno.lootTemporario.xp || 0));
+            
+            if (aluno.lootTemporario.itens && aluno.lootTemporario.itens.length > 0) {
+                if (!aluno.inventario.armario) aluno.inventario.armario = [];
+                aluno.inventario.armario.push(...aluno.lootTemporario.itens);
+            }
+            aluno.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+        }
+    }
+}
+module.exports = { HogwartsCore, AstrolabioMagico, RelogioHogwarts, Ollivanders, MotorConscienciaHogwarts, MotorQuadribol, MotorFlorestaProcedural };
