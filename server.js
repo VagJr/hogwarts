@@ -28,48 +28,41 @@ const core = new HogwartsCore();
 // Inicializar a gestão de grupos
 core.grupos = {}; // Formato: { liderId: { lider: id, membros: [id1, id2, id3] } }
 
-// PROCURA O BLOCO io.on('connection', (socket) => { E ADICIONA ESTES SOCKETS:
-socket.on('grupo_convidar', (dados) => {
-    if(!core.alunos[dados.alvoId] || dados.alvoId === socket.alunoId) return;
-    io.to(`priv_${dados.alvoId}`).emit('grupo_receber_convite', { 
-        deId: socket.alunoId, 
-        deNome: core.alunos[socket.alunoId].nome 
-    });
-});
-socket.on('conteudo_puxar_grupo', (dados) => {
-    let grupo = core.grupos[dados.liderId];
-    if(grupo) {
-        grupo.membros.forEach(mId => {
-            // Envia convite in-game (prompt) para todos, menos para quem clicou
-            if(mId !== socket.alunoId) {
-                io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo });
-            } else {
-                // O líder entra imediatamente
-                io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo, autoAccept: true });
+
+
+	
+	function darRecompensa(alunoId, xp, galeoes, dropItens) {
+    let aluno = core.alunos[alunoId];
+    if (!aluno) return;
+
+    let liderId = aluno.partyId; // Usa a partyId que ligámos no passo 1
+    
+    if (liderId && core.grupos[liderId]) {
+        let membrosOnline = core.grupos[liderId].membros;
+        let xpDividido = Math.floor((xp / membrosOnline.length) * 1.2);
+        let goldDividido = Math.floor(galeoes / membrosOnline.length);
+
+        membrosOnline.forEach(mId => {
+            let membro = core.alunos[mId];
+            if(membro) {
+                membro.galeoes += goldDividido;
+                core.ganharXp(membro, xpDividido);
+                io.to(`priv_${mId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `O teu grupo derrotou um inimigo! +${xpDividido} XP, +${goldDividido} G` });
             }
         });
+    } else {
+        aluno.galeoes += galeoes;
+        core.ganharXp(aluno, xp);
     }
-});
-socket.on('grupo_aceitar', (dados) => {
-    let liderId = dados.liderId;
-    if (!core.grupos[liderId]) {
-        core.grupos[liderId] = { lider: liderId, membros: [liderId] };
-    }
-    // Adiciona o jogador ao grupo se não estiver
-    if (!core.grupos[liderId].membros.includes(socket.alunoId)) {
-        core.grupos[liderId].membros.push(socket.alunoId);
-    }
-    
-    // Atualiza todos os membros do grupo com a nova lista
-    let infoGrupo = { 
-        lider: liderId, 
-        membrosNomes: core.grupos[liderId].membros.map(id => ({ id: id, nome: core.alunos[id].nome })) 
-    };
-    
-    core.grupos[liderId].membros.forEach(mId => {
-        io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo);
-    });
-});
+    core._salvarUrgente();
+}
+
+function iniciarDueloPvP(jogador1, jogador2) {
+    let matchId = crypto.randomBytes(4).toString('hex');
+    core.arenas[matchId] = { id: matchId, j1: jogador1.id, j2: jogador2.id };
+    io.to(`priv_${jogador1.id}`).emit('pvp_iniciar', { oponente: jogador2, matchId: matchId, equipa: 'A' });
+    io.to(`priv_${jogador2.id}`).emit('pvp_iniciar', { oponente: jogador1, matchId: matchId, equipa: 'B' });
+}
 async function inicializarServidor() {
     console.log("A invocar os feitiços de proteção de Gringotes...");
     const dbFilePath = path.join(__dirname, 'hogwarts_local_db.json');
@@ -105,17 +98,7 @@ async function inicializarServidor() {
     }
     core._salvarUrgente();
 }
-// Onde a tua IA ou Matchmaking cruza 2 jogadores:
-function iniciarDueloPvP(jogador1, jogador2) {
-    let matchId = crypto.randomBytes(4).toString('hex');
-    
-    // Cria a instância de Arena
-    core.arenas[matchId] = { id: matchId, j1: jogador1.id, j2: jogador2.id };
-    
-    // AVISA OS DOIS PARA MUDAR A TELA
-    io.to(`priv_${jogador1.id}`).emit('pvp_iniciar', { oponente: jogador2, matchId: matchId, equipa: 'A' });
-    io.to(`priv_${jogador2.id}`).emit('pvp_iniciar', { oponente: jogador1, matchId: matchId, equipa: 'B' });
-}
+
     // 1. FUNÇÃO AUXILIAR PARA CARREGAR OS DADOS PARA A MEMÓRIA
     function carregarDadosNaMemoria(doc) {
         core.alunos = doc.alunos || {}; 
@@ -1175,7 +1158,56 @@ app.post('/api/tts', async (req, res) => {
 io.on('connection', (socket) => {
     socket.emit('relogio_hogwarts', RelogioHogwarts.obterHorarioAtual());
     socket.emit('pontuacao_atualizada', core.pontuacaoCasas);
-	
+	// PROCURA ESTA LINHA:
+
+    
+    // --- COLA O SISTEMA DE GRUPO AQUI DENTRO ---
+    socket.on('grupo_convidar', (dados) => {
+        if(!core.alunos[dados.alvoId] || dados.alvoId === socket.alunoId) return;
+        io.to(`priv_${dados.alvoId}`).emit('grupo_receber_convite', { 
+            deId: socket.alunoId, 
+            deNome: core.alunos[socket.alunoId].nome 
+        });
+    });
+
+    socket.on('conteudo_puxar_grupo', (dados) => {
+        let grupo = core.grupos[dados.liderId];
+        if(grupo) {
+            grupo.membros.forEach(mId => {
+                // Envia convite in-game para todos, menos para quem clicou
+                if(mId !== socket.alunoId) {
+                    io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo });
+                } else {
+                    // O líder entra imediatamente
+                    io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo, autoAccept: true });
+                }
+            });
+        }
+    });
+
+    socket.on('grupo_aceitar', (dados) => {
+        let liderId = dados.liderId;
+        if (!core.grupos[liderId]) {
+            core.grupos[liderId] = { lider: liderId, membros: [liderId] };
+        }
+        // Adiciona o jogador ao grupo se não estiver
+        if (!core.grupos[liderId].membros.includes(socket.alunoId)) {
+            core.grupos[liderId].membros.push(socket.alunoId);
+        }
+        
+        // Atualiza todos os membros do grupo com a nova lista
+        let infoGrupo = { 
+            lider: liderId, 
+            membrosNomes: core.grupos[liderId].membros.map(id => ({ id: id, nome: core.alunos[id].nome })) 
+        };
+        
+        core.grupos[liderId].membros.forEach(mId => {
+            io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo);
+        });
+    });
+    // -------------------------------------------
+
+    // ... (o resto do código que já estava aí continua igual: socket.emit('relogio_hogwarts'...)
 socket.on('forest_mover', (dados) => {
         // Blindagem: impede crash se o servidor reiniciar enquanto jogadores andam
         if (!core.florestaEngine || !core.florestaEngine.instancias || !dados.instId) return; 

@@ -3557,22 +3557,24 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
         if(entidadesArray && entidadesArray.length > 0) {
-            window.renderizarAlvos(entidadesArray);
+            renderizarAlvos(entidadesArray);
         } else {
-            // Fallback para duelos 1v1 (PvP)
-            window.renderizarAlvos([{idx: 0, nome: nomeInimigo, hpMax: maxHpInimigo, hpAtual: maxHpInimigo, vivo: true}]);
+            // Se for duelo, cria um falso array com os dois para separar na tela
+            let p1 = { idx: 1, nome: meuBruxo.nome, equipa: 'A', hpAtual: meuBruxo.hpAtual, vivo: true, isPlayer: true };
+            let p2 = { idx: 2, nome: nomeInimigo, equipa: 'B', hpMax: maxHpInimigo, hpAtual: maxHpInimigo, vivo: true, isMob: true };
+            renderizarAlvos([p1, p2]);
         }
         
-        safeSet('ca-player-name', meuBruxo.nome); 
-        
-        // 🔥 CHAMA A FUNÇÃO DE FORMA BLINDADA (com window.)
-        if (typeof window.renderizarCartasActionHog === 'function') window.renderizarCartasActionHog(); 
+        // 🔥 APLICA A FORMAÇÃO PARA NÃO FICAREM UM EM CIMA DO OUTRO
+        organizarFormacaoBatalha(arenaInimigos);
+
+        safeSet('ca-player-name', meuBruxo.nome); renderizarCartasActionHog(); 
         
         const hudDungeon = document.getElementById('ca-dungeon-info');
         if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Nível de Ameaça: Fase 1"; } else { hudDungeon.classList.add('oculto'); }
 
-        if(arenaLoop) clearInterval(arenaLoop); arenaLoop = setInterval(window.runTickArenaMatematica_E_Desenhar, 16); 
-    };
+        if(arenaLoop) clearInterval(arenaLoop); arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
+    }
     
     window.fugirCombate = async function() { 
         playSFX('error'); combatEngineAtivo = false; clearInterval(arenaLoop); 
@@ -3689,26 +3691,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         }
     }
 
-    window.iniciarArenaLocal = function(nomeInimigo, maxHpInimigo, visualInimigo, isDuel, entidadesArray = null) {
-        document.getElementById('ui-main').classList.add('oculto'); document.getElementById('arena-acao').classList.remove('oculto');
-        combatEngineAtivo = true; projeteis = []; effectParticles = []; telegraficos = [];
-        cvs = document.getElementById('engine-combate'); ctxCombat = cvs.getContext('2d');
-        arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
-        
-        if(entidadesArray && entidadesArray.length > 0) {
-            renderizarAlvos(entidadesArray);
-        } else {
-            // Fallback para duelos 1v1 (PvP)
-            renderizarAlvos([{idx: 0, nome: nomeInimigo, hpMax: maxHpInimigo, hpAtual: maxHpInimigo, vivo: true}]);
-        }
-        
-        safeSet('ca-player-name', meuBruxo.nome); renderizarCartasActionHog(); 
-        
-        const hudDungeon = document.getElementById('ca-dungeon-info');
-        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Nível de Ameaça: Fase 1"; } else { hudDungeon.classList.add('oculto'); }
-
-        if(arenaLoop) clearInterval(arenaLoop); arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
-    }
+    
 
     
     function finalizarArena(vitoria) { 
@@ -3847,8 +3830,8 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
 
     mobsVivos.forEach((mob, index) => {
         let offsetX = (index * 160) - ((mobsVivos.length - 1) * 80);
-        let bx = (stateBossHitbox.x - 80) + offsetX; 
-        let bY = stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos(atTick * 1.5 + index) * 15;
+        let bx = mob.x || ((stateBossHitbox.x - 80) + offsetX); 
+let bY = mob.y || (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos(atTick * 1.5 + index) * 15);
         let bN = mob.nome.toLowerCase();
         
         // Verifica se é um Boss (Mais de 2500 de Vida) para aumentar a escala
@@ -5348,9 +5331,11 @@ function pararDragMovel() {
         combatInstId = dados.instId;
         
         // Esconde Interface Principal e Abre a Arena
-        document.getElementById('ui-main').classList.add('oculto'); 
+        document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
+        document.querySelector('.main-nav-container').classList.add('oculto');
         document.getElementById('arena-acao').classList.remove('oculto');
         
+        // O isDuel a 'true' vai forçar a formação a empurrar os jogadores para lados opostos
         iniciarArenaLocal(dados.inimigoNome, dados.maxHpInimigo, null, true);
         mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
         playSFX('error');
@@ -7928,17 +7913,70 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
     };
 	let currentForestInstId = null;
 
-window.entrarFlorestaExploracao = function() {
-    // Se estiver em grupo e for o líder, puxa o grupo
-    if (meuGrupo && meuGrupo.lider === meuBruxo.id) {
-        socket.emit('conteudo_puxar_grupo', { liderId: meuBruxo.id, tipo: 'floresta' });
-    } else if (meuGrupo && meuGrupo.lider !== meuBruxo.id) {
-        return mostrarNotificacao("Apenas o Líder do grupo pode iniciar o conteúdo!", "erro");
-    } else {
-        // Entrar sozinho se não tiver grupo
-        iniciarFlorestaSozinho(); 
+window.entrarFlorestaExploracao = async function() {
+    playSFX('click');
+    if (!meuBruxo || meuBruxo.focoAtual < 3) return mostrarNotificacao("Precisas de 3 de Foco.", "erro");
+
+    // Verifica se está em grupo e se NÃO é o líder
+    if (meuGrupo && meuGrupo.lider !== meuBruxo.id) {
+        return mostrarNotificacao("Apenas o Líder do grupo pode iniciar instâncias!", "erro");
     }
-}
+
+    // Feedback visual imediato (Muda o texto do botão/progresso)
+    const btnDungeon = document.querySelector('#aba-pve button');
+    if(btnDungeon) { btnDungeon.innerText = "A conjurar..."; btnDungeon.disabled = true; }
+
+    try {
+        const res = await fetch('/api/dungeon/iniciar', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, local: 'Floresta' }) });
+        const d = await res.json();
+
+        if (btnDungeon) { btnDungeon.innerText = "🌲 Adentrar Floresta (3 Foco)"; btnDungeon.disabled = false; }
+
+        if (d.erro) return mostrarNotificacao(d.erro, "erro");
+
+        // 🔥 O SEGREDO AQUI: Esconde TUDO e abre o MAPA 2D DA FLORESTA, não a arena de combate!
+        document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
+        document.querySelector('.main-nav-container').classList.add('oculto');
+        document.getElementById('forest-map-container').classList.remove('oculto');
+
+        currentForestInstId = d.instId;
+        meuBruxo.focoAtual -= 3;
+        atualizarInterfaceMagica(); // Atualiza as barras de HUD do jogador
+
+        // Se for o líder de um grupo, dispara o convite para os ecrãs dos aliados
+        if (meuGrupo && meuGrupo.lider === meuBruxo.id) {
+            socket.emit('conteudo_puxar_grupo', { liderId: meuBruxo.id, tipo: 'floresta', instId: d.instId });
+        }
+
+        // Arranca o motor 2D do mapa
+        ForestMMOEngine.init();
+        mostrarNotificacao(`⚠️ Adentraste a Floresta Proibida...`, "info");
+    } catch(e) {
+        if (btnDungeon) { btnDungeon.innerText = "🌲 Adentrar Floresta (3 Foco)"; btnDungeon.disabled = false; }
+        mostrarNotificacao("A ligação mágica com a floresta foi cortada.", "erro");
+    }
+};
+
+// Adiciona isto nos sockets globais do index.html (perto da linha 1342):
+socket.on('conteudo_convite_grupo', (dados) => {
+    if(confirm(`O teu líder iniciou a instância: ${dados.tipo.toUpperCase()}.\nQueres entrar e ajudar no combate? (Custa 3 Foco)`)) {
+        fetch('/api/dungeon/aceitar_convite', { 
+            method: 'POST', headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ id: meuBruxo.id, instId: dados.instId, tipo: dados.tipo }) 
+        }).then(res => res.json()).then(d => {
+            if(d.erro) return mostrarNotificacao(d.erro, 'erro');
+            
+            // Puxa este jogador para a tela da floresta 2D!
+            document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
+            document.querySelector('.main-nav-container').classList.add('oculto');
+            document.getElementById('forest-map-container').classList.remove('oculto');
+            
+            currentForestInstId = d.instId;
+            ForestMMOEngine.init();
+            mostrarNotificacao(`Juntaste-te ao teu grupo!`, 'sucesso');
+        });
+    }
+});
 socket.on('pvp_iniciar', (dados) => {
     mostrarNotificacao("Duelo Encontrado! Prepara a varinha!", "info");
     
@@ -7955,13 +7993,7 @@ socket.on('pvp_iniciar', (dados) => {
         iniciarCombateArena(dados.oponente, dados.equipa, dados.matchId);
     }
 });
-// Socket para receber a "puxada"
-socket.on('conteudo_convite_grupo', (dados) => {
-    if(confirm(`O teu grupo vai iniciar: ${dados.tipo.toUpperCase()}. Queres entrar com eles?`)) {
-        if(dados.tipo === 'floresta') iniciarFlorestaSozinho();
-        // Adiciona outras verificações aqui: quiz, boss, etc.
-    }
-});
+
 
 window.fugirDaFlorestaParaOCastelo = async function() {
     playSFX('click');
