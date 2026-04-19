@@ -569,7 +569,7 @@ async gerarMobiliaMagica() {
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile", 
+                model: "llama-3.1-8b-instant", 
                 response_format: { type: "json_object" } 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -595,7 +595,7 @@ async gerarMobiliaMagica() {
         try {
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" },
                 max_tokens: 800
             });
@@ -625,7 +625,7 @@ async gerarLivroCompleto(alunoNome, assunto, estilo) {
 
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }, // 🔥 BLOQUEIO INFALÍVEL
                 temperature: 0.7
             });
@@ -649,7 +649,7 @@ async avaliarEstudoParaAprender(alunoSummary, feiticoOriginal) {
     try {
         const res = await this.groq.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant",
             response_format: { type: "json_object" }
         });
         return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -806,7 +806,7 @@ origem → movimento → trajetória → impacto → dissipação
             }
         }`;       
         try {
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: { type: "json_object" } });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: { type: "json_object" } });
             return this._extrairJSONBlindado(res.choices[0].message.content);
         } catch (e) { return { aprovado: false, feedback: "Falha na conexão astral." }; }
     }
@@ -821,7 +821,7 @@ origem → movimento → trajetória → impacto → dissipação
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" } 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { texto: "Página rasgada." };
@@ -839,7 +839,7 @@ origem → movimento → trajetória → impacto → dissipação
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile", 
+                model: "llama-3.1-8b-instant", 
                 response_format: {type: "json_object"} 
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -850,7 +850,7 @@ origem → movimento → trajetória → impacto → dissipação
         if (!this.apiKey) return "Avistamentos de Nargles na Escócia reportados por Luna Lovegood.";
         try {
             const prompt = `Escreve uma manchete super criativa e curta (1 frase) para o jornal 'O Profeta Diário' do mundo de Harry Potter. Pode ser sobre o Ministério, Quidditch, ou coisas engraçadas no mundo bruxo. APENAS O TEXTO DA NOTÍCIA, sem aspas.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
 			return res.choices[0].message.content.replace(/["']/g, '').trim();
         } catch(e) { return "O Ministério aprova nova lei sobre caldeirões de espessura padrão."; }
     }
@@ -858,7 +858,7 @@ async gerarCapituloLivro(nomeLivro) {
         if (!this.apiKey) return "A magia deste tomo está adormecida. Não detetei a chave da IA (GROQ_API_KEY). Verifica o teu terminal ou ficheiro .env.";
         try {
             const prompt = `És J.K. Rowling. Escreve um capítulo imersivo (cerca de 3 parágrafos) do livro "${nomeLivro}". O texto deve conter conhecimento mágico real (feitiços, poções ou criaturas) que um aluno de Hogwarts leria. Sem saudações, apenas o texto do livro.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", temperature: 1.0 });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", temperature: 1.0 });
 			return res.choices[0].message.content.trim();
         } catch (e) {
             return "As páginas estão manchadas de tinta e ilegíveis.";
@@ -886,7 +886,7 @@ async gerarCapituloLivro(nomeLivro) {
                 "recompensaGaleoes": 200,
                 "recompensaXp": 500
             }`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: {type: "json_object"} });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: {type: "json_object"} });
             let q = this._extrairJSONBlindado(res.choices[0].message.content);
             if(q) { q.progresso = 0; q.concluida = false; return q; }
             return null;
@@ -898,7 +898,7 @@ async gerarCapituloLivro(nomeLivro) {
         try {
             const prompt = `Age como o Chapéu Seletor de Hogwarts. Analisa: "${respostaAberta}". Retorna EXATAMENTE O JSON ABAIXO, substituindo a casa por Gryffindor, Slytherin, Ravenclaw ou Hufflepuff, e criando uma fala realista:
             {"casa": "Gryffindor", "relato": "Uma mente astuta, vejo... mas há coragem!"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { casa: fallback, relato: "Vejo o teu destino..." };
         } catch (e) { return { casa: fallback, relato: "Vou pelo palpite." }; }
     }
@@ -926,7 +926,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
 }`;
         const res = await this.groq.chat.completions.create({ 
             messages: [{ role: "user", content: prompt }], 
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant",
             response_format: { type: "json_object" } // Força o modo JSON
         });
         
@@ -945,7 +945,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `És o Professor ${professor} a dar aula de ${aula} a ${alunoNome}. O teu conhecimento de Harry Potter é infinito. 
             Dá uma aula real, explicando detalhadamente um feitiço, poção ou criatura exata dos livros. Termina a tua fala perguntando algo diretamente à turma.
             RETORNE SÓ JSON: {"texto": "Silêncio na sala! Hoje vamos estudar...", "temLoot": true, "lootNome": "Pergaminho de Estudo"}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { texto: "Aula proveitosa.", temLoot: true, lootNome: `Notas de ${aula}` };
         } catch (e) { return { texto: `Aula em silêncio.`, temLoot: false }; }
     }
@@ -966,7 +966,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             Escreve o conteúdo de um livro histórico oficial de Hogwarts com profundidade extrema, detalhando as origens, os usos e os perigos do tema.
             RETORNA APENAS O JSON:
             {"titulo": "A História Oculta de...", "texto": "Há séculos atrás..."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             let livro = this._extrairJSONBlindado(res.choices[0].message.content);
             
             if(livro && livro.titulo) {
@@ -1011,7 +1011,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             const dados = this._extrairJSONBlindado(res.choices[0].message.content);
@@ -1028,7 +1028,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
         try {
             const prompt = `Gera uma pergunta muito difícil de N.O.M. do universo Harry Potter sobre: ${materia}. 
             RETORNA APENAS JSON: {"pergunta": "Qual é a base da poção Polissuco?", "respostaCerta": "Hemeróbios e Descurainia..."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { pergunta: "O que é magia?", respostaCerta: "Magia" };
         } catch(e) { return { pergunta: "O Ministério cancelou os exames.", respostaCerta: "Nada" }; }
     }
@@ -1039,7 +1039,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             const prompt = `Exame N.O.M.. Resposta correta: "${respostaCerta}". O aluno respondeu: "${respostaAluno}".
             Sê um examinador muito exigente. Avalia de 0 a 100.
             RETORNA APENAS JSON: {"nota": 80, "feedback": "Argumentaste bem, mas esqueceste-te dos detalhes."}`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { nota: 50, feedback: "O pergaminho manchou." };
         } catch(e) { return { nota: 50, feedback: "Avaliador ocupado." }; }
     }
@@ -1056,7 +1056,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
             });
             const parse = this._extrairJSONBlindado(res.choices[0].message.content);
@@ -1072,7 +1072,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" } // 🔥 FORÇA O FORMATO CORRETO
             });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { personagem: "Nenhum", texto: "" };
@@ -1097,7 +1097,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             
@@ -1122,7 +1122,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             let j = this._extrairJSONBlindado(res.choices[0].message.content);
@@ -1148,7 +1148,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             }`;
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             // Adicionado "|| { sucesso: false }" para salvaguarda!
@@ -1159,7 +1159,7 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
     async gerarTitulo(aluno) {
         try {
             const prompt = `Gera SÓ UM Título épico (ex: 'Mestre das Sombras') para bruxo nível ${aluno.nivel} da casa ${aluno.casa}. NADA DE ASPAS OU JSON.`;
-            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             return res.choices[0].message.content.replace(/["']/g, '').trim();
         } catch(e) { return "Membro da Ordem"; }
     }
@@ -1329,7 +1329,7 @@ class HogwartsCore {
         try {
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             return this._extrairJSONBlindado(res.choices[0].message.content);
@@ -1353,7 +1353,7 @@ class HogwartsCore {
             if (!this.cerebroIA || !this.cerebroIA.apiKey) throw new Error("IA Desligada");
 
             const prompt = `Universo Harry Potter. Zona: "${zona}". O jogador procura recursos. Gera APENAS UM ingrediente botânico ou criatura raro. RETORNE JSON ESTRITO: {"item": "Pelo de Unicórnio", "lore": "Brilhava na terra húmida..."}`;
-            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile", response_format: {type: "json_object"} });
+            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: {type: "json_object"} });
             
             if(!res || !res.choices || !res.choices[0]) throw new Error("Resposta da IA vazia");
             const loot = this.cerebroIA._extrairJSONBlindado(res.choices[0].message.content);
@@ -2674,7 +2674,7 @@ async folhearLivro(alunoId) {
         try {
             const res = await this.groq.chat.completions.create({
                 messages: [{ role: "user", content: prompt }],
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" }
             });
             return this._extrairJSONBlindado(res.choices[0].message.content) || { nome: nomeBase, tipo: "reliquia", descricao: "Misterioso.", efeito: "vida", valor: 10 };
@@ -2712,7 +2712,7 @@ async folhearLivro(alunoId) {
             
             const res = await this.groq.chat.completions.create({ 
                 messages: [{ role: "user", content: prompt }], 
-                model: "llama-3.3-70b-versatile", // Aqui usamos o mais rápido para não dar lag no chat!
+                model: "llama-3.1-8b-instant", // Aqui usamos o mais rápido para não dar lag no chat!
                 response_format: { type: "json_object" }
             });
             
@@ -2727,7 +2727,7 @@ async folhearLivro(alunoId) {
         const prompt = `Avalia o bruxo ${a.nome}. Casa: ${a.casa}. Nível: ${a.nivel}. Duelos vencidos: ${a.estatisticas.duelosVencidos}. Monstros mortos: ${a.estatisticas.monstrosMortos}. Atributo maior: Feitiços (${a.atributosTotais.feiticos}).
         Atua como o Ministro da Magia e decreta UM TÍTULO ÉPICO e EXCLUSIVO (Max 4 palavras, ex: 'O Executor das Sombras', 'Duelista de Fogo'). Retorna SÓ O TÍTULO em texto simples.`;
         try {
-            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.3-70b-versatile" });
+            const res = await this.cerebroIA.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
             a.titulo = res.choices[0].message.content.replace(/["']/g, '').trim();
             this._salvarBancoDeDados(); return {sucesso: true, titulo: a.titulo};
         } catch(e) { return {erro:"O Ministério ignorou a carta."}; }
