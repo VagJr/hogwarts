@@ -2439,115 +2439,93 @@ async folhearLivro(alunoId) {
 
             if(todosMortos) {
                 let isBoss = (inst.faseAtual === inst.maxFases);
-                let xpFase = isBoss ? 1500 : 400 * inst.entidades.length;
-                let galeoesFase = isBoss ? 800 : 100 * inst.entidades.length;
-
-                if (inst.isForestNode) {
-                    if (!a.lootTemporario) a.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
-                    a.lootTemporario.galeoes += galeoesFase;
-                    a.lootTemporario.xp += xpFase;
-                } else {
-                    await this._addXp(a, xpFase); a.galeoes += galeoesFase; 
-                }
-
-                if(!a.estatisticas) a.estatisticas = { monstrosMortos: 0 };
-                a.estatisticas.monstrosMortos += inst.entidades.length;
-                try { this._progressoQuest(a, 'pve', mob.nome, 1); } catch(ex){}
-
-                // 🔥 NOVO: ENGINE DE DROPS PROCEDURAIS E ESPÓLIOS AAA
-                let chanceDrop = isBoss ? 0.35 : 0.08; // Muito mais difícil cair gear
                 
-                // 1. Drop de Espólios Fixos (Para Forja Híbrida)
-                if (inst.isForestNode) {
-                    if (!a.inventario.ingredientes) a.inventario.ingredientes = {};
-                    if (mob.nome.includes("Aranha") || mob.nome.includes("Acromântula")) a.inventario.ingredientes['veneno_aranha'] = (a.inventario.ingredientes['veneno_aranha']||0) + (isBoss?3:1);
-                    if (mob.nome.includes("Lobisomem")) a.inventario.ingredientes['pelo_lobo'] = (a.inventario.ingredientes['pelo_lobo']||0) + (isBoss?3:1);
-                    if (mob.nome.includes("Basilisco") || mob.nome.includes("Cobra")) a.inventario.ingredientes['escama_basilisco'] = (a.inventario.ingredientes['escama_basilisco']||0) + (isBoss?3:1);
-                }
+                // 🔥 NOVO: PARTILHA DE LOOT E XP MULTIPLAYER COOP
+                let recebedores = inst.membros && inst.membros.length > 0 ? inst.membros : [a.id];
+                let divisao = recebedores.length;
 
-                // 2. Drop de Equipamentos (RNG Hardcore)
-                if (Math.random() < chanceDrop) { 
-                    let tipoRnd = ['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)];
-                    let equipNovo = await this.cerebroIA.gerarEquipamentoRPG(tipoRnd, a.nivel);
-                    equipNovo.id = `eq_${crypto.randomBytes(4).toString('hex')}`;
-                    
-                    // Tabela de Raridade Pesada
-                    let randRarity = Math.random();
-                    if (isBoss) {
-                        if (randRarity < 0.1) equipNovo.raridade = "Mítico";
-                        else if (randRarity < 0.4) equipNovo.raridade = "Lendário";
-                        else equipNovo.raridade = "Épico";
-                    } else {
-                        if (randRarity < 0.005) equipNovo.raridade = "Mítico";
-                        else if (randRarity < 0.03) equipNovo.raridade = "Lendário";
-                        else if (randRarity < 0.10) equipNovo.raridade = "Épico";
-                        else if (randRarity < 0.30) equipNovo.raridade = "Raro";
-                        else if (randRarity < 0.60) equipNovo.raridade = "Incomum";
-                        else equipNovo.raridade = "Comum";
-                    }
+                let xpFase = Math.floor((isBoss ? 1500 : 400 * inst.entidades.length) / divisao);
+                let galeoesFase = Math.floor((isBoss ? 800 : 100 * inst.entidades.length) / divisao);
 
-                    // Geração Procedural de Passivas Mágicas
-                    equipNovo.passivas = {};
-                    if (equipNovo.raridade === "Épico" || equipNovo.raridade === "Lendário" || equipNovo.raridade === "Mítico") {
-                        if (Math.random() > 0.5) equipNovo.passivas.crit_chance = parseFloat((Math.random() * 0.15).toFixed(3));
-                        if (Math.random() > 0.6) equipNovo.passivas.esquiva = parseFloat((Math.random() * 0.10).toFixed(3));
-                        if (Math.random() > 0.8) equipNovo.passivas.lifesteal = parseFloat((Math.random() * 0.20).toFixed(3));
-                    }
-                    
+                // Aplica Loot a todos os membros vivos na instância!
+                for (let mId of recebedores) {
+                    let membro = this.alunos[mId];
+                    if (!membro) continue;
+
                     if (inst.isForestNode) {
-                        if(!a.lootTemporario.itens) a.lootTemporario.itens = [];
-                        a.lootTemporario.itens.push(equipNovo);
+                        if (!membro.lootTemporario) membro.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+                        membro.lootTemporario.galeoes += galeoesFase;
+                        membro.lootTemporario.xp += xpFase;
+                        if (!membro.inventario.ingredientes) membro.inventario.ingredientes = {};
+                        if (mob.nome.includes("Aranha")) membro.inventario.ingredientes['veneno_aranha'] = (membro.inventario.ingredientes['veneno_aranha']||0) + 1;
+                        if (mob.nome.includes("Lobisomem")) membro.inventario.ingredientes['pelo_lobo'] = (membro.inventario.ingredientes['pelo_lobo']||0) + 1;
+                    } else {
+                        this._addXp(membro, xpFase); membro.galeoes += galeoesFase; 
                     }
-                    else { if(!a.inventario.armario) a.inventario.armario = []; a.inventario.armario.push(equipNovo); }
-                    relatoAcao += ` 🎁 DROP: [${equipNovo.raridade}] ${equipNovo.nome}!`;
+
+                    if(!membro.estatisticas) membro.estatisticas = { monstrosMortos: 0 };
+                    membro.estatisticas.monstrosMortos += inst.entidades.length;
+
+                    // DROP DE EQUIPAMENTOS PROCEDURAIS PARA TODOS (Roll individual!)
+                    if (Math.random() < (isBoss ? 0.35 : 0.08)) { 
+                        let tipoRnd = ['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)];
+                        this.cerebroIA.gerarEquipamentoRPG(tipoRnd, membro.nivel).then(equipNovo => {
+                            equipNovo.id = `eq_${crypto.randomBytes(4).toString('hex')}`;
+                            equipNovo.raridade = ['Comum', 'Incomum', 'Raro', 'Épico', 'Lendário'][isBoss ? Math.floor(Math.random()*2+3) : Math.floor(Math.random()*3)];
+                            
+                            if (inst.isForestNode) {
+                                if(!membro.lootTemporario.itens) membro.lootTemporario.itens = [];
+                                membro.lootTemporario.itens.push(equipNovo);
+                            } else {
+                                if(!membro.inventario.armario) membro.inventario.armario = [];
+                                membro.inventario.armario.push(equipNovo);
+                            }
+                            if(global.io) global.io.to(`priv_${membro.id}`).emit('nova_mensagem', { canal: 'zona', autor: '🎁 DROP', texto: `Obtiveste [${equipNovo.raridade}] ${equipNovo.nome}!` });
+                        });
+                    }
+
+                    // Envia HUD de Floresta
+                    if (inst.isForestNode && global.io) {
+                        global.io.to(`priv_${membro.id}`).emit('forest_loot_update', { 
+                            gold: membro.lootTemporario.galeoes, xp: membro.lootTemporario.xp, itens: membro.lootTemporario.itens ? membro.lootTemporario.itens.length : 0 
+                        });
+                    }
                 }
 
-                // 📡 Atualiza o ecrã do jogador na Floresta em Tempo Real
-                if (inst.isForestNode && global.io) {
-                    global.io.to(`priv_${a.id}`).emit('forest_loot_update', { 
-                        gold: a.lootTemporario.galeoes, xp: a.lootTemporario.xp, 
-                        itens: a.lootTemporario.itens ? a.lootTemporario.itens.length : 0 
-                    });
-                }
+                relatoAcao += ` | O Grupo ganhou ${xpFase} XP e ${galeoesFase} G cada!`;
 
                 if (inst.faseAtual < inst.maxFases) {
-            inst.faseAtual++;
+                    inst.faseAtual++;
                     let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
                     let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
                     let novasEntidades = [];
-                    let isProximoBoss = (inst.faseAtual === inst.maxFases);
-                    
-                    // 🔥 Usa o Gerador com base no Andar Real do jogador
-                    let mData = this._gerarMonstroRapido(mob.hpMax * 1.3, inst.local, isProximoBoss, a.pveProgresso ? a.pveProgresso.area : 1);
-                    
+                    let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
                     for(let i=0; i<proxMobs; i++) {
-                        novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hpMax, hpAtual: mData.hpMax, vivo: true, padrao: mData.padrao, elemento: mData.elemento, fracoContra: mData.fracoContra, resisteContra: mData.resisteContra, efeitos: [] });
+                        novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hp, hpAtual: mData.hp, vivo: true, padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)], efeitos: [] });
                     }
                     inst.entidades = novasEntidades; this._salvarBancoDeDados();
-                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! [+${xpFase} XP]. ${relatoAcao}`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! ${relatoAcao}`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
                 } else {
                     inst.status = 'finalizado'; 
                     if (inst.timerBossAtaque) clearInterval(inst.timerBossAtaque);
                     
                     if(!a.pveProgresso) a.pveProgresso = { area: 1, nivel: 1 };
-                    a.pveProgresso.area++; if (a.pveProgresso.area > 7) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; } // Scaling a cada 7 andares!
+                    a.pveProgresso.area++; if (a.pveProgresso.area > 7) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; }
                     this._salvarBancoDeDados();
 
                     if (this.florestaEngine && inst.isForestNode) {
-                        let membrosVivos = inst.membros || [a.id];
-                        membrosVivos.forEach(mId => {
+                        recebedores.forEach(mId => {
                             this.florestaEngine.retornarDaBatalha(mId, true, false, inst.isForestNode, inst.forestInstId, global.io);
                         });
                     }
 
-                    return { bossMorto: true, relatoAcao: `Área Purificada! [+${xpFase} XP] ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+                    return { bossMorto: true, relatoAcao: `Área Purificada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
                 }
             } else {
                 this._salvarBancoDeDados();
                 return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
             }
-        } 
-
+        }
         this._salvarBancoDeDados();
         return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: danoFinal, defendeu, relatoAcao, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual, buffsJogador: a.buffs };
     }

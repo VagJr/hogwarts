@@ -5334,23 +5334,79 @@ function pararDragMovel() {
     // ==============================================================================
     // MMO LISTA DE PRESENÇA (QUEM ESTÁ NA ZONA)
     // ==============================================================================
+    // =====================================
+    // SOCKETS DE PVP E GRUPO (FIX AAA)
+    // =====================================
+    socket.on('pvp_start', (dados) => {
+        isPvP = true;
+        combatInstId = dados.instId;
+        
+        // Esconde Interface Principal e Abre a Arena
+        document.getElementById('ui-main').classList.add('oculto'); 
+        document.getElementById('arena-acao').classList.remove('oculto');
+        
+        iniciarArenaLocal(dados.inimigoNome, dados.maxHpInimigo, null, true);
+        mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
+        playSFX('error');
+    });
+
+    socket.on('convite_instancia', (dados) => {
+        playSFX('magic');
+        const aceita = confirm(`🚪 O Líder ${dados.liderNome} entrou em: ${dados.local}.\n\nQueres entrar na mesma instância e lutar com o teu grupo?`);
+        if(aceita) {
+            fetch('/api/dungeon/aceitar_convite', { 
+                method: 'POST', headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ id: meuBruxo.id, instId: dados.instId, tipo: dados.tipo }) 
+            }).then(res => res.json()).then(d => {
+                if(d.erro) return mostrarNotificacao(d.erro, 'erro');
+                
+                // Abre o ecrã da floresta 2D para este jogador também
+                document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
+                document.querySelector('.main-nav-container').classList.add('oculto');
+                document.getElementById('forest-map-container').classList.remove('oculto');
+                
+                currentForestInstId = d.instId;
+                ForestMMOEngine.init();
+                mostrarNotificacao(`Juntaste-te a ${dados.liderNome}!`, 'sucesso');
+            });
+        }
+    });
+
+    // Atualizador da UI do Grupo (Painel da Direita)
     socket.on('mmo_update_presenca', (jogadores) => {
         const listDiv = document.getElementById('mmo-online-list');
         if(!listDiv) return;
         
-        let html = '';
+        let htmlGeral = '';
+        let htmlGrupo = '';
+
         jogadores.forEach(j => {
             let corCasa = j.casa === 'Gryffindor' ? '#e74c3c' : (j.casa === 'Slytherin' ? '#2ecc71' : (j.casa === 'Ravenclaw' ? '#3498db' : (j.casa === 'Hufflepuff' ? '#f1c40f' : '#ccc')));
-            html += `
+            
+            let card = `
             <div class="mmo-player-item" onclick="inspecionarJogador('${j.id}')">
                 <div class="mmo-player-dot" style="background:${corCasa}; box-shadow: 0 0 5px ${corCasa};"></div>
                 <div class="mmo-player-name">Lv.${j.nivel} ${j.nome}</div>
             </div>`;
+
+            // Separa quem é do teu grupo e quem não é
+            if (meuBruxo && meuBruxo.partyId && j.partyId === meuBruxo.partyId) {
+                htmlGrupo += card;
+            } else {
+                htmlGeral += card;
+            }
         });
-        listDiv.innerHTML = html;
+
+        // Monta o Painel Dividido!
+        let finalHtml = "";
+        if (htmlGrupo !== "") {
+            finalHtml += `<div style="color:#2ecc71; font-size:0.8em; margin-bottom:5px; border-bottom:1px solid #2ecc71;">🤝 O Meu Grupo</div>${htmlGrupo}<br>`;
+        }
+        finalHtml += `<div style="color:#aaa; font-size:0.8em; margin-bottom:5px; border-bottom:1px solid #555;">🌍 Bruxos na Zona</div>${htmlGeral}`;
+        
+        listDiv.innerHTML = finalHtml;
         safeSet('hud-zona-sidebar', zonaAtual);
     });
-
     socket.on('mmo_jogador_saiu', (dados) => {
         // Pedimos ao servidor a lista atualizada simulando uma re-entrada silenciosa
         socket.emit('pedir_presenca', { zona: zonaAtual });
@@ -6167,7 +6223,32 @@ window.drawAnimeWizard = function(ctx, x, y, scale, tick, atkProgress, atkColor,
     let bodyLean = 0;
     let wandGlow = 0;
     let isStriking = false; 
+// ==========================================
+    // 1.5 ALIADOS EM GRUPO (FORMAÇÃO DE COMBATE)
+    // ==========================================
+    if (meuBruxo && meuBruxo.partyId && servidorGlobal && servidorGlobal.parties && servidorGlobal.parties[meuBruxo.partyId]) {
+        let membrosGrupo = servidorGlobal.parties[meuBruxo.partyId].membros;
+        let indexAliado = 1;
+        
+        membrosGrupo.forEach(mId => {
+            if (mId !== meuBruxo.id) { // Não te desenhas a ti mesmo duas vezes
+                // Calcula o deslocamento em V no eixo Y: um vai para cima, outro para baixo.
+                let yOffset = (indexAliado % 2 === 0 ? 1 : -1) * (Math.ceil(indexAliado / 2) * 50);
+                let xOffset = (indexAliado * 15); // Chega-os um pouco para trás
+                
+                ctx.save();
+                // O scale 1.2 é ligeiramente menor que o teu jogador (1.5) para dar noção de profundidade
+                drawAnimeWizard(ctx, playerHitbox.x - xOffset, playerHitbox.y + yOffset, 1.2, atTick, 0, null, false, {}, 'Gryffindor');
+                ctx.restore();
+                
+                // Desenha a sombra no chão deles
+                ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+                ctx.beginPath(); ctx.ellipse(playerHitbox.x - xOffset, playerHitbox.y + yOffset + 40, 20, 5, 0, 0, Math.PI*2); ctx.fill();
 
+                indexAliado++;
+            }
+        });
+    }
     if (atkProgress > 0) {
         if (atkProgress > 0.7) {
             let p = (atkProgress - 0.7) / 0.3; 

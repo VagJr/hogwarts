@@ -898,6 +898,7 @@ app.post('/api/pocoes/preparar', async (req, res) => { try { const r = await cor
 app.post('/api/magia/equipar', (req, res) => { try { const r = core.equiparFeitico(req.body.id, req.body.feiticoId); if (r.sucesso) forcarSyncAluno(req.body.id); res.json(r); } catch(e) { res.status(500).json({erro: "Erro."}); } });
 
 // Substitui a rota antiga da dungeon
+// Substitui a rota antiga da dungeon por esta versão com suporte a Grupo
 app.post('/api/dungeon/iniciar', async (req, res) => {
     try {
         const { id, local } = req.body;
@@ -906,7 +907,7 @@ app.post('/api/dungeon/iniciar', async (req, res) => {
         
         a.focoAtual -= 3;
         
-        // Coloca o jogador no Motor Procedural da Floresta
+        // Coloca o jogador (Líder) no Motor Procedural da Floresta
         let inst = core.florestaEngine.entrarFloresta(a);
         
         // Coloca no Socket Room para receber o Sync 2D
@@ -914,12 +915,55 @@ app.post('/api/dungeon/iniciar', async (req, res) => {
         if(s) s.join(`forest_${inst.id}`);
 
         core._salvarUrgente();
+
+        // 🔥 NOVO: Envia Convite aos membros do Grupo para a mesma Floresta
+        if (a.partyId && core.parties[a.partyId]) {
+            core.parties[a.partyId].membros.forEach(mId => {
+                if (mId !== a.id) {
+                    global.io.to(`priv_${mId}`).emit('convite_instancia', { 
+                        liderNome: a.nome, 
+                        local: "Floresta Proibida", 
+                        instId: inst.id, 
+                        tipo: 'floresta' 
+                    });
+                }
+            });
+        }
+
         res.json({ sucesso: true, msg: "Entraste na Floresta Sombria...", instId: inst.id });
     } catch(e) {
         res.status(500).json({erro: "A masmorra colapsou."});
     }
 });
 
+// 🔥 NOVA ROTA: Aceitar o puxão do grupo
+app.post('/api/dungeon/aceitar_convite', (req, res) => {
+    const { id, instId, tipo } = req.body;
+    const a = core.alunos[id];
+    if(!a) return res.json({erro: "Erro de sessão."});
+
+    if (tipo === 'floresta') {
+        const instOriginal = core.florestaEngine.instancias[instId];
+        if (!instOriginal) return res.json({erro: "A instância do teu líder já fechou."});
+        
+        a.focoAtual -= 3;
+        a.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+        a.estadoJogo = 'FLORESTA';
+
+        instOriginal.jogadores[a.id] = {
+            id: a.id, nome: a.nome, casa: a.casa, partyId: a.partyId,
+            x: instOriginal.spawn.x + (Math.random()*60 - 30), 
+            y: instOriginal.spawn.y + (Math.random()*60 - 30),
+            vx: 0, vy: 0, dir: 1, isMoving: false, emCombate: false
+        };
+
+        let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${id}`));
+        if(s) s.join(`forest_${instOriginal.id}`);
+        
+        core._salvarUrgente();
+        res.json({ sucesso: true, instId: instOriginal.id });
+    }
+});
 
 app.post('/api/dungeon/fugir_floresta_seguro', (req, res) => {
     // Para quando o jogador clica no botão "Voltar ao Castelo" do mapa 2D
@@ -1195,26 +1239,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         socket.to(dados.instId).emit('render_multiplayer_spell', dados);
     });
 
-    socket.on('aceitar_convite_grupo', (dados) => {
-        const lider = core.alunos[dados.liderId]; const eu = core.alunos[dados.meuId];
-        if(!lider || !eu) return;
-        
-        // Cria a party se não existir
-        if(!lider.partyId) {
-            lider.partyId = `party_${crypto.randomBytes(4).toString('hex')}`;
-            if(!core.parties) core.parties = {};
-            core.parties[lider.partyId] = { lider: lider.id, membros: [lider.id] };
-        }
-        
-        eu.partyId = lider.partyId;
-        if(!core.parties[lider.partyId].membros.includes(eu.id)) core.parties[lider.partyId].membros.push(eu.id);
-        
-        core._salvarBancoDeDados();
-        forcarSyncAluno(lider.id); forcarSyncAluno(eu.id);
-        
-        io.to(`priv_${lider.id}`).emit('nova_mensagem', { canal: 'zona', autor: '🤝 GRUPO', texto: `${eu.nome} juntou-se ao teu grupo!` });
-        io.to(`priv_${eu.id}`).emit('nova_mensagem', { canal: 'zona', autor: '🤝 GRUPO', texto: `Entraste no grupo de ${lider.nome}!` });
-    });
+   
     socket.on('entrar_chat', (dados) => { 
         socket.join('salaoPrincipal'); // Canal Global
         if(dados.casa) socket.join(`comum_${dados.casa}`); 
