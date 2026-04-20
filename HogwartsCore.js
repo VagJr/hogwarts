@@ -2080,9 +2080,13 @@ a.siclos += 5;;
     equiparFeitico(alunoId, feiticoId) {
         const a = this.alunos[alunoId]; if(!a) return {erro:"Erro"};
         if (a.feitiçosEquipados.includes(feiticoId)) { a.feitiçosEquipados = a.feitiçosEquipados.filter(f => f !== feiticoId); return { sucesso: true }; }
-        // 🔥 AUMENTADO PARA 6 FEITIÇOS NO DECK
+        
+        // 🔥 ATUALIZADO: Limite de 6 feitiços no Deck (6 Cartas)
         if (a.feitiçosEquipados.length >= 6) return { erro: "Max 6 magias no Deck." };
-        a.feitiçosEquipados.push(feiticoId); this._salvarBancoDeDados(); return { sucesso: true };
+        
+        a.feitiçosEquipados.push(feiticoId); 
+        this._salvarBancoDeDados(); 
+        return { sucesso: true };
     }
     // MAPA E SEGREDOS
     async procurarSegredo(alunoId, zona) {

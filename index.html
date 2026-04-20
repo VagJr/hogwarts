@@ -1472,8 +1472,10 @@
             <div class="card" style="background:rgba(10,5,15,0.9); border-color:#2ecc71; box-shadow:0 0 20px rgba(46,204,113,0.1);">
                 <h3 style="color:#2ecc71; text-align:center; font-size:1.8em; text-shadow:0 0 10px rgba(46,204,113,0.3);">Grimório de Combate</h3>
                 <p style="text-align:center; color:#aaa; font-size:0.85em; margin-bottom:15px;">Seleciona até 4 manifestações mágicas para estarem prontas na tua varinha.</p>
-                <div style="text-align:center; margin-bottom:15px; color:var(--hp-gold); font-weight:bold; font-size:1.2em; background:rgba(0,0,0,0.5); padding:8px; border-radius:20px; border:1px solid #555;">Slots Ocupados: <span id="deck-count" style="color:#fff;">0</span> / 4</div>
-                <div id="lista-maestria" style="max-height: 250px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;"></div>
+                <div style="text-align:center; margin-bottom:15px; color:var(--hp-gold); font-weight:bold; font-size:1.2em; background:rgba(0,0,0,0.5); padding:8px; border-radius:20px; border:1px solid #555;">
+    Slots Ocupados: <span id="deck-count" style="color:#fff;">0</span> / 6
+</div>
+<div id="lista-maestria" style="max-height: 250px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;"></div>
             </div>
         </div>
 
@@ -3542,6 +3544,10 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
 
     // 2. A Função que Inicia a Arena
     // 2. A Função que Inicia a Arena (AGORA COM FORMAÇÃO DE BATALHA!)
+    // No topo do seu script, garanta que as variáveis existem
+    let maoCombate = [null, null, null]; // Mão de 3 cartas
+    let proximaCartaIndex = 0;
+
     window.iniciarArenaLocal = function(nomeInimigo, maxHpInimigo, visualInimigo, isDuel, entidadesArray = null, aliadosArray = null) {
         document.getElementById('ui-main').classList.add('oculto'); 
         document.getElementById('arena-acao').classList.remove('oculto');
@@ -3550,19 +3556,27 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         cvs = document.getElementById('engine-combate'); ctxCombat = cvs.getContext('2d');
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
-        // --- 🃏 LÓGICA DE DECK BUILDING (INICIALIZAÇÃO) ---
-        // Pega os feitiços equipados e embaralha (Fisher-Yates shuffle simples)
+        // --- 🃏 DECK BUILDING: Embaralhar e Gerar Mão Inicial ---
         let deckTemp = [...meuBruxo.feitiçosEquipados];
+        // Embaralha o deck de 6 cartas (RNG)
         for (let i = deckTemp.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [deckTemp[i], deckTemp[j]] = [deckTemp[j], deckTemp[i]];
         }
         
-        // Define a mão inicial de 3 cartas
-        maoCombate = deckTemp.slice(0, 3);
-        proximaCartaIndex = 3; // Aponta para a próxima que será comprada
+        // Limpa a mão e compra 3 cartas iniciais
+        maoCombate = [null, null, null];
+        proximaCartaIndex = 0;
+        
+        // Preenche os 3 slots da mão
+        for(let i=0; i<3; i++) {
+            if(deckTemp[i]) {
+                maoCombate[i] = deckTemp[i];
+                proximaCartaIndex++;
+            }
+        }
 
-        // --- RESTO DA INICIALIZAÇÃO ---
+        // --- Configuração dos Aliados ---
         arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
         const posicoesY = [300, 180, 420, 100, 500];
         
@@ -3573,26 +3587,91 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
             if(aliado.id === meuBruxo.id) { playerHitbox.x = aliado.combatX; playerHitbox.y = aliado.combatY; }
         });
 
+        // Configuração do Inimigo/Boss
         if(isDuel) {
-            arenaInimigos = []; 
-            if(typeof nomeInimigo === 'object') {
-                arenaInimigoPvP = nomeInimigo;
-                arenaInimigoPvP.combatX = 800; arenaInimigoPvP.combatY = 300; arenaInimigoPvP.atkProgress = 0;
-            }
-            safeSet('ca-boss-name', arenaInimigoPvP.nome || "Duelista");
+            arenaInimigoPvP = nomeInimigo;
+            arenaInimigoPvP.combatX = 800; arenaInimigoPvP.combatY = 300;
             bossMaxHp = arenaInimigoPvP.hpMax || maxHpInimigo;
-            bossCurrentHp = bossMaxHp;
         } else {
             arenaInimigoPvP = null;
-            if(entidadesArray && entidadesArray.length > 0) renderizarAlvos(entidadesArray);
+            if(entidadesArray) renderizarAlvos(entidadesArray);
         }
         
         safeSet('ca-player-name', meuBruxo.nome); 
-        renderizarCartasActionHog(); // Desenha a mão inicial
+        renderizarCartasActionHog(); // Desenha a mão de 3 cartas
         
         if(arenaLoop) clearInterval(arenaLoop); 
         arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
-    }
+    };
+
+    // 🔥 NOVA FUNÇÃO: REABASTECE TODA A MÃO (Draw System)
+    window.comprarCartasAteLimite = function() {
+        if (!combatEngineAtivo) return;
+        let deckRef = meuBruxo.feitiçosEquipados;
+        if (!deckRef || deckRef.length === 0) return;
+
+        let comprouAlguma = false;
+        for (let i = 0; i < maoCombate.length; i++) {
+            // Se o slot da mão estiver vazio, compra do deck
+            if (maoCombate[i] === null) {
+                let novaCarta = deckRef[proximaCartaIndex];
+                
+                // Evita colocar na mão uma carta que já lá esteja (opcional, para rotação limpa)
+                if (!maoCombate.includes(novaCarta)) {
+                    maoCombate[i] = novaCarta;
+                    proximaCartaIndex = (proximaCartaIndex + 1) % deckRef.length;
+                    comprouAlguma = true;
+                }
+            }
+        }
+        if(comprouAlguma) {
+            renderizarCartasActionHog();
+            playSFX('click');
+        }
+    };
+
+    window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
+        // Verifica se o slot clicado tem uma carta e se há mana
+        if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
+        
+        const feitico = servidorGlobal.livroDeFeiticos[sid];
+        if (!feitico) return;
+
+        playSFX('magic');
+        arenaMana -= cMana;
+        
+        // 1. DESCARTA A CARTA USADA IMEDIATAMENTE
+        maoCombate[slotIndex] = null; 
+        renderizarCartasActionHog(); 
+
+        // 2. AGENDA A COMPRA DE NOVAS CARTAS PARA PREENCHER A MÃO (1s de delay)
+        setTimeout(() => {
+            window.comprarCartasAteLimite();
+        }, 1000);
+
+        // --- EXECUÇÃO VISUAL DO FEITIÇO (ORIGINAL) ---
+        playerHitbox.atkTimer = 1.0; 
+        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
+        const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff' };
+        let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40}; 
+        let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+
+        if (mecanica === 'escudo' || mecanica === 'defesa') {
+            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
+            playerHitbox.mode = 'protego'; playerHitbox.timer = 1200; 
+            processarImpactoNoServidor("protego_block_reflex", true); 
+        } else if (mecanica === 'cura') {
+            processarImpactoNoServidor(sid, false); 
+        } else {
+            socket.emit('multiplayer_spell', { instId: combatInstId, cor: cfg.color, shooterId: meuBruxo.id, feiticoId: sid });
+            let qt = cfg.quantity || 1;
+            for(let i = 0; i < qt; i++) {
+                setTimeout(() => {
+                    projeteis.push({ x: corePlayerOffs.x, y: corePlayerOffs.y, speed: cfg.speed || 25, pBoss: false, scale: 15, cor: cfg.color, shape: cfg.shape, idFeiticoSalvo: sid });
+                }, i * 80);
+            }
+        }
+    };
     
     window.fugirCombate = async function() { 
         playSFX('error'); combatEngineAtivo = false; clearInterval(arenaLoop); 
@@ -4331,8 +4410,7 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
    // ==============================================================================
     // 🎨 MOTOR DE EFEITOS VISUAIS E IMPACTOS (VERSÃO OTIMIZADA A 60 FPS)
     // ==============================================================================
-    
-    let arenaOndasEspeciais = []; // Fila leve de efeitos
+let arenaOndasEspeciais = []; // Fila leve de efeitos
 
     window.criarImpactoEspecial = function(x, y, cor, tipo) {
         arenaOndasEspeciais.push({ x, y, cor, tipo, radius: 5, timer: 0 });
@@ -4342,10 +4420,9 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         arenaOndasEspeciais.push({ x, y, cor, tipo: 'shockwave', radius: 10, timer: 0 });
     };
 
-    // (O resto do gerarSparksEmCombate fica igualzinho como estava)
     window.gerarSparksEmCombate = function(x, y, corX, qty, style = 'sparks') { 
         let isMobile = window.innerWidth <= 768; 
-        let maxQty = isMobile ? Math.floor(qty/3) : qty; // Protege telemóveis de lag
+        let maxQty = isMobile ? Math.floor(qty/3) : qty; 
         for(let u = 0; u < maxQty; u++) {
             let angulo = Math.random() * Math.PI * 2; 
             let forca = Math.random() * 15 + 5; 
@@ -4354,20 +4431,10 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
                 l: 1.2, c: corX, style: style 
             }); 
         }
-    };window.gerarSparksEmCombate = function(x, y, corX, qty, style = 'sparks') { 
-        let isMobile = window.innerWidth <= 768; 
-        let maxQty = isMobile ? Math.floor(qty/3) : qty; 
-        for(let u = 0; u < maxQty; u++) {
-            let angulo = Math.random() * Math.PI * 2; 
-            let forca = Math.random() * 15 + 5; 
-            effectParticles.push({
-                x: x, y: y, vx: Math.cos(angulo) * forca, vy: Math.sin(angulo) * forca, 
-                l: 1.2, c: corX, style: style 
-            }); 
-        }
-    };
+    };
 
-  window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
+    // 🔥 AQUI COMEÇA A FUNÇÃO DO DECK E COMBATE QUE ESTAVA A FALTAR O INÍCIO!
+    window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
         if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
         
         const feitico = servidorGlobal.livroDeFeiticos[sid];
@@ -4378,25 +4445,11 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
         
         // --- 🃏 LÓGICA DE DESCARTE E COMPRA ---
-        // 1. Remove a carta da mão imediatamente
         maoCombate[slotIndex] = null; 
         renderizarCartasActionHog(); 
 
-        // 2. Espera 1 segundo para "comprar" a próxima carta do Deck (Rotação)
         setTimeout(() => {
-            if (!combatEngineAtivo) return; // Segurança se o combate acabar
-            
-            // Pega o próximo feitiço do deck de 6
-            let deckRef = meuBruxo.feitiçosEquipados;
-            let novaCarta = deckRef[proximaCartaIndex];
-            
-            // Avança o ponteiro circularmente
-            proximaCartaIndex = (proximaCartaIndex + 1) % deckRef.length;
-            
-            // Coloca no slot e redesenha
-            maoCombate[slotIndex] = novaCarta;
-            renderizarCartasActionHog();
-            playSFX('click');
+            window.comprarCartasAteLimite();
         }, 1000);
 
         // --- RESTO DA LÓGICA DE ATAQUE VISUAL E FÍSICA COMPLETA ---
@@ -4472,6 +4525,7 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
             }
         }
     };
+	
     window.runTickArenaMatematica_E_Desenhar = function() {
     if(!combatEngineAtivo) return;
 
