@@ -801,8 +801,8 @@
 <div id="modal-recompensa" class="modal-recompensa-bg oculto">
     <h2 style="color:var(--ouro); margin-top:0; font-size:1.8em; text-shadow:0 0 10px var(--ouro);">✨ Recompensa!</h2>
     <div id="recompensa-conteudo" style="font-size:1.1em; color:#fff; margin:15px 0; width:100%;"></div>
-    <button onclick="document.getElementById('modal-recompensa').classList.add('oculto')" style="width:80%; background:#2ecc71; color:#fff; border-color:#2ecc71;">Guardar no Baú</button>
-</div>
+   <button onclick="fecharRecompensaESair()" style="width:80%; background:#2ecc71; color:#fff; border-color:#2ecc71; padding:15px; font-size:1.1em; font-weight:bold;">Guardar no Baú e Sair</button>
+   </div>
 <div id="toast-container"></div>
 <button id="btn-abrir-admin" onclick="document.getElementById('painel-admin-deus').classList.remove('oculto')" class="oculto" style="position: fixed; top: 120px; left: 10px; z-index: 999999; background: linear-gradient(to bottom, #8a0b0c, #4a0000); color: #fff; border: 2px solid #f1c40f; border-radius: 5px; width: auto; padding: 8px 15px; font-weight: bold; box-shadow: 0 0 15px rgba(231,76,60,0.8); font-family: 'Cinzel', serif;">
     👁️ Modo Deus
@@ -1568,13 +1568,18 @@
                 <div id="perfil-conteudo-dormitorio"></div>
                 
                 <div style="margin-top:25px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.1); text-align:center; display:flex; flex-direction:column; gap:12px;">
+                    <!-- 🔥 NOVO BOTÃO DE DORMIR (SURVIVAL) -->
+                    <button onclick="acaoRoleplay('dormir')" style="background:linear-gradient(to bottom, #2980b9, #1c2833); color:#fff; border-color:#3498db; padding:15px; font-size:1.1em; font-weight:bold; box-shadow:0 0 15px rgba(52,152,219,0.3);">
+                        🛌 Dormir na Cama (Recupera Sono e HP)
+                    </button>
+                    
                     <button onclick="pedirTituloIA()" style="background:linear-gradient(to bottom, #112a20, #0a1e12); color:#2ecc71; border-color:#2ecc71; padding:15px; font-size:1.05em;">🔮 Reivindicar Honraria ao Ministério</button>
                     <button onclick="abrirAlbumSapos()" style="background:linear-gradient(to bottom, #5c442c, #3a2f24); color:var(--hp-gold); border-color:var(--hp-gold); padding:15px; font-size:1.05em; box-shadow:0 0 10px rgba(212,175,55,0.2);">🐸 Inspecionar Álbum de Bruxos Célebres</button>
                     <button onclick="fazerLogout()" style="background:#4a0000; color:#ff9999; border-color:#e74c3c; padding:15px; margin-top:10px;">🚪 Abandonar Hogwarts (Sair da Conta)</button>
                 </div>
             </div>
         </div>
-
+		
         <div id="aba-baile" class="aba oculto">
             <div class="card" style="border-color:#ff00ff; background:rgba(255, 0, 255, 0.05); text-align:center;">
                 <h3 style="color:#ff00ff; font-size:1.8em;">O Salão Encantado</h3>
@@ -8371,36 +8376,41 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
             };
         },
 
-        init: function() {
-            this.cvs = document.getElementById('mapa-beco-canvas');
+        init: function(forcarRespawn = false) {
+            // 🔥 CORREÇÃO: Lê a canvas correta do Mundo Aberto e não a do Beco Diagonal
+            this.cvs = document.getElementById('mmo-world-canvas');
             if(!this.cvs) return;
             this.ctx = this.cvs.getContext('2d');
             
-            const rect = document.getElementById('mapa-container').getBoundingClientRect();
+            const rect = document.getElementById('mmo-world-container').getBoundingClientRect();
             this.cvs.width = rect.width;
             this.cvs.height = rect.height;
             this.vw = this.cvs.width;
             this.vh = this.cvs.height;
 
             if (!this.inicializado) {
-                this.player.x = 200; this.player.y = 220; 
                 this.particulas = [];
-                for(let i=0; i<60; i++) this.particulas.push({x: Math.random()*this.mapW, y: 150+Math.random()*150, vx: Math.random()*0.5-0.25, s: Math.random()*30+20 });
-
                 this.chaoPedras = [];
-                for(let i=0; i<this.mapW; i+=40) {
-                    for(let j=140; j<310; j+=20) {
-                        if(Math.random() < 0.15) this.chaoPedras.push({x: i + (j%40), y: j});
-                    }
-                }
-
                 this.setupControls();
+                this.construirMundo(); 
                 this.inicializado = true;
             }
+            
+            // 🔥 PREVENÇÃO: Se a zona do jogador for bugada, puxa para o Pátio
+            if (!this.mapas[zonaAtual]) {
+                zonaAtual = "Pátio";
+                safeSet('ui-zona-nome', zonaAtual);
+            }
 
-            // 🔥 CORREÇÃO: A linha 'this.construirMundo()' foi removida daqui!
+            let mapConfig = this.mapas[zonaAtual];
 
-            if(mapLoop) cancelAnimationFrame(mapLoop);
+            // Respawn no local da porta de onde o jogador veio (ou centro)
+            if (forcarRespawn || this.player.x === 0) {
+                this.player.x = mapConfig.startX || 500;
+                this.player.y = mapConfig.startY || 500;
+            }
+
+            if(this.loop) cancelAnimationFrame(this.loop);
             this.tick();
         },
 
@@ -9214,6 +9224,27 @@ window.enviarComandoDeus = function(acao) {
     mostrarNotificacao(`Ordem divina '${acao.toUpperCase()}' enviada ao servidor!`, "sucesso");
     playSFX('magic');
 };
+// 🔥 FORÇA O FECHO DA ARENA QUANDO O JOGADOR CLICA "GUARDAR NO BAÚ"
+    window.fecharRecompensaESair = function() {
+        playSFX('click');
+        document.getElementById('modal-recompensa').classList.add('oculto');
+        
+        // Desliga a arena instantaneamente
+        combatEngineAtivo = false; 
+        isPvP = false;
+        clearInterval(arenaLoop);
+        
+        document.getElementById('arena-acao').classList.add('oculto');
+        
+        if (currentForestInstId) {
+            document.getElementById('forest-map-container').classList.remove('oculto');
+        } else {
+            const navContainer = document.querySelector('.main-nav-container');
+            if(navContainer) navContainer.classList.remove('oculto');
+            mudarCategoria('explorar'); 
+        }
+        syncRequest();
+    };
 </script>
 </body>
 </html>

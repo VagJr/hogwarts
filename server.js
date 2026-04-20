@@ -126,22 +126,18 @@ async function inicializarServidor() {
         core.lojasBeco.floreios.push({ id: `l_${idCounter++}`, nome: `${mat.l} (Ano 1)`, tipo: "livro", preco: 25 });
     }
 
-    // =====================================================================
-    // 🔥 4. NOVO SISTEMA DE SALVAMENTO (DEBOUNCE + GRACEFUL SHUTDOWN)
+   // =====================================================================
+    // 🔥 4. NOVO SISTEMA DE SALVAMENTO (BLINDADO PARA O RENDER FREE TIER)
     // =====================================================================
     let precisaSalvar = false;
     let salvandoAgora = false;
 
-    // Sempre que o jogo pedir para salvar, apenas sinalizamos que é necessário.
-    // Isto impede que o servidor seja bombardeado com centenas de pedidos ao MongoDB.
-    core._salvarUrgente = () => {
-        precisaSalvar = true; 
-    };
+    core._salvarUrgente = () => { precisaSalvar = true; };
     core._salvarBancoDeDados = () => { core._salvarUrgente(); };
 
     // Loop em background: Salva a cada 5 segundos SE houver alterações
     setInterval(async () => {
-        if (!precisaSalvar || salvandoAgora) return;
+        if (!precisaSalvar || salvandoAgora || !core.collection) return;
         salvandoAgora = true;
         precisaSalvar = false; // Reset da flag
 
@@ -154,42 +150,52 @@ async function inicializarServidor() {
             livroDeFeiticos: core.livroDeFeiticos
         };
         
-        if (core.collection) {
-            try {
-                await core.collection.updateOne(
-                    { _id: 'MATRIZ_HOGWARTS' }, 
-                    { $set: data }, 
-                    { upsert: true }
-                );
-            } catch(e) { 
-                console.error("❌ ERRO AO SALVAR NO MONGODB:", e.message); 
-                precisaSalvar = true; // Tenta de novo no próximo ciclo
-            }
+        try {
+            await core.collection.updateOne(
+                { _id: 'MATRIZ_HOGWARTS' }, 
+                { $set: data }, 
+                { upsert: true }
+            );
+            console.log("💾 [AUTOSAVE] O progresso de Hogwarts foi gravado no Atlas de forma segura.");
+        } catch(e) { 
+            console.error("❌ ERRO AO SALVAR NO MONGODB:", e.message); 
+            precisaSalvar = true; // Tenta de novo no próximo ciclo para não perder dados!
         }
         salvandoAgora = false;
     }, 5000);
 
-    // 🔥 PREVENÇÃO CONTRA REINÍCIO DO RENDER (SIGTERM)
-    // O Render envia um sinal SIGTERM antes de desligar. Se não ouvirmos isto, o último progresso perde-se!
+    // 🔥 PREVENÇÃO CONTRA O "SONO" DO RENDER (SIGTERM / SHUTDOWN ABSOLUTO)
     const desligarServidorEmSeguranca = async () => {
-        console.log("⚠️ O Render ordenou o encerramento do Servidor! A forçar um último feitiço de gravação...");
-        if (core.collection && precisaSalvar) {
+        console.log("⚠️ O Render iniciou o protocolo de encerramento do Servidor! A gravar tudo no MongoDB Atlas...");
+        if (core.collection) {
             try {
+                // 🔥 GRAVAÇÃO INCONDICIONAL: Força a gravação ignorando a flag 'precisaSalvar'
                 await core.collection.updateOne(
                     { _id: 'MATRIZ_HOGWARTS' }, 
-                    { $set: { alunos: core.alunos, mercadoJogadores: core.mercadoJogadores, pontuacaoCasas: core.pontuacaoCasas, gremios: core.gremios, livroDeFeiticos: core.livroDeFeiticos } }, 
+                    { $set: { 
+                        alunos: core.alunos, 
+                        mercadoJogadores: core.mercadoJogadores, 
+                        pontuacaoCasas: core.pontuacaoCasas, 
+                        gremios: core.gremios, 
+                        livroDeFeiticos: core.livroDeFeiticos 
+                    } }, 
                     { upsert: true }
                 );
-                console.log("✅ Gravação de emergência bem sucedida! A desligar...");
-            } catch(e) { console.error("❌ Falha na gravação final:", e); }
+                console.log("✅ Gravação de emergência bem sucedida! Progresso salvo. A desligar...");
+            } catch(e) { console.error("❌ Falha crítica na gravação final:", e); }
         }
         process.exit(0);
     };
 
+    // Ouve os sinais de encerramento do Render
     process.on('SIGTERM', desligarServidorEmSeguranca);
     process.on('SIGINT', desligarServidorEmSeguranca);
-
-  
+    
+    // Evita que o servidor morra sem salvar se der um crash no JavaScript
+    process.on('uncaughtException', async (err) => {
+        console.error("❌ CRASH CRÍTICO DO NODE DETETADO:", err);
+        await desligarServidorEmSeguranca();
+    });
 
     // =====================================================================
     // 🧙‍♂️ O MONGE ARQUIVISTA (MÁQUINA DE ESCREVER AUTOMATIZADA EM BACKGROUND)

@@ -1632,34 +1632,34 @@ class HogwartsCore {
         // Identifica exatamente qual capítulo deve ser lecionado hoje
         const capitulo = material.capitulos.find(c => c.cap === relogio.capituloAtual) || material.capitulos[0];
 
-        // 🔥 BLINDAGEM ANTI-BLOQUEIO (413): Cortamos o texto para o Professor não ler o livro inteiro de uma vez
-        // Ele lê os primeiros 1500 caracteres da Teoria e os primeiros 500 da Prática para preparar a aula.
-        const excertoTeoria = capitulo.teoria.substring(0, 1500);
-        const excertoPratica = capitulo.pratica.substring(0, 500);
+        // 🔥 BLINDAGEM ANTI-CRASH: Protege o sistema se o Monge ainda não tiver escrito a teoria!
+        const excertoTeoria = capitulo.teoria ? capitulo.teoria.substring(0, 1500) : "A teoria ainda está a ser redigida pelo Ministério da Magia.";
+        const excertoPratica = capitulo.pratica ? capitulo.pratica.substring(0, 500) : "Prática indefinida no momento.";
+        const perguntaDaAula = capitulo.pergunta ? capitulo.pergunta : "O que acham que vai acontecer quando o Ministério enviar os livros completos?";
 
         setTimeout(async () => {
             try {
-                // O Prompt Absoluto de Roleplay Académico
-                // O Prompt Absoluto de Roleplay Académico
+                // 🔥 O Prompt Absoluto de Roleplay Académico
                 const prompt = `És o Professor ${relogio.professorAtivo} de Hogwarts. Estás a dar aula de ${relogio.aulaAtiva} ao ${anoAtual}º Ano.
-                O livro oficial em cima da mesa dos alunos tem 4 Capítulos e chama-se: "${material.nomeLivro}".
-                O Capítulo selecionado para lecionares hoje é o Capítulo ${relogio.capituloAtual} - "${capitulo.titulo}".
-                Base da Matéria do Livro para te orientares: "${excertoTeoria}" e a prática é: "${excertoPratica}".
+                O livro oficial chama-se: "${material.nomeLivro}".
+                O Capítulo de hoje é o Capítulo ${relogio.capituloAtual} - "${capitulo.titulo}".
+                Excerto do Livro: "${excertoTeoria}" e Prática: "${excertoPratica}".
 
-                A TUA TAREFA (Nesta ordem estrita):
-                1. Cumprimenta a turma com a tua personalidade. Informa-os que hoje irão estudar o Capítulo ${relogio.capituloAtual}.
-                2. Explica a matéria baseando-te no texto do livro. Sê imersivo, como um professor a discursar.
-                3. Passa uma LIÇÃO DE CASA baseada na matéria.
-                4. Termina a tua fala a fazer ESTRITAMENTE esta pergunta à turma para eles debaterem no chat: "${capitulo.pergunta}".
+                A TUA TAREFA:
+                1. Cumprimenta a turma com a tua personalidade (sê o ${relogio.professorAtivo}).
+                2. Se o excerto disser que a teoria está a ser redigida, inventa uma desculpa maravilhosa, sarcástica ou excêntrica (baseado na tua personalidade) sobre o porquê de o livro não estar pronto e ensina um pequeno facto mágico inventado por ti. Caso contrário, explica a matéria do livro de forma imersiva.
+                3. Passa um pequeno TPC (Trabalho de Casa).
+                4. Termina ESTRITAMENTE a fazer esta pergunta à turma: "${perguntaDaAula}".
 
-                NADA DE JSON. Apenas o teu discurso puro, direto e imersivo.`;
+                NADA DE JSON. Apenas o teu discurso puro. O texto deve ter no máximo 3 parágrafos.`;
+                
                 const iaRes = await this.cerebroIA.groq.chat.completions.create({
                     messages: [
                         { role: "system", content: "És um professor exigente de Hogwarts. As tuas aulas são rigorosas, imersivas e segues sempre o manual escolar." },
                         { role: "user", content: prompt }
                     ],
-                    model: "llama-3.1-8b-instant", // Rápido, inteligente e poupa os teus limites
-                    max_tokens: 1000 // Garante que a resposta cabe no chat sem dar erro de TPM
+                    model: "llama-3.1-8b-instant", 
+                    max_tokens: 1000 
                 });
                 
                 global.io.to('sala_de_aula').emit('nova_mensagem', { 
@@ -3116,18 +3116,45 @@ a.siclos += 5; // Bonus pro Last Hit
             if (a.estadoJogo !== "CASTELO") continue;
             
             if(Math.random() < 0.05) { a.fome -= 1; a.energia -= 1; }
-			// 🔥 NOVO: Ciclo de vida do Pet (Tamagotchi)
+            
+            // Ciclo de vida do Pet (Tamagotchi)
             if (a.pet && a.pet.adotado) {
                 if (Math.random() < 0.15) { 
                     a.pet.fome = Math.max(0, a.pet.fome - 1); 
                     a.pet.felicidade = Math.max(0, a.pet.felicidade - 1); 
                 }
             }
-            if(a.fome < 0) a.fome = 0; if(a.energia < 0) a.energia = 0;
+            
+            if(a.fome < 0) a.fome = 0; 
+            if(a.energia < 0) a.energia = 0;
 
-            if(Math.random() < 0.05) { 
-                if (a.focoAtual < a.maxFoco) a.focoAtual += 1;
-                if (a.hpAtual < a.hpMax) a.hpAtual += Math.floor(a.hpMax * 0.05); 
+            // 🔥 SISTEMA DE SURVIVAL: Consequências da Fome e Sono Zerados
+            if (a.fome === 0 || a.energia === 0) {
+                // Se estiver com fome ou sem dormir, perde vida e foco constantemente
+                a.hpAtual -= Math.floor(a.hpMax * 0.03); // Perde 3% da vida por tick
+                a.focoAtual = Math.max(0, a.focoAtual - 1); // Perde o foco
+                
+                // Se a vida zerar por fome/exaustão, o jogador desmaia
+                if (a.hpAtual <= 0) {
+                    a.hpAtual = 10; // Salvo pelo Filch
+                    a.fome = 50; // Acorda com metade da fome
+                    a.energia = 50; 
+                    a.galeoes = Math.max(0, a.galeoes - 20); // Paga taxa médica
+                    a.estadoJogo = 'CASTELO';
+                    a.zonaAtual = 'Salão Principal'; // Renasce no Salão
+                    
+                    if (global.io) {
+                        global.io.to(`priv_${a.id}`).emit('nova_mensagem', { 
+                            canal: 'zona', autor: 'SISTEMA', texto: `🚑 Desmaiaste de exaustão e fome! Foste resgatado e acordaste na Ala Hospitalar (Perdeste 20 G).` 
+                        });
+                    }
+                }
+            } else {
+                // Regeneração normal (Só ocorre se o jogador estiver alimentado e descansado)
+                if(Math.random() < 0.05) { 
+                    if (a.focoAtual < a.maxFoco) a.focoAtual += 1;
+                    if (a.hpAtual < a.hpMax) a.hpAtual += Math.floor(a.hpMax * 0.05); 
+                }
             }
         }
         
