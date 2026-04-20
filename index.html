@@ -3490,36 +3490,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
     // ==============================================================================
     // ARENA DE COMBATE
     // ==============================================================================
-    function atualizarHPUIVisual() {
-        document.getElementById('ca-player-hp').style.width = `${Math.max(0, (playerCurrentHp / meuBruxo.hpMax) * 100)}%`; 
-        safeSet('ca-player-hp-txt', `${Math.floor(playerCurrentHp)} / ${meuBruxo.hpMax}`);
-        document.getElementById('ca-boss-hp').style.width = `${Math.max(0, (bossCurrentHp / bossMaxHp) * 100)}%`; 
-        safeSet('ca-boss-hp-txt', `${Math.floor(bossCurrentHp)} / ${bossMaxHp}`);
-
-        // 🔥 RENDERIZA OS BUFFS DO JOGADOR EM TEMPO REAL
-        const iconesB = { 'espinhos': '🛡️ Espinhos', 'regeneracao': '💚 Regen', 'pressa': '⚡ Pressa' };
-        let htmlBuffs = "";
-        if (meuBruxo && meuBruxo.buffs && meuBruxo.buffs.length > 0) {
-            meuBruxo.buffs.forEach(b => {
-                htmlBuffs += `<span style="background:rgba(46,204,113,0.2); border: 1px solid #2ecc71; padding:2px 6px; border-radius:10px; color:#fff;">${iconesB[b.tipo] || b.tipo} (${b.duracao}t)</span>`;
-            });
-        }
-        safeSet('ca-player-buffs', htmlBuffs, true);
-
-        // 🔥 RENDERIZA OS DEBUFFS DO INIMIGO FOCADO EM TEMPO REAL
-        let alvoFocado = arenaInimigos.find(m => m.idx === alvoAtualIdx);
-        let htmlDebuffs = "";
-        const iconesD = { 'queimar': '🔥 Queima', 'sangrar': '🩸 Sangramento', 'envenenar': '🤢 Veneno', 'atordoar': '💫 Atordoado', 'congelado': '🧊 Congelado', 'desarmar': '⚔️🚫 Desarmado', 'vulneravel': '💔 Vulnerável', 'molhado': '💧 Molhado', 'anti_cura': '🚫 Anti-Cura' };
-
-        if (alvoFocado && alvoFocado.efeitos && alvoFocado.efeitos.length > 0) {
-            alvoFocado.efeitos.forEach(e => {
-                let corBg = (e.tipo === 'congelado' || e.tipo === 'molhado') ? 'rgba(52, 152, 219, 0.3)' : 'rgba(231, 76, 60, 0.3)';
-                let corBd = (e.tipo === 'congelado' || e.tipo === 'molhado') ? '#3498db' : '#e74c3c';
-                htmlDebuffs += `<span style="background:${corBg}; border: 1px solid ${corBd}; padding:2px 6px; border-radius:10px; color:#fff;">${iconesD[e.tipo] || e.tipo} (${e.duracao}t)</span>`;
-            });
-        }
-        safeSet('ca-boss-debuffs', htmlDebuffs, true);
-    }
+    
     // Atualizar UI de Progresso no Sync
 
 
@@ -4444,29 +4415,34 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
                 effectParticles.push({ x: pj.x, y: pj.y, vx: -pj.speed*0.2 + Math.random()*4-2, vy: Math.random()*4-2, l: 1.0, c: pj.cor, style: pj.pStyle });
             }
             
-            // Colisões e Animação de "Tomar Dano" (Hurt)
+// Colisões e Animação de "Tomar Dano" (Hurt)
             if (pj.pBoss && pj.x < playerHitbox.x + 40) {
+                 // 🔥 SE A MAGIA BATER EM MIM (Inimigo atirou)
                  if (playerHitbox.mode==='protego') { 
                     gerarSparksEmCombate(playerHitbox.x+50, pj.y, "#3498db", 60); 
                     criarImpactoEspecial(playerHitbox.x+50, pj.y, "#3498db", 'nova'); 
-                    processarImpactoNoServidor("protego_block_reflex", true); playSFX('click');
+                    playSFX('click');
+                    // IMPORTANTE: NÃO ENVIA NADA PRO SERVIDOR AQUI (Evita duplicar)
                  } else { 
-                    // 🔥 CORREÇÃO 3: Ativa a animação de tomar dano no Anime Wizard
                     playerHitbox.mode = 'hurt';
                     playerHitbox.timer = 300; 
-
-                    document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300); playSFX('error');
+                    document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300); 
+                    playSFX('error');
                     gerarSparksEmCombate(playerHitbox.x+20, pj.y, "#e74c3c", 80, 'blood'); 
                     criarImpactoEspecial(playerHitbox.x+20, pj.y, "#e74c3c", 'shatter'); 
-                    playerCurrentHp -= Math.floor(bossMaxHp * 0.08); if(playerCurrentHp < 0) playerCurrentHp = 0; atualizarHPUIVisual();
-                    if(playerCurrentHp <= 0) { mostrarNotificacao(`Foste Derrotado.`, "erro"); finalizarArena(false); } else { processarImpactoNoServidor("dano_recebido", false); }
+                    // IMPORTANTE: NÃO TIRA VIDA NEM ENVIA AO SERVIDOR AQUI. 
+                    // O HP Sincroniza pelo Socket 'pvp_update' do Atacante!
                  }
                  projeteis.splice(idx,1); continue;
             } 
             else if (!pj.pBoss && (pj.x > alvoDistX - 40 || (pj.shape === 'meteor' && pj.y >= pj.ty))) { 
+                 // 🔥 SE A MINHA MAGIA BATER NO INIMIGO
                  gerarSparksEmCombate(pj.x, pj.y, pj.cor, pj.shape==='meteor'?150:80, pj.pStyle); 
                  criarImpactoEspecial(pj.x, pj.y, pj.cor, pj.impact); 
+                 
+                 // SÓ O ATIRADOR ENVIA A INFORMAÇÃO DE IMPACTO PARA O SERVIDOR CALCULAR O DANO!
                  if(!pj.aliado) { processarImpactoNoServidor(pj.idFeiticoSalvo, false); }
+                 
                  projeteis.splice(idx, 1); playSFX('click');
                  if(pj.shape === 'meteor') { document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 400); }
             }
@@ -5798,31 +5774,71 @@ socket.on('pvp_start', (dados) => {
 });
 
 // ESTE SOCKET GARANTE QUE A TUA TELA E A DO INIMIGO ATUALIZAM A VIDA SIMULTANEAMENTE!
-socket.on('pvp_update', (dados) => {
-    if(!combatEngineAtivo) return;
-    playerCurrentHp = dados.meuHp;
-    bossCurrentHp = dados.inimigoHp;
-    atualizarHPUIVisual();
-    
-    if (arenaInimigoPvP) {
-                // Diminui o timer do escudo se existir
-                if (arenaInimigoPvP.timer > 0) arenaInimigoPvP.timer -= 16;
-                
-                drawAnimeWizard(ctxCombat, arenaInimigoPvP.combatX, arenaInimigoPvP.combatY, 0.5, atTick, arenaInimigoPvP.atkProgress, '#e74c3c', true, arenaInimigoPvP.equipamentos, arenaInimigoPvP.casa);
+// ESTE SOCKET GARANTE QUE A TUA TELA E A DO INIMIGO ATUALIZAM A VIDA E STATUS SIMULTANEAMENTE!
+    socket.on('pvp_update', (dados) => {
+        if(!combatEngineAtivo) return;
+        playerCurrentHp = dados.meuHp;
+        bossCurrentHp = dados.inimigoHp;
+        
+        // 1. Atualiza as tuas próprias passivas (Desarmado, Protego, etc)
+        meuBruxo.efeitos = dados.meusEfeitos || [];
+        meuBruxo.buffs = dados.meusBuffs || [];
 
-                // 🔥 DESENHA O ESCUDO DO INIMIGO PVP
-                if (arenaInimigoPvP.mode === 'protego' && arenaInimigoPvP.timer > 0) {
-                    ctxCombat.beginPath();
-                    ctxCombat.arc(arenaInimigoPvP.combatX - 20, arenaInimigoPvP.combatY - 30, 45, 0, Math.PI * 2);
-                    ctxCombat.fillStyle = "rgba(100, 200, 255, 0.15)";
-                    ctxCombat.fill();
-                    ctxCombat.strokeStyle = "rgba(100, 200, 255, 0.8)";
-                    ctxCombat.lineWidth = 2;
-                    ctxCombat.stroke();
-                }
+        // 2. Atualiza os debuffs do Inimigo no PvP
+        if (arenaInimigoPvP) {
+            arenaInimigoPvP.efeitos = dados.inimigoEfeitos || [];
+            arenaInimigoPvP.buffs = dados.inimigoBuffs || [];
+
+            // 🔥 SE O INIMIGO TEM O BUFF DO PROTEGO ATIVO, DESENHA-LHE A BOLHA AZUL!
+            let inimigoComEscudo = arenaInimigoPvP.buffs.some(b => b.tipo === 'espinhos');
+            if (inimigoComEscudo) {
+                arenaInimigoPvP.mode = 'protego';
+                arenaInimigoPvP.timer = 1200; // Mantém a bolha viva enquanto tiver o buff
             }
-		});	
+        }
+        
+        atualizarHPUIVisual();
+    });
 
+    function atualizarHPUIVisual() {
+        document.getElementById('ca-player-hp').style.width = `${Math.max(0, (playerCurrentHp / meuBruxo.hpMax) * 100)}%`; 
+        safeSet('ca-player-hp-txt', `${Math.floor(playerCurrentHp)} / ${meuBruxo.hpMax}`);
+        document.getElementById('ca-boss-hp').style.width = `${Math.max(0, (bossCurrentHp / bossMaxHp) * 100)}%`; 
+        safeSet('ca-boss-hp-txt', `${Math.floor(bossCurrentHp)} / ${bossMaxHp}`);
+
+        // 🔥 RENDERIZA OS TEUS BUFFS & DEBUFFS EM TEMPO REAL
+        const iconesB = { 'espinhos': '🛡️ Protego', 'regeneracao': '💚 Regen', 'pressa': '⚡ Pressa' };
+        const iconesD = { 'queimar': '🔥 Fogo', 'sangrar': '🩸 Sangramento', 'envenenar': '🤢 Veneno', 'atordoar': '💫 Stun', 'congelado': '🧊 Gelo', 'desarmar': '⚔️🚫 Desarmado', 'vulneravel': '💔 Frágil' };
+        
+        let htmlBuffsMeus = "";
+        if (meuBruxo.buffs) {
+            meuBruxo.buffs.forEach(b => htmlBuffsMeus += `<span style="background:rgba(46,204,113,0.3); border: 1px solid #2ecc71; padding:2px 6px; border-radius:10px; color:#fff;">${iconesB[b.tipo] || b.tipo}</span>`);
+        }
+        if (meuBruxo.efeitos) {
+            meuBruxo.efeitos.forEach(e => htmlBuffsMeus += `<span style="background:rgba(231,76,60,0.3); border: 1px solid #e74c3c; padding:2px 6px; border-radius:10px; color:#fff;">${iconesD[e.tipo] || e.tipo}</span>`);
+        }
+        safeSet('ca-player-buffs', htmlBuffsMeus, true);
+
+        // 🔥 RENDERIZA OS DEBUFFS/BUFFS DO INIMIGO FOCADO OU DO JOGADOR ADVERSÁRIO (PVP)
+        let alvoFocado = arenaInimigos.find(m => m.idx === alvoAtualIdx);
+        let htmlStatusInimigo = "";
+        
+        // Decide se vai ler do monstro (PvE) ou do jogador adversário (PvP)
+        let arrayEfeitosAlvo = alvoFocado ? (alvoFocado.efeitos || []) : (arenaInimigoPvP ? arenaInimigoPvP.efeitos || [] : []);
+        let arrayBuffsAlvo = arenaInimigoPvP ? arenaInimigoPvP.buffs || [] : []; // Monstros ainda não têm buffs no teu código base
+
+        arrayEfeitosAlvo.forEach(e => {
+            let corBg = (e.tipo === 'congelado') ? 'rgba(52, 152, 219, 0.3)' : 'rgba(231, 76, 60, 0.3)';
+            let corBd = (e.tipo === 'congelado') ? '#3498db' : '#e74c3c';
+            htmlStatusInimigo += `<span style="background:${corBg}; border: 1px solid ${corBd}; padding:2px 6px; border-radius:10px; color:#fff;">${iconesD[e.tipo] || e.tipo} (${e.duracao}t)</span>`;
+        });
+
+        arrayBuffsAlvo.forEach(b => {
+            htmlStatusInimigo += `<span style="background:rgba(46,204,113,0.3); border: 1px solid #2ecc71; padding:2px 6px; border-radius:10px; color:#fff;">${iconesB[b.tipo] || b.tipo}</span>`;
+        });
+
+        safeSet('ca-boss-debuffs', htmlStatusInimigo, true);
+    }
 socket.on('pvp_fim', (dados) => {
     mostrarNotificacao(dados.msg, "info");
     finalizarArena(true); // Termina as animações e expulsa da tela

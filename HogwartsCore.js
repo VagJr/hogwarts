@@ -2935,6 +2935,9 @@ a.siclos += 5; // Bonus pro Last Hit
         }
 	}
 
+    // ====================================================================
+    // 🔥 MOTOR DE PVP ABSOLUTO (DANO, ESCUDOS, CURAS E STATUS EFFECTS)
+    // ====================================================================
     processarAcaoPvP(atacanteId, instId, feiticoId, ioGlobal) {
         const partida = this.pvpPartidas[instId];
         if (!partida || partida.status !== 'jogando') return { erro: "Duelo finalizado ou não existe." };
@@ -2944,67 +2947,107 @@ a.siclos += 5; // Bonus pro Last Hit
         const inimigo = isP1 ? partida.p2 : partida.p1;
         const aEu = this.alunos[eu.id];
         
-        let dano = 0;
-        let hpCurado = 0;
+        // Garante que os arrays de estado (Buffs e Debuffs) existem nesta partida
+        if(!eu.efeitos) eu.efeitos = []; if(!inimigo.efeitos) inimigo.efeitos = [];
+        if(!eu.buffs) eu.buffs = []; if(!inimigo.buffs) inimigo.buffs = [];
+
+        // 1. DRENO DE DOTs (Queimar, Sangrar, Veneno)
+        let danoDoT = 0;
+        eu.efeitos.forEach(e => {
+            if (e.tipo === 'queimar') danoDoT += 45;
+            if (e.tipo === 'sangrar') danoDoT += 60;
+            if (e.tipo === 'envenenar') danoDoT += 80;
+            e.duracao--;
+        });
+        eu.efeitos = eu.efeitos.filter(e => e.duracao > 0);
+        if (danoDoT > 0) eu.hpAtual -= danoDoT;
+
+        // 2. VERIFICA SE O JOGADOR ESTÁ INCAPACITADO (Expelliarmus, Stupefy)
+        let incapacitado = eu.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+        if (incapacitado && feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
+            return { erro: "Estás sob efeito de controlo e não podes lançar magias!", hpJogador: eu.hpAtual };
+        }
+
+        let dano = 0; let hpCurado = 0; let relatoAcao = "Lançou magia.";
         
-        // Verifica a magia na base de dados do servidor
-        const f = this.livroDeFeiticos[feiticoId];
+        // Identifica o feitiço (Protego Block Reflex = Protego)
+        const fIdReal = feiticoId === "protego_block_reflex" ? "protego" : feiticoId;
+        const f = this.livroDeFeiticos[fIdReal];
         let mecanica = f ? (f.tipoMecanica || (f.defende ? 'escudo' : 'ataque')) : 'ataque';
 
-        // 🔥 O SEGREDO: O Servidor agora SABE que escudos e curas não dão dano!
-        if (feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
+        if (f && feiticoId !== "dano_recebido") {
+            // APLICA CURAS E BUFFS A MIM MESMO
+            if (mecanica === 'cura') {
+                hpCurado = (f.poderBase || 150) + ((aEu.atributosTotais.pocoes || 5) * 5);
+                eu.hpAtual = Math.min(eu.hpMax, eu.hpAtual + hpCurado);
+                if (f.purificar) eu.efeitos = []; // Limpa Debuffs
+                relatoAcao = `Curou ${hpCurado} HP.`;
+            }
+            if (f.buffJogador) {
+                let bExist = eu.buffs.find(b => b.tipo === f.buffJogador);
+                if(bExist) bExist.duracao = f.duracaoBuff || 3;
+                else eu.buffs.push({ tipo: f.buffJogador, duracao: f.duracaoBuff || 3 });
+            }
+
+            // APLICA DANO E STATUS AO INIMIGO
             if (mecanica === 'ataque' || mecanica === 'maldicao' || mecanica === 'status') {
-                dano = (f.poderBase || 50) + ((aEu.atributosTotais.feiticos || 5) * 5);
-            } else if (mecanica === 'cura') {
-                hpCurado = (f.poderBase || 50) + ((aEu.atributosTotais.pocoes || 5) * 5);
+                let dBase = (f.poderBase || 50) + ((aEu.atributosTotais.feiticos || 5) * 5);
+                
+                // Verifica Sinergias/Fraquezas do inimigo (Ex: Vulnerável)
+                if (inimigo.efeitos.some(e => e.tipo === 'vulneravel')) dBase *= 1.5;
+
+                // Verifica se o Inimigo tem ESCUDO ATIVO (Protego)
+                let inimigoTemEscudo = inimigo.buffs.some(b => b.tipo === 'espinhos');
+                if (inimigoTemEscudo) {
+                    dBase = Math.floor(dBase * 0.2); // Escudo bloqueia 80% do dano!
+                    eu.hpAtual -= Math.floor(dBase * 0.5); // Reflete um pouco de dano!
+                    relatoAcao = `O escudo do inimigo bloqueou o impacto!`;
+                }
+
+                dano = Math.floor(dBase);
+                if (dano > 0) inimigo.hpAtual -= dano;
+
+                // Aplica o Efeito de Estado no Inimigo (Desarmar, Congelar, etc)
+                if (f.efeitoSecundario && !inimigoTemEscudo) {
+                    let eExist = inimigo.efeitos.find(e => e.tipo === f.efeitoSecundario);
+                    if(eExist) eExist.duracao = f.duracao || 2;
+                    else inimigo.efeitos.push({ tipo: f.efeitoSecundario, duracao: f.duracao || 2 });
+                }
             }
         }
         
-        // Aplica o dano ao inimigo
-        if (dano > 0) {
-            inimigo.hpAtual -= dano;
-            if(inimigo.hpAtual < 0) inimigo.hpAtual = 0;
-        }
-
-        // Aplica a cura a ti mesmo
-        if (hpCurado > 0) {
-            eu.hpAtual = Math.min(eu.hpMax, eu.hpAtual + hpCurado);
-        }
+        // Garante limites de HP
+        if(inimigo.hpAtual < 0) inimigo.hpAtual = 0;
+        if(eu.hpAtual < 0) eu.hpAtual = 0;
         
-        // Avisa os ecrãs de AMBOS os jogadores sobre a nova vida
-        ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_update', { meuHp: inimigo.hpAtual, inimigoHp: eu.hpAtual });
-        ioGlobal.to(`priv_${eu.id}`).emit('pvp_update', { meuHp: eu.hpAtual, inimigoHp: inimigo.hpAtual });
+        // 🔥 AVISA A REDE DO NOVO ESTADO COM TODOS OS BUFFS E EFEITOS
+        ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_update', { meuHp: inimigo.hpAtual, meusEfeitos: inimigo.efeitos, meusBuffs: inimigo.buffs, inimigoHp: eu.hpAtual, inimigoEfeitos: eu.efeitos, inimigoBuffs: eu.buffs });
+        ioGlobal.to(`priv_${eu.id}`).emit('pvp_update', { meuHp: eu.hpAtual, meusEfeitos: eu.efeitos, meusBuffs: eu.buffs, inimigoHp: inimigo.hpAtual, inimigoEfeitos: inimigo.efeitos, inimigoBuffs: inimigo.buffs });
 
-        // Verifica se alguém morreu
-        if (inimigo.hpAtual <= 0) {
+        // Verifica Mortes
+        if (inimigo.hpAtual <= 0 || eu.hpAtual <= 0) {
             partida.status = 'finalizado';
-            const aInimigo = this.alunos[inimigo.id];
+            let vencedor = inimigo.hpAtual <= 0 ? eu : inimigo;
+            let perdedor = inimigo.hpAtual <= 0 ? inimigo : eu;
             
-            if(!aEu.elos) aEu.elos = { duelos: 1000 };
-            if(!aInimigo.elos) aInimigo.elos = { duelos: 1000 };
+            const aVenc = this.alunos[vencedor.id];
+            const aPerd = this.alunos[perdedor.id];
             
-            aEu.elos.duelos += 25; 
-            if(!aEu.estatisticas) aEu.estatisticas = { duelosVencidos: 0, monstrosMortos: 0 };
-            aEu.estatisticas.duelosVencidos++;
-            aInimigo.elos.duelos = Math.max(0, aInimigo.elos.duelos - 15);
+            aVenc.elos.duelos += 25; 
+            aVenc.estatisticas.duelosVencidos++;
+            aPerd.elos.duelos = Math.max(0, aPerd.elos.duelos - 15);
+            aVenc.galeoes += 50; 
+            this.ganharXp(aVenc, 500); 
             
-            aEu.galeoes += 50; 
-            this.ganharXp(aEu, 500); 
-            
-            ioGlobal.to(`priv_${eu.id}`).emit('pvp_fim', { msg: "🏆 Venceste o Duelo Mágico! (+25 ELO, +50G)" });
-            ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_fim', { msg: "💀 Foste derrotado no duelo! (-15 ELO)" });
+            ioGlobal.to(`priv_${vencedor.id}`).emit('pvp_fim', { msg: "🏆 Venceste o Duelo Mágico! (+25 ELO, +50G)" });
+            ioGlobal.to(`priv_${perdedor.id}`).emit('pvp_fim', { msg: "💀 Foste derrotado no duelo! (-15 ELO)" });
             
             delete this.pvpPartidas[instId];
             this._salvarBancoDeDados();
-
-            if (this.florestaEngine && partida.isForestInvade) {
-                this.florestaEngine.retornarDaBatalha(eu.id, true, true, partida.isForestInvade, partida.forestInstId, ioGlobal);
-                this.florestaEngine.retornarDaBatalha(inimigo.id, false, true, partida.isForestInvade, partida.forestInstId, ioGlobal);
-            }
-            return { sucesso: true, danoAplicado: dano, hpJogador: eu.hpAtual, pvpFim: true, relatoAcao: "Duelo Terminado!" }; 
+            return { sucesso: true, pvpFim: true }; 
         }
 
-        return { sucesso: true, danoAplicado: dano, hpJogador: eu.hpAtual }; 
+        return { sucesso: true, hpJogador: eu.hpAtual, relatoAcao }; 
     }
     tickServerGlobal() {
         const relogio = RelogioHogwarts.obterHorarioAtual();
