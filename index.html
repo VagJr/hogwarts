@@ -2609,7 +2609,7 @@ let arenaInimigos = []; // Array de inimigos
 
              if(dataBackend.erro) return;
 
-             // 🔥 JUICE: Mostra no ecrã se o Feitiço UPOU DE NÍVEL!
+             // JUICE: Level Up de Feitiços
              if(dataBackend.upouFeitico) {
                  playSFX('magic');
                  mostrarNotificacao(`🌟 Maestria Alcançada! [${dataBackend.nomeFeiticoUpado}] subiu para o Nível ${dataBackend.novoNivelFeitico}!`, "sucesso");
@@ -2617,32 +2617,39 @@ let arenaInimigos = []; // Array de inimigos
              }
 
              // ==========================================
-             // LÓGICA DE CURA INSTANTÂNEA
+             // 1. LÓGICA DE CURA PERFEITA E ISOLADA
              // ==========================================
              if(dataBackend.cura !== undefined && dataBackend.cura > 0) {
                  playerCurrentHp = dataBackend.hpJogador; 
-				 if(dataBackend.danoAplicado !== undefined && dataBackend.danoAplicado > 0) {
-                 let corDano = dataBackend.defendeu ? "#888" : "#fff";
-                 let txt = dataBackend.defendeu ? `🛡️ ${dataBackend.danoAplicado}` : `-${dataBackend.danoAplicado}`;
-                 spawnFloatingText(stateBossHitbox.x + (Math.random()*40-20), stateBossHitbox.y + (Math.random()*20-10), txt, corDano, dataBackend.defendeu ? "20px" : "30px");
-                 
-                 // Aplica o dano e Lifesteal à UI imediatamente
-                 bossCurrentHp = Math.max(0, bossCurrentHp - dataBackend.danoAplicado);
-                 if (dataBackend.hpJogador) playerCurrentHp = dataBackend.hpJogador;
-                 
-                 // 🔥 NOVA LINHA ADICIONADA: Recebe e aplica os buffs!
                  if (dataBackend.buffsJogador) meuBruxo.buffs = dataBackend.buffsJogador; 
                  
-                 atualizarHPUIVisual();
-             }
-              
-                 spawnFloatingText(playerHitbox.x + 40, playerHitbox.y - 50, `+${dataBackend.cura}`, "#2ecc71", "30px");
+                 atualizarHPUIVisual(); // Atualiza a barra verde imediatamente
+                 spawnFloatingText(playerHitbox.x + 40, playerHitbox.y - 50, `+${dataBackend.cura} HP`, "#2ecc71", "30px");
                  safeSet('ca-dungeon-info', dataBackend.relatoAcao); 
-                 return; 
+                 
+                 if (dataBackend.entidades) renderizarAlvos(dataBackend.entidades);
+                 return; // 🛑 Pára a função aqui. A cura não afeta a vida do monstro!
              }
 
-// ==========================================
-             // DANO E MORTE INSTANTÂNEA (SEM LAG)
+             // ==========================================
+             // 2. MECÂNICA DE INTERRUPÇÃO E PARRY (Desarme)
+             // ==========================================
+             if(dataBackend.interrompeu) {
+                 // Procura se o inimigo focado estava no meio da animação de ataque
+                 let tIdx = telegraficos.findIndex(t => t.idx === alvoAtualIdx);
+                 if (tIdx !== -1) {
+                     // SHATTER! Destrói a animação do inimigo em tempo real!
+                     criarImpactoEspecial(stateBossHitbox.x, stateBossHitbox.y, "#3498db", 'shatter');
+                     gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#f1c40f", 50, 'stars');
+                     spawnFloatingText(stateBossHitbox.x, stateBossHitbox.y - 60, "INTERROMPIDO!", "#f1c40f", "40px");
+                     
+                     telegraficos.splice(tIdx, 1); // Apaga o míssil antes de ele ser disparado
+                     playSFX('magic');
+                 }
+             }
+
+             // ==========================================
+             // 3. DANO E MORTE INSTANTÂNEA (SEM LAG)
              // ==========================================
              let inimigoMorreu = (dataBackend.novaFase || dataBackend.mobEliminado || dataBackend.bossMorto);
 
@@ -2651,106 +2658,28 @@ let arenaInimigos = []; // Array de inimigos
                  let txt = dataBackend.defendeu ? `🛡️ ${dataBackend.danoAplicado}` : `-${dataBackend.danoAplicado}`;
                  spawnFloatingText(stateBossHitbox.x + (Math.random()*40-20), stateBossHitbox.y + (Math.random()*20-10), txt, corDano, dataBackend.defendeu ? "20px" : "30px");
                  
-                 // Aplica o dano e Lifesteal à UI imediatamente
+                 // Aplica o dano à UI do Boss imediatamente
                  bossCurrentHp = Math.max(0, bossCurrentHp - dataBackend.danoAplicado);
-                 if (dataBackend.hpJogador) playerCurrentHp = dataBackend.hpJogador;
                  
+                 // Aplica efeitos de roubo de vida (Lifesteal) à tua UI
+                 if (dataBackend.hpJogador) playerCurrentHp = dataBackend.hpJogador;
                  if (dataBackend.buffsJogador) meuBruxo.buffs = dataBackend.buffsJogador; 
                  atualizarHPUIVisual();
 
-                 // 🔥 DESBLOQUEIO DO PVP: Aplica a vida a zeros e deixa o Socket pvp_fim fechar a tela
-                 if (dataBackend.pvpFim) {
-                     return; // Para aqui para não abrir a tela de Avaliação de Masmorra PVE
-                 }
+                 if (dataBackend.pvpFim) return; // Bloqueio de ecrã para o PvP
              }
 
              safeSet('ca-dungeon-info', dataBackend.relatoAcao); 
 
-             // Se o golpe foi fatal, remove a renderização do monstro instantaneamente!
+             // Se o golpe foi fatal, esconde o monstro na hora
              if(inimigoMorreu) {
                  bossCurrentHp = 0; atualizarHPUIVisual(); 
                  let alvoFocado = arenaInimigos.find(m => m.idx === alvoAtualIdx);
-                 if (alvoFocado) alvoFocado.vivo = false; // Deixa de desenhar no Canvas
+                 if (alvoFocado) alvoFocado.vivo = false; 
              }
 
-             // Atualiza os ÍCONES DE STATUS na interface!
+             // Atualiza os ícones de status (Fogo, Gelo, etc) em cima da cabeça
              if (dataBackend.entidades) renderizarAlvos(dataBackend.entidades);
-
-             // 1. MUDANÇA DE ONDA (FASE COMPLETA)
-             if(dataBackend.novaFase) {
-                 playSFX('magic'); 
-                 gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#fff", 150, "stars");
-                 spawnFloatingText(cvs.width/2, cvs.height/2, `FASE ${dataBackend.faseAtual}!`, "#f1c40f", "60px");
-                 faseAtualArena = dataBackend.faseAtual; 
-
-                 // Apenas pausa para a animação do monstro morto evaporar e depois puxa os novos
-                 setTimeout(() => {
-                     if(dataBackend.entidades) renderizarAlvos(dataBackend.entidades);
-                     safeSet('ca-boss-name', `Fase ${dataBackend.faseAtual}`);
-                     safeSet('ca-dungeon-info', `Nível de Ameaça: Fase ${dataBackend.faseAtual}`);
-                     const flash = document.getElementById('arena-flash');
-                     if(flash) { flash.classList.remove('flash-phase'); void flash.offsetWidth; flash.classList.add('flash-phase'); }
-                     syncRequest();
-                 }, 800);
-                 return;
-             }
-
-             // 2. UM DOS MONSTROS DA ONDA MORREU
-             if(dataBackend.mobEliminado) { 
-                 playSFX('click'); 
-                 gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#e74c3c", 100, "smoke");
-                 spawnFloatingText(stateBossHitbox.x, stateBossHitbox.y - 50, "ELIMINADO!", "#e74c3c", "35px");
-                 
-                 setTimeout(() => {
-                     if(dataBackend.entidades) {
-                         renderizarAlvos(dataBackend.entidades);
-                         let proximo = dataBackend.entidades.find(m => m.vivo);
-                         if(proximo) alvoAtualIdx = proximo.idx;
-                     }
-                 }, 300);
-                 return;
-             }
-
-             // 3. BOSS FINAL MORREU (FIM TOTAL)
-             // 3. BOSS FINAL MORREU (FIM TOTAL)
-             if(dataBackend.bossMorto) {
-                 gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#f1c40f", 200, "stars");
-                 document.getElementById('ca-boss-hp').style.width = `0%`; safeSet('ca-boss-hp-txt', "0");
-                 
-                 // 🔥 RENDERIZAÇÃO ESTILO JOGO DE LUTA (Devil May Cry / Persona)
-                 if (dataBackend.avaliacao) {
-                     const aval = dataBackend.avaliacao;
-                     document.getElementById('modal-recompensa').classList.remove('oculto');
-                     document.getElementById('recompensa-conteudo').innerHTML = `
-                        <div style="display:flex; flex-direction:column; align-items:center;">
-                            <h3 style="color:#2ecc71; margin-top:0;">Fenda Selada!</h3>
-                            <div style="background:rgba(0,0,0,0.8); border:2px solid ${aval.cor}; padding:20px; border-radius:10px; width:100%; text-align:center; box-shadow:0 0 40px ${aval.cor}55;">
-                                <div style="font-size:1.2em; color:#ccc; letter-spacing:2px;">RANK DE COMBATE</div>
-                                <div style="font-size:5em; font-family:'Cinzel'; font-weight:900; color:${aval.cor}; text-shadow:0 0 20px ${aval.cor}, 2px 2px 0px #000; line-height:1; margin:10px 0;">
-                                    ${aval.rank}
-                                </div>
-                                <div style="font-size:1.4em; color:${aval.cor}; font-weight:bold; text-transform:uppercase;">
-                                    <span style="font-size:0.8em; color:#fff;">ESTILO:</span> ${aval.titulo}
-                                </div>
-                            </div>
-                            
-                            <div style="margin-top:15px; font-size:0.8em; color:#aaa; font-family:monospace; background:rgba(255,255,255,0.05); padding:10px; border-radius:4px; width:100%;">
-                                <div style="color:#f1c40f;">Pontuação Tática: ${aval.score}</div>
-                                <div style="margin-top:5px;">${aval.detalhes}</div>
-                            </div>
-                            
-                            <div style="margin-top:15px; color:#3498db;">${dataBackend.relatoAcao}</div>
-                        </div>
-                     `;
-                 } else {
-                     // Fallback de segurança se o profiler estiver desligado nalguma instância
-                     document.getElementById('modal-recompensa').classList.remove('oculto');
-                     document.getElementById('recompensa-conteudo').innerHTML = `<h3 style="color:#2ecc71;">Área Limpa!</h3><p>${dataBackend.relatoAcao}</p>`;
-                 }
-
-                 playSFX('magic'); finalizarArena(true);
-                 return;
-             }
 
         } catch (e){ console.error("Erro no combate:", e); }
     };

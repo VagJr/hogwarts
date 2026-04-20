@@ -2492,9 +2492,16 @@ a.siclos += 5; // Bonus pro Last Hit
         else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; prof.explorouFraqueza++; prof.ccAplicado++; } 
         else if (feitico.elemento === 'cinetico' && alvoCongelado) { multiplicador += 2.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'congelado'); relatoAcao += "❄️ SHATTER! "; prof.explorouFraqueza++; }
 
-        // Rastreio de Crowd Control
+        // Rastreio de Crowd Control e INTERRUPÇÕES
+        let interrompeu = false; // 🔥 NOVA FLAG DE INTERRUPÇÃO
         if (feitico.efeitoSecundario) {
-            if (['atordoar', 'congelado', 'desarmar', 'vulneravel'].includes(feitico.efeitoSecundario)) prof.ccAplicado++;
+            if (['atordoar', 'congelado', 'desarmar', 'vulneravel'].includes(feitico.efeitoSecundario)) {
+                prof.ccAplicado++;
+                // Se for um feitiço de controlo rígido, quebra a guarda do inimigo!
+                if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) {
+                    interrompeu = true;
+                }
+            }
             let eExistente = mob.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
             if (eExistente) eExistente.duracao = feitico.duracao || 3;
             else mob.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: feitico.duracao || 3 });
@@ -2673,16 +2680,15 @@ a.siclos += 5; // Bonus pro Last Hit
                     if(global.io) global.io.to(inst.id).emit('mmo_boss_morto_coop', pDataBoss); // 🔥 AVISA A PARTY
 
                     return pDataBoss;
-                }
-           } else {
+}
+            } else {
                 this._salvarBancoDeDados();
                 let pDataMob = { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, atiradorId: atacanteId };
                 if(global.io) global.io.to(inst.id).emit('mmo_mob_morto_coop', pDataMob);
                 return pDataMob;
             }
         }
-        this._salvarBancoDeDados();
-        
+
         // 🔥 NOVO: AVISA A PARTY DO DANO RECEBIDO E SINCRONIZA HP (SEM DELAY)
         if(global.io) {
             global.io.to(inst.id).emit('mmo_combat_update', {
@@ -2690,9 +2696,16 @@ a.siclos += 5; // Bonus pro Last Hit
                 entidades: inst.entidades, // Envia o array de mobs atualizado
                 atacanteNome: a.nome
             });
-        }
+        } // <-- AQUI ESTAVA A FALTAR ESTA CHAVETA DE FECHO!
         
-        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: danoFinal, defendeu, relatoAcao, hpJogador: a.hpAtual, buffsJogador: a.buffs };
+        this._salvarBancoDeDados();
+        
+        return { 
+            bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, 
+            danoAplicado: danoFinal, defendeu, relatoAcao, hpJogador: a.hpAtual, 
+            buffsJogador: a.buffs, 
+            interrompeu // 🔥 Envia a informação para o ecrã do jogador!
+        };
     }
 	// ==========================================
 // RECEITAS DE FORJA (CRAFTING)
