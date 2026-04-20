@@ -4546,97 +4546,94 @@ let arenaOndasEspeciais = []; // Fila leve de efeitos
     };
 
     // 🔥 AQUI COMEÇA A FUNÇÃO DO DECK E COMBATE QUE ESTAVA A FALTAR O INÍCIO!
-    window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
-        if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
+   // ==============================================================================
+// 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO)
+// ==============================================================================
+window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
+    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
+    
+    const feitico = servidorGlobal.livroDeFeiticos[sid];
+    if (!feitico) return;
+
+    playSFX('magic');
+    arenaMana -= cMana;
+    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
+    
+    // --- LÓGICA DE DESCARTE E COMPRA ---
+    maoCombate[slotIndex] = null; 
+    renderizarCartasActionHog(); 
+    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
+
+    // --- CONFIGURAÇÃO DA ANIMAÇÃO E FÍSICA ---
+    playerHitbox.atkTimer = 1.0; 
+    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
+    
+    const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
+    
+    let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
+    let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+
+    // 🚀 O EMISSOR ABSOLUTO: Envia TUDO o que o ecrã do inimigo/aliado precisa saber.
+    // (Apenas UM emit no início da função!)
+    socket.emit('multiplayer_spell', { 
+        instId: combatInstId, 
+        mecanica: mecanica, 
+        feiticoId: sid,
+        shooterId: meuBruxo.id,
+        nome: meuBruxo.nome,
+        visualConfig: cfg // Envia as cores e shapes para o adversário!
+    });
+
+    // 1. SE FOR ESCUDO / DEFESA
+    if (mecanica === 'escudo' || mecanica === 'defesa') {
+        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
+        playerHitbox.mode = 'protego'; 
+        playerHitbox.timer = 1200; 
+        criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
+        processarImpactoNoServidor("protego_block_reflex", true); 
+    } 
+    // 2. SE FOR CURA
+    else if (mecanica === 'cura') {
+        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
+        criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
+        processarImpactoNoServidor(sid, false); 
+    } 
+    // 3. SE FOR ATAQUE OU STATUS
+    else {
+        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
+        let qt = cfg.quantity || 1;
+        let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
         
-        const feitico = servidorGlobal.livroDeFeiticos[sid];
-        if (!feitico) return;
+        for(let i = 0; i < qt; i++) {
+            setTimeout(() => {
+                let sX = corePlayerOffs.x;
+                let sY = corePlayerOffs.y + (Math.random()*40-20);
+                let tY = playerHitbox.y - 20;
+                let spX = cfg.speed || 25;
+                let spY = 0;
 
-        playSFX('magic');
-        arenaMana -= cMana;
-        document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
-        
-        // --- 🃏 LÓGICA DE DESCARTE E COMPRA ---
-        maoCombate[slotIndex] = null; 
-        renderizarCartasActionHog(); 
+                if (isMeteor) {
+                    sX = 200 + (Math.random() * 500); 
+                    sY = -100 - (Math.random() * 150); 
+                    tY = 280 + (Math.random() * 80); 
+                    spX = 10 + (Math.random() * 10); 
+                    spY = (cfg.speed || 20) + (Math.random() * 5); 
+                }
+                else if (cfg.shape === 'slash') { spX = (cfg.speed || 30); spY = 0; }
+                else if (cfg.shape === 'wave') { spX = (cfg.speed || 15); spY = 0; }
 
-        setTimeout(() => {
-            window.comprarCartasAteLimite();
-        }, 1000);
-
-        // --- RESTO DA LÓGICA DE ATAQUE VISUAL E FÍSICA COMPLETA ---
-        playerHitbox.atkTimer = 1.0; 
-        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
-        
-        const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
-        
-        let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
-        let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
-
-        // 1. SE FOR ESCUDO / DEFESA
-        if (mecanica === 'escudo' || mecanica === 'defesa') {
-            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
-            playerHitbox.mode = 'protego'; 
-            playerHitbox.timer = 1200; 
-            criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: false, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
-            processarImpactoNoServidor("protego_block_reflex", true); 
-        } 
-        // 2. SE FOR CURA
-        else if (mecanica === 'cura') {
-            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
-            criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
-            processarImpactoNoServidor(sid, false); 
-        } 
-        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS E FEITIÇOS FÍSICOS)
-        else {
-            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: false, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
-
-            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
-            let qt = cfg.quantity || 1;
-            let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
-            
-            for(let i = 0; i < qt; i++) {
-                setTimeout(() => {
-                    let sX = corePlayerOffs.x;
-                    let sY = corePlayerOffs.y + (Math.random()*40-20);
-                    let tY = playerHitbox.y - 20;
-                    let spX = cfg.speed || 25;
-                    let spY = 0;
-
-                    if (isMeteor) {
-                        sX = 200 + (Math.random() * 500); 
-                        sY = -100 - (Math.random() * 150); 
-                        tY = 280 + (Math.random() * 80); 
-                        spX = 10 + (Math.random() * 10); 
-                        spY = (cfg.speed || 20) + (Math.random() * 5); 
-                    }
-                    else if (cfg.shape === 'slash') {
-                        spX = (cfg.speed || 30); 
-                        spY = 0; 
-                    }
-                    else if (cfg.shape === 'wave') {
-                        spX = (cfg.speed || 15); 
-                        spY = 0;
-                    }
-
-                    projeteis.push({ 
-                        x: sX, y: sY, ty: tY, 
-                        speed: spX, vy: spY, 
-                        pBoss: false, 
-                        scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
-                        cor: cfg.color, shape: cfg.shape, glow: cfg.glow,
-                        trailLen: cfg.trailSize || 15,
-                        mov: cfg.movement || 'linear', 
-                        pStyle: cfg.particleStyle || 'sparks', 
-                        impact: cfg.impactEffect || 'explosion', 
-                        faseM: Math.random() * Math.PI * 2, 
-                        idFeiticoSalvo: sid 
-                    });
-                }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
-            }
+                projeteis.push({ 
+                    x: sX, y: sY, ty: tY, speed: spX, vy: spY, pBoss: false, 
+                    scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
+                    cor: cfg.color, shape: cfg.shape, glow: cfg.glow, trailLen: cfg.trailSize || 15,
+                    mov: cfg.movement || 'linear', pStyle: cfg.particleStyle || 'sparks', 
+                    impact: cfg.impactEffect || 'explosion', faseM: Math.random() * Math.PI * 2, 
+                    idFeiticoSalvo: sid 
+                });
+            }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
         }
-    };
+    }
+};
 	
     window.runTickArenaMatematica_E_Desenhar = function() {
     if(!combatEngineAtivo) return;
@@ -5094,42 +5091,44 @@ socket.on('mmo_item_coletado', (d) => {
    // =====================================
     // SYNC DE FEITIÇOS MULTIPLAYER E PVP CORRIGIDO
     // =====================================
+    // =====================================
+    // SYNC DE FEITIÇOS MULTIPLAYER E PVP (RECETOR ABSOLUTO)
+    // =====================================
     socket.on('render_multiplayer_spell', (d) => {
         if(!combatEngineAtivo) return;
-        if(d.shooterId === meuBruxo.id) return; // Ignora os próprios feitiços (já foram desenhados localmente)
+        if(d.shooterId === meuBruxo.id) return; // Ignora os teus próprios feitiços
 
-        // Identifica quem é o atirador na tela (Aliado de Grupo ou Inimigo no PvP)
+        // Descobre quem atirou (Aliado no PvE ou Inimigo no PvP)
         let shooter = arenaAliados ? arenaAliados.find(a => a.id === d.shooterId) : null;
         if(!shooter && arenaInimigoPvP && arenaInimigoPvP.id === d.shooterId) { shooter = arenaInimigoPvP; }
         if(!shooter) return;
 
-        // Define a Origem e Destino do efeito consoante a posição
         let isShootingAtMe = (arenaInimigoPvP && shooter.id === arenaInimigoPvP.id);
         let sX = isShootingAtMe ? (shooter.combatX - 40) : (shooter.combatX + 40); 
         let sY = shooter.combatY - 40;
 
-        // 🔥 LÊ A MECÂNICA E VISUAL DIRETAMENTE DO PACOTE DE REDE (Anti-Desync)
+        // 🔥 A MÁGICA DA SINCRONIA: Lê os dados do PACOTE (d), não da memória local!
         let mecanica = d.mecanica || 'ataque';
         const cfg = d.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
 
-        // Gatilho animado para o braço/varinha do outro jogador mover-se
+        // Faz o boneco do inimigo/aliado mover a varinha
         shooter.atkProgress = 1.0;
         shooter.atkColor = cfg.color;
 
-        // 🔥 1. SE O OUTRO JOGADOR USOU ESCUDO
+        // 1. REPRODUZ ESCUDOS
         if (mecanica === 'escudo' || mecanica === 'defesa') {
             gerarSparksEmCombate(sX, sY, cfg.color, 40);
             criarOndaDeChoqueVisual(sX, sY, cfg.glow || cfg.color);
-            // Isto faz a cúpula azul do protego envolver o corpo desse jogador no Canvas!
+            // Coloca o jogador na bolha azul!
             shooter.mode = 'protego';
             shooter.timer = 1200;
         } 
-        // 🔥 2. SE O OUTRO JOGADOR USOU CURA
+        // 2. REPRODUZ CURAS
         else if (mecanica === 'cura') {
             gerarSparksEmCombate(sX, sY, cfg.color, 60, 'stars');
             criarImpactoEspecial(sX, sY, cfg.color, 'implosion');
         } 
-        // 🔥 3. SE O OUTRO JOGADOR ATACOU
+        // 3. REPRODUZ ATAQUES E PROJÉTEIS
         else {
             gerarSparksEmCombate(sX, sY, cfg.color, 20, cfg.particleStyle);
             let qt = cfg.quantity || 1;
@@ -5139,7 +5138,7 @@ socket.on('mmo_item_coletado', (d) => {
                 setTimeout(() => {
                     let stX = sX;
                     let stY = sY + (Math.random()*40-20);
-                    // O destino muda: se ele for teu inimigo, dispara para TI. Se for amigo, dispara para o BOSS.
+                    // Se ele é inimigo PvP, dispara pra mim. Se for Aliado PvE, dispara pro Boss.
                     let tY = isShootingAtMe ? (playerHitbox.y - 20) : (stateBossHitbox.y - 20);
                     let spX = isShootingAtMe ? -(cfg.speed || 25) : (cfg.speed || 25);
                     let spY = 0;
