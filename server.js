@@ -1019,6 +1019,7 @@ app.post('/api/dungeon/iniciar', async (req, res) => {
 
 
 // 🔥 NOVA ROTA: Aceitar o puxão do grupo
+// 🔥 NOVA ROTA: Aceitar o puxão do grupo
 app.post('/api/dungeon/aceitar_convite', (req, res) => {
     const { id, instId, tipo } = req.body;
     const a = core.alunos[id];
@@ -1034,6 +1035,7 @@ app.post('/api/dungeon/aceitar_convite', (req, res) => {
 
         instOriginal.jogadores[a.id] = {
             id: a.id, nome: a.nome, casa: a.casa, partyId: a.partyId,
+            equipamentos: a.equipamentos || {}, // 🔥 Roupas enviadas para a renderização dos aliados
             x: instOriginal.spawn.x + (Math.random()*60 - 30), 
             y: instOriginal.spawn.y + (Math.random()*60 - 30),
             vx: 0, vy: 0, dir: 1, isMoving: false, emCombate: false

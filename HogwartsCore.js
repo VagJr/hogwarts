@@ -3012,6 +3012,7 @@ class MotorFlorestaProcedural {
         
         inst.jogadores[aluno.id] = {
             id: aluno.id, nome: aluno.nome, casa: aluno.casa, partyId: aluno.partyId,
+            equipamentos: aluno.equipamentos || {}, // 🔥 Roupas enviadas para a renderização
             x: inst.spawn.x + (Math.random()*100 - 50), 
             y: inst.spawn.y + (Math.random()*100 - 50),
             vx: 0, vy: 0, dir: 1, isMoving: false, emCombate: false
