@@ -3651,12 +3651,13 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
         if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
         
-        // 🔥 FIX 1: Bloqueio Mecânico de Crowd Control (Expelliarmus/Stun)
+        // 🔥 TRAVA MECÂNICA: Se estiver desarmado/atordoado, sai da função antes de rodar qualquer animação
         let isStunned = (meuBruxo.efeitos || []).some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         if (isStunned) {
             playSFX('error');
-            mostrarNotificacao("Estás desarmado ou incapacitado!", "erro");
-            return;
+            mostrarNotificacao("Não consegues segurar a varinha!", "erro");
+            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
+            return; // 🛑 Bloqueia animações, sockets e lógica de dano
         }
 
         const feitico = servidorGlobal.livroDeFeiticos[sid];
@@ -3886,7 +3887,14 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
 	
    window.runTickArenaMatematica_E_Desenhar = function() {
         if(!combatEngineAtivo) return;
-
+// 🔥 CONTAGEM REGRESSIVA DOS EFEITOS (PVP/PVE)
+    if (meuBruxo.efeitos && meuBruxo.efeitos.length > 0) {
+        meuBruxo.efeitos.forEach((ef, idx) => {
+            ef.duracao = parseFloat((ef.duracao - 0.016).toFixed(3)); // Reduz em cada frame
+            if (ef.duracao <= 0) meuBruxo.efeitos.splice(idx, 1);
+        });
+        atualizarHPUIVisual(); // Força a atualização dos ícones com o tempo novo
+    }
         // Regeneração Rápida de Mana
         if(arenaMana < arenaMaxMana) arenaMana += 0.055; 
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`; 
@@ -5873,17 +5881,18 @@ socket.on('pvp_start', (dados) => {
 
         // Atualiza a vida e o timer do Escudo visualmente
         // Dentro de atualizarHPUIVisual(), na parte do modo === 'protego':
-    if (playerHitbox.mode === 'protego' && playerHitbox.escudoMax > 0) {
-        let pctEscudo = Math.max(0, ((playerHitbox.escudoHp || 0) / playerHitbox.escudoMax) * 100);
-        barraEscudo.style.width = `${pctEscudo}%`;
-        let tempoSec = ((playerHitbox.timer || 0) / 1000).toFixed(1);
-        // 🔥 Texto limpo e sem Undefined:
-        safeSet('ca-player-hp-txt', `🛡️ ${Math.floor(playerHitbox.escudoHp || 0)} HP | ⏳ ${tempoSec}s`);
-   
+    // Dentro de atualizarHPUIVisual()...
+        if (playerHitbox.mode === 'protego' && (playerHitbox.escudoMax || 0) > 0) {
+            let pctEscudo = Math.max(0, ((playerHitbox.escudoHp || 0) / playerHitbox.escudoMax) * 100);
+            barraEscudo.style.width = `${pctEscudo}%`;
+            let tempoSec = ((playerHitbox.timer || 0) / 1000).toFixed(1);
+            // 🔥 TEXTO LIMPO: Sem Undefined e com segundos reais
+            safeSet('ca-player-hp-txt', `🛡️ ${Math.floor(playerHitbox.escudoHp || 0)} HP | ⏳ ${tempoSec}s`);
         } else {
             barraEscudo.style.width = `0%`;
             safeSet('ca-player-hp-txt', `${Math.floor(playerCurrentHp)} / ${meuBruxo.hpMax}`);
         }
+ 
 
         document.getElementById('ca-boss-hp').style.width = `${Math.max(0, (bossCurrentHp / bossMaxHp) * 100)}%`; 
         safeSet('ca-boss-hp-txt', `${Math.floor(bossCurrentHp)} / ${bossMaxHp}`);

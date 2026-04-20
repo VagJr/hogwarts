@@ -2519,20 +2519,22 @@ a.siclos += 5; // Bonus pro Last Hit
 
 // Rastreio de Crowd Control e INTERRUPÇÕES (Action Combat Rápido)
         // 🔥 FIX 3: Aplica efeitos ao Aluno no PvP ou Criatura no PvE
+        // 🔥 APLICAÇÃO DE STATUS AO ALVO (CRIATURA OU JOGADOR PVP)
         let entidadeAlvo = inst.isPvP ? alvo : mob; 
         
         if (feitico.efeitoSecundario && entidadeAlvo) {
             let nivelMagia = (a.maestriaFeiticos && a.maestriaFeiticos[feiticoId]) ? a.maestriaFeiticos[feiticoId].nivel : 1;
-            let duracaoCalculada = parseFloat((1.0 + (nivelMagia * 0.1)).toFixed(1)); 
-
-            if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) {
-                interrompeu = true;
-            }
+            let duracaoCalculada = parseFloat((1.0 + (nivelMagia * 0.2)).toFixed(1)); // Escala com nível (Ex: 1.0s a 2.0s)
 
             if (!entidadeAlvo.efeitos) entidadeAlvo.efeitos = [];
             let eExistente = entidadeAlvo.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
             if (eExistente) eExistente.duracao = duracaoCalculada;
             else entidadeAlvo.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: duracaoCalculada });
+            
+            // Se for PvP, avisa a party/oponente imediatamente
+            if (inst.isPvP && global.io) {
+                global.io.to(inst.id).emit('sync_imediato', { aluno: entidadeAlvo, servidor: this._obterDadosServidor() });
+            }
         }
 
         if (mob.padrao === 'defensivo' && mecanica !== 'status' && !alvoAntiCura) {
