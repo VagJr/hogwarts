@@ -3562,17 +3562,17 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
         // 1. CARREGA E ORGANIZA OS ALIADOS EM FORMAÇÃO DE BATALHA
-        arenaAliados = aliadosArray && aliadosArray.length > 0 ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
+        arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
         
-        // Posições fixas (Y) para não se sobreporem: Meio, Cima, Baixo, Mais Cima, Mais Baixo
-        const yPositions = [300, 180, 420, 100, 500]; 
+        // O array perfeito de posições no eixo Y para espalhar os lutadores do Grupo!
+        const posicoesY = [300, 180, 420, 100, 500];
         
         arenaAliados.forEach((aliado, index) => {
-            // Recua no eixo X a cada aliado extra para parecerem uma "ponta de lança"
-            let offsetX = index === 0 ? 0 : 30 * Math.ceil(index / 2);
+            let offsetY = posicoesY[index % posicoesY.length];
+            let offsetX = index === 0 ? 0 : -40; // Dá um passo atrás se não for o líder
             
-            aliado.combatX = 150 - offsetX; 
-            aliado.combatY = yPositions[index % yPositions.length]; 
+            aliado.combatX = 180 + offsetX; 
+            aliado.combatY = offsetY; 
             aliado.atkProgress = 0;
             
             if(aliado.id === meuBruxo.id) {
@@ -3586,7 +3586,8 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
             arenaInimigos = []; 
             if(typeof nomeInimigo === 'object') {
                 arenaInimigoPvP = nomeInimigo;
-                arenaInimigoPvP.combatX = 800; // Inimigo sempre do lado direito!
+                // Coloca o Inimigo PvP na direita (X=800), centro da tela (Y=300)
+                arenaInimigoPvP.combatX = 800; 
                 arenaInimigoPvP.combatY = 300;
                 arenaInimigoPvP.atkProgress = 0;
             }
@@ -3601,6 +3602,10 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         safeSet('ca-player-name', meuBruxo.nome); 
         renderizarCartasActionHog(); 
         
+        const hudDungeon = document.getElementById('ca-dungeon-info');
+        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Combate Cooperativo Ativo"; } 
+        else { hudDungeon.classList.add('oculto'); }
+
         if(arenaLoop) clearInterval(arenaLoop); 
         arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
     }
