@@ -3635,8 +3635,8 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         }
     };
 // 🔥 NOVA FUNÇÃO: O "Croupier" que dá 1 carta de cada vez
+// 🔥 NOVA FUNÇÃO: O "Croupier" Inteligente (Sem duplicados na mão)
     window.comprarUmaCarta = function() {
-        // Se o combate acabou, desliga o motor de compra
         if (!combatEngineAtivo) {
             if (drawCardInterval) clearInterval(drawCardInterval);
             return;
@@ -3645,20 +3645,31 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         let deckRef = meuBruxo.feitiçosEquipados;
         if (!deckRef || deckRef.length === 0) return;
 
-        // Procura apenas o PRIMEIRO slot que esteja vazio
+        // Procura o PRIMEIRO slot que esteja vazio na mão
         let slotVazioIndex = maoCombate.findIndex(slot => slot === null);
         
-        // Se encontrou um buraco na mão, preenche-o com 1 carta e pára!
         if (slotVazioIndex !== -1) {
+            let tentativas = 0;
             let novaCarta = deckRef[proximaCartaIndex];
             
-            maoCombate[slotVazioIndex] = novaCarta;
-            proximaCartaIndex = (proximaCartaIndex + 1) % deckRef.length; // Roda o deck
-            
-            renderizarCartasActionHog();
-            playSFX('click'); // Feedback sonoro de "carta a entrar na mão"
+            // 🔥 VERIFICAÇÃO ANTI-DUPLICADOS: Rola o deck até achar uma carta livre
+            while (maoCombate.includes(novaCarta) && tentativas < deckRef.length) {
+                proximaCartaIndex = (proximaCartaIndex + 1) % deckRef.length;
+                novaCarta = deckRef[proximaCartaIndex];
+                tentativas++;
+            }
+
+            // Apenas coloca na mão se não for repetida
+            if (!maoCombate.includes(novaCarta)) {
+                maoCombate[slotVazioIndex] = novaCarta;
+                proximaCartaIndex = (proximaCartaIndex + 1) % deckRef.length; // Avança o ponteiro
+                
+                renderizarCartasActionHog();
+                playSFX('click'); 
+            }
         }
     };
+	
     window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
         if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
         
@@ -5665,13 +5676,33 @@ function pararDragMovel() {
         } catch(e) {} 
     };
 
-    window.entrarZonaCastelo = function(zona) { 
+    window.entrarZonaCastelo = function(zona, startX, startY) { 
         playSFX('click'); 
         zonaAtual = zona; 
         safeSet('ui-zona-nome', zonaAtual); 
         
-        // Manda o socket do MMO atualizar a nossa sala
-        socket.emit('entrar_zona_castelo', { zona: zonaAtual, nome: meuBruxo.nome }); 
+        // Avisa a engine que a zona carregada já é esta, para não duplicar o sinal no init()
+        if (typeof HogwartsMMOEngine !== 'undefined') {
+            HogwartsMMOEngine.zonaAtualCarregada = zona;
+        }
+        
+        socket.emit('entrar_zona_castelo', { zona: zonaAtual, nome: meuBruxo.nome, startX, startY }); 
+    };
+
+    window.viajarPara = function(zona) {
+        fecharMapaSalteador(null, true);
+        mostrarNotificacao(`Viajaste para: ${zona}`, 'info');
+        
+        // Descobre o ponto de spawn do mapa destino
+        let m = HogwartsMMOEngine.mapas[zona] || {startX: 400, startY: 400};
+        window.entrarZonaCastelo(zona, m.startX, m.startY); 
+        
+        // Se a tela 2D estiver aberta, força-a a redesenhar para o local novo
+        if (modoMmoAtivo) {
+            HogwartsMMOEngine.init(true); 
+        }
+        
+        mudarCategoria('explorar');
     };
 
     window.enviarChatAula = function() { 
@@ -6898,34 +6929,42 @@ window.equiparItemMistico = async function(itemId) {
         player: { x: 400, y: 250, vx: 0, vy: 0, speed: 1, size: 14, dir: 1, isMoving: false },
         controlesCriados: false,
 
-        init: function() {
-            this.cvs = document.getElementById('mapa-beco-canvas');
+        init: function(forcarRespawn = false) {
+            this.cvs = document.getElementById('mmo-world-canvas');
             if(!this.cvs) return;
             this.ctx = this.cvs.getContext('2d');
             
-            const rect = document.getElementById('mapa-container').getBoundingClientRect();
-            this.cvs.width = rect.width;
-            this.cvs.height = rect.height;
-            this.vw = this.cvs.width;
-            this.vh = this.cvs.height;
+            const rect = document.getElementById('mmo-world-container').getBoundingClientRect();
+            this.cvs.width = rect.width; this.cvs.height = rect.height;
+            this.vw = this.cvs.width; this.vh = this.cvs.height;
 
-            if (!this.inicializado) {
-                this.player.x = 200; this.player.y = 220; 
-                this.particulas = [];
-                for(let i=0; i<60; i++) this.particulas.push({x: Math.random()*this.mapW, y: 150+Math.random()*150, vx: Math.random()*0.5-0.25, s: Math.random()*30+20 });
+            this.construirMundo();
+            this.setupControls();
+            
+            if (!this.mapas[zonaAtual]) zonaAtual = "Pátio";
+            let m = this.mapas[zonaAtual];
 
-                this.chaoPedras = [];
-                for(let i=0; i<this.mapW; i+=40) {
-                    for(let j=140; j<310; j+=20) {
-                        if(Math.random() < 0.15) this.chaoPedras.push({x: i + (j%40), y: j});
-                    }
+            // 🔥 MÁGICA AQUI: Só teleporta para o início e emite pro servidor se a zona MUDOU!
+            if (this.zonaAtualCarregada !== zonaAtual || forcarRespawn) {
+                this.player.x = m.startX; this.player.y = m.startY;
+                safeSet('mmo-world-zona-nome', zonaAtual);
+
+                this.particulasGlobais = [];
+                for(let i=0; i<200; i++) {
+                    this.particulasGlobais.push({ x: Math.random()*m.mapW, y: Math.random()*m.mapH, vx: Math.random()*1-0.5, vy: Math.random()*1-0.5, s: Math.random()*3+1 });
                 }
 
-                this.setupControls();
-                this.inicializado = true;
+                // Avisa o servidor apenas nesta transição real
+                socket.emit('entrar_zona_castelo', { zona: zonaAtual, nome: meuBruxo.nome, startX: m.startX, startY: m.startY });
+                this.zonaAtualCarregada = zonaAtual;
             }
 
-            if(mapLoop) cancelAnimationFrame(mapLoop);
+            clearInterval(syncMovementInterval);
+            syncMovementInterval = setInterval(() => {
+                socket.emit('mmo_mover', { x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
+            }, 100);
+
+            if(this.loop) cancelAnimationFrame(this.loop);
             this.tick();
         },
 
@@ -7977,13 +8016,12 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
                     playSFX('magic');
                     zonaAtual = p.destino;
                     safeSet('ui-zona-nome', zonaAtual);
-                    this.init(); 
+                    this.init(true); // True = força a transição do mapa!
                     return true;
                 }
             }
             return false;
         },
-
         verificarColisoes: function(px, py, m) {
             let raio = this.player.size;
             for(let i=0; i<m.elementos.length; i++) {
