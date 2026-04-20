@@ -3649,50 +3649,45 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
 // 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO COM SYNC MULTIPLAYER)
 // ==============================================================================
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
-    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
-    
-    const feitico = servidorGlobal.livroDeFeiticos[sid];
-    if (!feitico) return;
+        if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
+        
+        // 🔥 FIX 1: Bloqueio Mecânico de Crowd Control (Expelliarmus/Stun)
+        let isStunned = (meuBruxo.efeitos || []).some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+        if (isStunned) {
+            playSFX('error');
+            mostrarNotificacao("Estás desarmado ou incapacitado!", "erro");
+            return;
+        }
 
-    playSFX('magic');
-    arenaMana -= cMana;
-    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
-    
-    // --- 🃏 LÓGICA DE DESCARTE E COMPRA ---
-    maoCombate[slotIndex] = null; 
-    renderizarCartasActionHog(); 
-    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
+        const feitico = servidorGlobal.livroDeFeiticos[sid];
+        if (!feitico) return;
+        
+        let maestria = (meuBruxo.maestriaFeiticos && meuBruxo.maestriaFeiticos[sid]) ? meuBruxo.maestriaFeiticos[sid].nivel : 1;
+        playSFX('magic');
+        arenaMana -= cMana;
+        
+        maoCombate[slotIndex] = null; 
+        renderizarCartasActionHog(); 
+        setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
 
-    // --- CONFIGURAÇÃO DA ANIMAÇÃO E FÍSICA ---
-    playerHitbox.atkTimer = 1.0; 
-    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
-    
-    const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
-    
-    let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
-    let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+        playerHitbox.atkTimer = 1.0; 
+        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
+        const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff' };
+        let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
 
-    // 🔥 1. O SEGREDO DO MULTIPLAYER AAA: Enviar a mecânica e o visual INTEIRO!
-    // Assim, se for um feitiço criado na biblioteca, os outros jogadores vêem perfeitamente.
-// 🔥 ENVIAR PARA TODOS A MECÂNICA E O DESENHO EXATO DO FEITIÇO
-        socket.emit('multiplayer_spell', { 
-            instId: combatInstId, 
-            mecanica: mecanica, 
-            cfg: cfg, // 🔥 A CHAVE DO SINCRONISMO VISUAL (Formato, quantidade, estilo)
-            cor: cfg.color, 
-            nome: meuBruxo.nome, 
-            shooterId: meuBruxo.id, 
-            feiticoId: sid 
-        });
+        socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cfg: cfg, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
 
-    // 🔥 2. SE FOR ESCUDO / DEFESA (Protego)
-    if (mecanica === 'escudo' || mecanica === 'defesa') {
-        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
-        playerHitbox.mode = 'protego'; // Ativa a cúpula visual localmente
-        playerHitbox.timer = 1200; // Dura 1.2 segundos
-        criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-        processarImpactoNoServidor("protego_block_reflex", true); 
-    } 
+        // 🔥 FIX 2: Inicializa a vida do Escudo (Evita o PROTEGO UNDEFINED)
+        if (mecanica === 'escudo' || mecanica === 'defesa') {
+            playerHitbox.mode = 'protego'; 
+            playerHitbox.timer = 1500 + (maestria * 100); // 1.5s base + upgrade
+            playerHitbox.escudoMax = (feitico.valorBase || 300) + (maestria * 40); 
+            playerHitbox.escudoHp = playerHitbox.escudoMax;
+            
+            atualizarHPUIVisual();
+            processarImpactoNoServidor("protego_block_reflex", true); 
+        } 
+      
     // 🔥 3. SE FOR CURA (Expecto Patronum / Poções)
     else if (mecanica === 'cura') {
         gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
@@ -5877,11 +5872,14 @@ socket.on('pvp_start', (dados) => {
         }
 
         // Atualiza a vida e o timer do Escudo visualmente
-        if (playerHitbox.mode === 'protego' && playerHitbox.escudoMax > 0 && playerHitbox.timer > 0) {
-            let pctEscudo = Math.max(0, (playerHitbox.escudoHp / playerHitbox.escudoMax) * 100);
-            barraEscudo.style.width = `${pctEscudo}%`;
-            let tempoSec = (playerHitbox.timer / 1000).toFixed(1);
-            safeSet('ca-player-hp-txt', `🛡️ ${Math.floor(playerHitbox.escudoHp)} HP | ⏳ ${tempoSec}s`);
+        // Dentro de atualizarHPUIVisual(), na parte do modo === 'protego':
+    if (playerHitbox.mode === 'protego' && playerHitbox.escudoMax > 0) {
+        let pctEscudo = Math.max(0, ((playerHitbox.escudoHp || 0) / playerHitbox.escudoMax) * 100);
+        barraEscudo.style.width = `${pctEscudo}%`;
+        let tempoSec = ((playerHitbox.timer || 0) / 1000).toFixed(1);
+        // 🔥 Texto limpo e sem Undefined:
+        safeSet('ca-player-hp-txt', `🛡️ ${Math.floor(playerHitbox.escudoHp || 0)} HP | ⏳ ${tempoSec}s`);
+   
         } else {
             barraEscudo.style.width = `0%`;
             safeSet('ca-player-hp-txt', `${Math.floor(playerCurrentHp)} / ${meuBruxo.hpMax}`);
