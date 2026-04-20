@@ -978,6 +978,7 @@ app.post('/api/magia/equipar', (req, res) => { try { const r = core.equiparFeiti
 
 // Substitui a rota antiga da dungeon
 // Substitui a rota antiga da dungeon por esta versão com suporte a Grupo
+// Substitui a rota antiga da dungeon por esta versão com suporte a Grupo corrigida!
 app.post('/api/dungeon/iniciar', async (req, res) => {
     try {
         const { id, local } = req.body;
@@ -995,9 +996,9 @@ app.post('/api/dungeon/iniciar', async (req, res) => {
 
         core._salvarUrgente();
 
-        // 🔥 NOVO: Envia Convite aos membros do Grupo para a mesma Floresta
-        if (a.partyId && core.parties[a.partyId]) {
-            core.parties[a.partyId].membros.forEach(mId => {
+        // 🔥 CORREÇÃO: Usa core.grupos em vez de core.parties!
+        if (a.partyId && core.grupos[a.partyId]) {
+            core.grupos[a.partyId].membros.forEach(mId => {
                 if (mId !== a.id) {
                     global.io.to(`priv_${mId}`).emit('convite_instancia', { 
                         liderNome: a.nome, 
@@ -1014,6 +1015,8 @@ app.post('/api/dungeon/iniciar', async (req, res) => {
         res.status(500).json({erro: "A masmorra colapsou."});
     }
 });
+
+
 
 // 🔥 NOVA ROTA: Aceitar o puxão do grupo
 app.post('/api/dungeon/aceitar_convite', (req, res) => {
@@ -1226,101 +1229,84 @@ socket.on('mmo_interagir_objeto', async (dados) => {
 // =====================================
     // SISTEMA MMO: CONVITES E GRUPOS
     // =====================================
-    socket.on('enviar_convite_grupo', (dados) => {
-        // Procura o alvo pelo Nome exato
-        let alvo = Object.values(core.alunos).find(a => a.nome.toLowerCase() === dados.alvoNome.toLowerCase());
-        if(alvo) {
-            io.to(`priv_${alvo.id}`).emit('receber_convite_grupo', { liderId: dados.meuId, liderNome: dados.meuNome });
-            io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Convite de Grupo enviado para ${alvo.nome}.` });
-        } else {
-            io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Bruxo '${dados.alvoNome}' não está no Castelo.` });
-        }
-    });
+    
 	
 socket.on('mmo_action', async (dados) => {
-        const a = core.alunos[socket.alunoId];
-        const sala = core.zonasVivas[dados.zona];
-        if(!a || !sala) return;
+    const a = core.alunos[socket.alunoId];
+    const sala = core.zonasVivas[dados.zona];
+    if(!a || !sala) return;
 
-        // --- LÓGICA DE COLETA BLINDADA (Vai para a Mochila) ---
-        if (dados.tipo === 'coleta') {
-            const itemIdx = sala.itens.findIndex(i => i.id === dados.idAlvo);
-            if (itemIdx !== -1) {
-                const itemBase = sala.itens[itemIdx];
-                
-                // Tenta gerar as propriedades via IA, com Fallback (Safeguard contra crashes)
-                if (!itemBase.statusDinamico) {
-                    if (typeof core.cerebroIA.gerarItemMundoIA === 'function') {
-                        itemBase.statusDinamico = await core.cerebroIA.gerarItemMundoIA(itemBase.nome);
-                    } else {
-                        itemBase.statusDinamico = { nome: itemBase.nome, tipo: 'reliquia', descricao: 'Relíquia encontrada no castelo.' };
-                    }
+    // --- LÓGICA DE COLETA BLINDADA (Vai para a Mochila) ---
+    if (dados.tipo === 'coleta') {
+        const itemIdx = sala.itens.findIndex(i => i.id === dados.idAlvo);
+        if (itemIdx !== -1) {
+            const itemBase = sala.itens[itemIdx];
+            
+            if (!itemBase.statusDinamico) {
+                if (typeof core.cerebroIA.gerarItemMundoIA === 'function') {
+                    itemBase.statusDinamico = await core.cerebroIA.gerarItemMundoIA(itemBase.nome);
+                } else {
+                    itemBase.statusDinamico = { nome: itemBase.nome, tipo: 'reliquia', descricao: 'Relíquia encontrada no castelo.' };
                 }
-
-                // Remove o item do chão do servidor
-                sala.itens.splice(itemIdx, 1);
-                
-                // Cria o item formatado para a mochila do jogador
-                const novoItem = { 
-                    id: 'itm_' + crypto.randomBytes(4).toString('hex'), 
-                    nome: itemBase.statusDinamico.nome || itemBase.nome,
-                    tipo: 'reliquia', // Obriga a ser relíquia para aparecer na Mochila
-                    lore: itemBase.statusDinamico.descricao 
-                };
-                
-                // Injeta na mochila!
-                a.mochilaEscolar.push(novoItem);
-                
-                // Avisa o mapa inteiro que o item foi apanhado
-                io.to(`zona_${dados.zona}`).emit('mmo_item_coletado', { 
-                    id: dados.idAlvo, 
-                    texto: `🖐️ [${novoItem.nome}] foi recolhido por ${a.nome}!` 
-                });
-                
-                // Apaga visualmente e guarda os dados
-                io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala); 
-                core._salvarUrgente();
-                forcarSyncAluno(a.id); // Força a aba Inventário a atualizar no telemóvel do jogador
             }
-        }
-        // --- LÓGICA DE COMBATE COOPERATIVO (MUNDO ABERTO) ---
-        else if (dados.tipo === 'combate') {
-            const mob = sala.entidades.find(m => m.id === dados.idAlvo);
-            if (!mob) return;
 
-            const idInst = `raid_${Date.now()}`;
-            // Se estiver num grupo, puxa todos. Se não, vai sozinho.
-            let membrosGrupo = a.partyId && core.grupos[a.partyId] ? core.grupos[a.partyId].membros : [a.id];
-
-            core.dungeonInstancias[idInst] = {
-                id: idInst, entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
-                status: 'combate', multiplayer: true, membros: membrosGrupo
+            sala.itens.splice(itemIdx, 1);
+            
+            const novoItem = { 
+                id: 'itm_' + crypto.randomBytes(4).toString('hex'), 
+                nome: itemBase.statusDinamico.nome || itemBase.nome,
+                tipo: 'reliquia',
+                lore: itemBase.statusDinamico.descricao 
             };
-
-            core.iniciarIACombate(idInst);
-
-            let aliadosData = membrosGrupo.map(pid => {
-                let al = core.alunos[pid];
-                return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
+            
+            a.mochilaEscolar.push(novoItem);
+            
+            io.to(`zona_${dados.zona}`).emit('mmo_item_coletado', { 
+                id: dados.idAlvo, 
+                texto: `🖐️ [${novoItem.nome}] foi recolhido por ${a.nome}!` 
             });
-
-            // Puxa toda a equipa para a sala de combate do Socket e avisa os clientes
-            membrosGrupo.forEach(pid => {
-                let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === pid);
-                if(s) s.join(idInst);
-
-                global.io.to(`priv_${pid}`).emit('puxado_para_dungeon', { 
-                    idInstancia: idInst, 
-                    estado: { entidades: core.dungeonInstancias[idInst].entidades },
-                    aliados: aliadosData 
-                });
-            });
-
-            // Remove o mob do mapa global para não ser clicado por outros
-            sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
-            io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
+            
+            io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala); 
+            core._salvarUrgente();
+            forcarSyncAluno(a.id);
         }
-    }); // FECHA O SOCKET CORRETAMENTE AQUI // <-- ESTA LINHA FECHA O SOCKET E EVITA O ERRO!
+    }
+    // --- LÓGICA DE COMBATE COOPERATIVO (MUNDO ABERTO) ---
+    else if (dados.tipo === 'combate') {
+        const mob = sala.entidades.find(m => m.id === dados.idAlvo);
+        if (!mob) return;
+
+        const idInst = `raid_${Date.now()}`;
+        let membrosGrupo = a.partyId && core.grupos[a.partyId] ? core.grupos[a.partyId].membros : [a.id];
+
+        core.dungeonInstancias[idInst] = {
+            id: idInst, entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
+            status: 'combate', multiplayer: true, membros: membrosGrupo
+        };
+
+        core.iniciarIACombate(idInst);
+
+        let aliadosData = membrosGrupo.map(pid => {
+            let al = core.alunos[pid];
+            return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
+        });
+
+        membrosGrupo.forEach(pid => {
+            let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === pid);
+            if(s) s.join(idInst);
+
+            global.io.to(`priv_${pid}`).emit('puxado_para_dungeon', { 
+                idInstancia: idInst, 
+                estado: { entidades: core.dungeonInstancias[idInst].entidades },
+                aliados: aliadosData 
+            });
+        });
+
+        sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
+        io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
+    }
+}); 
+// FECHA O SOCKET CORRETAMENTE AQUI // <-- ESTA LINHA FECHA O SOCKET E EVITA O ERRO!
     socket.on('multiplayer_spell', (dados) => {
         // Transmite a renderização visual da magia para os aliados na Masmorra
         socket.to(dados.instId).emit('render_multiplayer_spell', dados);
@@ -1392,11 +1378,24 @@ socket.on('mmo_action', async (dados) => {
     // 🤝 SISTEMA DE GRUPOS E COOP INSTANCIADO
     // ==============================================================================
     // --- LÓGICA DE GRUPOS CORRIGIDA ---
+  // =====================================
+    // SISTEMA MMO: CONVITES E GRUPOS (LÓGICA LIMPA)
+    // =====================================
+    socket.on('enviar_convite_grupo', (dados) => {
+        let alvo = Object.values(core.alunos).find(a => a.nome.toLowerCase() === dados.alvoNome.toLowerCase());
+        if(alvo) {
+            io.to(`priv_${alvo.id}`).emit('receber_convite_grupo', { liderId: dados.meuId, liderNome: dados.meuNome });
+            io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Convite de Grupo enviado para ${alvo.nome}.` });
+        } else {
+            io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Bruxo '${dados.alvoNome}' não está no Castelo.` });
+        }
+    });
+
     socket.on('grupo_convidar', (dados) => {
         if(!core.alunos[dados.alvoId] || dados.alvoId === socket.alunoId) return;
-        io.to(`priv_${dados.alvoId}`).emit('grupo_receber_convite', { 
-            deId: socket.alunoId, 
-            deNome: core.alunos[socket.alunoId].nome 
+        io.to(`priv_${dados.alvoId}`).emit('receber_convite_grupo', { 
+            liderId: socket.alunoId, 
+            liderNome: core.alunos[socket.alunoId].nome 
         });
     });
 
@@ -1408,12 +1407,13 @@ socket.on('mmo_action', async (dados) => {
             core.grupos[liderId].membros.push(socket.alunoId);
         }
         
-        // Atualiza as contas
         if(core.alunos[liderId]) core.alunos[liderId].partyId = liderId;
         if(core.alunos[socket.alunoId]) core.alunos[socket.alunoId].partyId = liderId;
         core._salvarUrgente();
         
-        // O SEGREDO DO COOP: Juntar toda a gente à mesma sala Socket!
+        forcarSyncAluno(liderId);
+        forcarSyncAluno(socket.alunoId);
+
         socket.join(`party_${liderId}`);
         let sLider = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === liderId);
         if(sLider) sLider.join(`party_${liderId}`);
@@ -1426,8 +1426,8 @@ socket.on('mmo_action', async (dados) => {
             }) 
         };
         
-        // Emite para a SALA INTEIRA de uma vez
         global.io.to(`party_${liderId}`).emit('grupo_atualizado', infoGrupo);
+        core.grupos[liderId].membros.forEach(mId => io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo));
     });
 
     socket.on('conteudo_puxar_grupo', (dados) => {

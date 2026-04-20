@@ -2746,7 +2746,6 @@ async folhearLivro(alunoId) {
         const aEu = this.alunos[eu.id];
         
         let dano = 0;
-        // Calcula o Dano do Feitiço se não for um reflexo de defesa
         if (feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
             const f = this.livroDeFeiticos[feiticoId];
             if(f) dano = (f.poderBase || 50) + ((aEu.atributosTotais.feiticos || 5) * 5);
@@ -2756,31 +2755,25 @@ async folhearLivro(alunoId) {
             inimigo.hpAtual -= dano;
             if(inimigo.hpAtual < 0) inimigo.hpAtual = 0;
             
-            // Avisa o ecrã do inimigo que ele perdeu vida
             ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_update', { meuHp: inimigo.hpAtual, inimigoHp: eu.hpAtual });
-            // Atualiza o teu próprio ecrã
             ioGlobal.to(`priv_${eu.id}`).emit('pvp_update', { meuHp: eu.hpAtual, inimigoHp: inimigo.hpAtual });
         }
 
-
-        return { sucesso: true, danoAplicado: dano, hpJogador: eu.hpAtual }; // <-- ESTE RETORNO ATUALIZA A TUA TELA LOCAL
-
-        // Verifica se alguém morreu
-         if (inimigo.hpAtual <= 0) {
+        // 🔥 CORREÇÃO: O VERIFICADOR DE MORTE AGORA VEM ANTES DO RETURN!
+        if (inimigo.hpAtual <= 0) {
             partida.status = 'finalizado';
             const aInimigo = this.alunos[inimigo.id];
             
-            // Garantir que os Elos existem
             if(!aEu.elos) aEu.elos = { duelos: 1000 };
             if(!aInimigo.elos) aInimigo.elos = { duelos: 1000 };
             
-            // Distribui as recompensas e o ELO Ranked de forma correta e permanente!
             aEu.elos.duelos += 25; 
+            if(!aEu.estatisticas) aEu.estatisticas = { duelosVencidos: 0, monstrosMortos: 0 };
             aEu.estatisticas.duelosVencidos++;
             aInimigo.elos.duelos = Math.max(0, aInimigo.elos.duelos - 15);
             
             aEu.galeoes += 50; 
-            this.ganharXp(aEu, 500); // 500 XP por vitória
+            this.ganharXp(aEu, 500); 
             
             ioGlobal.to(`priv_${eu.id}`).emit('pvp_fim', { msg: "🏆 Venceste o Duelo Mágico! (+25 ELO, +50G)" });
             ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_fim', { msg: "💀 Foste derrotado no duelo! (-15 ELO)" });
@@ -2788,15 +2781,15 @@ async folhearLivro(alunoId) {
             delete this.pvpPartidas[instId];
             this._salvarBancoDeDados();
 
-            // 🔥 INSERE O CÓDIGO DA FLORESTA PVP AQUI 🔥
             if (this.florestaEngine && partida.isForestInvade) {
-                // 'eu' é quem atacou e matou. 'inimigo' é quem morreu.
                 this.florestaEngine.retornarDaBatalha(eu.id, true, true, partida.isForestInvade, partida.forestInstId, ioGlobal);
                 this.florestaEngine.retornarDaBatalha(inimigo.id, false, true, partida.isForestInvade, partida.forestInstId, ioGlobal);
             }
+            return { sucesso: true, danoAplicado: dano, hpJogador: eu.hpAtual, bossMorto: true, relatoAcao: "Duelo Terminado!" }; 
         }
-        return { sucesso: true };
-}
+
+        return { sucesso: true, danoAplicado: dano, hpJogador: eu.hpAtual }; 
+    }
     tickServerGlobal() {
         const relogio = RelogioHogwarts.obterHorarioAtual();
         global.io.emit('relogio_hogwarts', relogio);
