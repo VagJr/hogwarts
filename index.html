@@ -2672,10 +2672,35 @@ let arenaInimigos = []; // Array de inimigos
              safeSet('ca-dungeon-info', dataBackend.relatoAcao); 
 
              // Se o golpe foi fatal, esconde o monstro na hora
+             // Se o golpe foi fatal, remove a renderização do monstro instantaneamente!
              if(inimigoMorreu) {
                  bossCurrentHp = 0; atualizarHPUIVisual(); 
                  let alvoFocado = arenaInimigos.find(m => m.idx === alvoAtualIdx);
                  if (alvoFocado) alvoFocado.vivo = false; 
+
+                 // 🔥 RECUPERAÇÃO DO MODAL DE VITÓRIA (PROFILING) 🔥
+                 if(dataBackend.bossMorto && dataBackend.avaliacao) {
+                    const aval = dataBackend.avaliacao;
+                    document.getElementById('modal-recompensa').classList.remove('oculto');
+                    document.getElementById('recompensa-conteudo').innerHTML = `
+                        <div style="display:flex; flex-direction:column; align-items:center;">
+                            <h3 style="color:#2ecc71; margin-top:0;">Fenda Selada!</h3>
+                            <div style="background:rgba(0,0,0,0.8); border:2px solid ${aval.cor}; padding:20px; border-radius:10px; width:100%; text-align:center; box-shadow:0 0 40px ${aval.cor}55;">
+                                <div style="font-size:1.2em; color:#ccc; letter-spacing:2px;">RANK DE COMBATE</div>
+                                <div style="font-size:5em; font-family:'Cinzel'; font-weight:900; color:${aval.cor}; text-shadow:0 0 20px ${aval.cor}, 2px 2px 0px #000; line-height:1; margin:10px 0;">
+                                    ${aval.rank}
+                                </div>
+                                <div style="font-size:1.4em; color:${aval.cor}; font-weight:bold; text-transform:uppercase;">
+                                    <span style="font-size:0.8em; color:#fff;">ESTILO:</span> ${aval.titulo}
+                                </div>
+                            </div>
+                            <div style="margin-top:15px; font-size:0.8em; color:#aaa; font-family:monospace; background:rgba(255,255,255,0.05); padding:10px; border-radius:4px; width:100%;">
+                                <div style="color:#f1c40f;">Pontuação Tática: ${aval.score}</div>
+                                <div style="margin-top:5px;">${aval.detalhes}</div>
+                            </div>
+                        </div>
+                    `;
+                 }
              }
 
              // Atualiza os ícones de status (Fogo, Gelo, etc) em cima da cabeça
@@ -2747,7 +2772,8 @@ let arenaInimigos = []; // Array de inimigos
 
         let strInventario = JSON.stringify(meuBruxo);
         let temVeste = strInventario.includes('Veste Escolar Simples');
-
+let maoCombate = []; // IDs dos feitiços na mão (tamanho 3)
+    let proximaCartaIndex = 0; // Ponteiro de rotação do deck
         let reqs = [
             { nome: "1x Varinha Mágica (Ollivanders)", ok: !!(meuBruxo.equipamentos && meuBruxo.equipamentos.varinha) },
             { nome: "1x Veste Escolar Simples (Madame Malkin)", ok: !!temVeste }
@@ -3495,19 +3521,19 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
     window.renderizarCartasActionHog = function() {
         if(!servidorGlobal || !servidorGlobal.livroDeFeiticos) return;
 
-        document.getElementById('ca-hotbar').innerHTML = meuBruxo.feitiçosEquipados.map(f => {
+        // Renderiza apenas os IDs que estão atualmente na maoCombate
+        document.getElementById('ca-hotbar').innerHTML = maoCombate.map((f, slotIndex) => {
+            if (!f) return `<div class="spell-card" style="opacity:0.3; background:#000;"></div>`; // Slot vazio durante a compra
+
             const obj = servidorGlobal.livroDeFeiticos[f] || {nome:"Fogo", custoFocoBase:3, elemento:'cinetico'};
-            
-            // Lê as chaves novas geradas pela IA
             let custoMana = obj.custoMana || obj.custoFocoBase || 3;
             let mecanica = obj.tipoMecanica || (obj.defende ? 'escudo' : 'ataque');
             
-            // Cores baseadas na mecânica
             let colorB = obj.elemento === 'fogo' ? '#8a0303' : (mecanica === 'escudo' ? '#11bbbb' : (mecanica === 'cura' ? '#2ecc71' : (mecanica === 'status' ? '#8e44ad' : '#111')));
             let icon = mecanica === 'escudo' ? '🛡️' : (mecanica === 'cura' ? '💚' : (mecanica === 'status' ? '🔮' : '💫'));
 
-            // O Onclick agora força o window.castPlayerLiveEngine para não perder a referência!
-            return `<div class="spell-card" id="ccrd_${f}" onclick="window.castPlayerLiveEngine('${f}', ${custoMana}, '${obj.elemento}', '${mecanica}')" style="background:linear-gradient(to bottom, ${colorB}, #050505);">
+            // Agora passamos o slotIndex para saber qual carta remover da mão
+            return `<div class="spell-card" id="slot_${slotIndex}" onclick="window.castPlayerLiveEngine('${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" style="background:linear-gradient(to bottom, ${colorB}, #050505);">
                 <div style="font-weight:bold; color:var(--hp-gold); font-size:0.75em; text-shadow:0 0 4px #000; line-height:1.2;">${icon} ${obj.nome}</div>
                 <div style="color:#3498db; font-weight:900; background:rgba(0,0,0,0.8); padding:5px 0; font-size:0.8em;">Mana ${custoMana}💧</div>
             </div>`;
@@ -3524,35 +3550,34 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         cvs = document.getElementById('engine-combate'); ctxCombat = cvs.getContext('2d');
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
-        // 1. CARREGA E ORGANIZA OS ALIADOS EM FORMAÇÃO DE BATALHA
-        arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
+        // --- 🃏 LÓGICA DE DECK BUILDING (INICIALIZAÇÃO) ---
+        // Pega os feitiços equipados e embaralha (Fisher-Yates shuffle simples)
+        let deckTemp = [...meuBruxo.feitiçosEquipados];
+        for (let i = deckTemp.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [deckTemp[i], deckTemp[j]] = [deckTemp[j], deckTemp[i]];
+        }
         
-        // O array perfeito de posições no eixo Y para espalhar os lutadores do Grupo!
+        // Define a mão inicial de 3 cartas
+        maoCombate = deckTemp.slice(0, 3);
+        proximaCartaIndex = 3; // Aponta para a próxima que será comprada
+
+        // --- RESTO DA INICIALIZAÇÃO ---
+        arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
         const posicoesY = [300, 180, 420, 100, 500];
         
         arenaAliados.forEach((aliado, index) => {
             let offsetY = posicoesY[index % posicoesY.length];
-            let offsetX = index === 0 ? 0 : -40; // Dá um passo atrás se não for o líder
-            
-            aliado.combatX = 180 + offsetX; 
-            aliado.combatY = offsetY; 
-            aliado.atkProgress = 0;
-            
-            if(aliado.id === meuBruxo.id) {
-                playerHitbox.x = aliado.combatX;
-                playerHitbox.y = aliado.combatY;
-            }
+            let offsetX = index === 0 ? 0 : -40;
+            aliado.combatX = 180 + offsetX; aliado.combatY = offsetY; aliado.atkProgress = 0;
+            if(aliado.id === meuBruxo.id) { playerHitbox.x = aliado.combatX; playerHitbox.y = aliado.combatY; }
         });
 
-        // 2. LÓGICA DE PVP VS PVE
         if(isDuel) {
             arenaInimigos = []; 
             if(typeof nomeInimigo === 'object') {
                 arenaInimigoPvP = nomeInimigo;
-                // Coloca o Inimigo PvP na direita (X=800), centro da tela (Y=300)
-                arenaInimigoPvP.combatX = 800; 
-                arenaInimigoPvP.combatY = 300;
-                arenaInimigoPvP.atkProgress = 0;
+                arenaInimigoPvP.combatX = 800; arenaInimigoPvP.combatY = 300; arenaInimigoPvP.atkProgress = 0;
             }
             safeSet('ca-boss-name', arenaInimigoPvP.nome || "Duelista");
             bossMaxHp = arenaInimigoPvP.hpMax || maxHpInimigo;
@@ -3563,12 +3588,8 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         }
         
         safeSet('ca-player-name', meuBruxo.nome); 
-        renderizarCartasActionHog(); 
+        renderizarCartasActionHog(); // Desenha a mão inicial
         
-        const hudDungeon = document.getElementById('ca-dungeon-info');
-        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Combate Cooperativo Ativo"; } 
-        else { hudDungeon.classList.add('oculto'); }
-
         if(arenaLoop) clearInterval(arenaLoop); 
         arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
     }
@@ -4346,9 +4367,8 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         }
     };
 
-    // 🔥 A CABEÇA DA FUNÇÃO NOVA ENTRA AQUI!
-  window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao) {
-        if (!combatEngineAtivo || arenaMana < cMana) return; 
+  window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
+        if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
         
         const feitico = servidorGlobal.livroDeFeiticos[sid];
         if (!feitico) return;
@@ -4357,62 +4377,60 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         arenaMana -= cMana;
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
         
+        // --- 🃏 LÓGICA DE DESCARTE E COMPRA ---
+        // 1. Remove a carta da mão imediatamente
+        maoCombate[slotIndex] = null; 
+        renderizarCartasActionHog(); 
+
+        // 2. Espera 1 segundo para "comprar" a próxima carta do Deck (Rotação)
+        setTimeout(() => {
+            if (!combatEngineAtivo) return; // Segurança se o combate acabar
+            
+            // Pega o próximo feitiço do deck de 6
+            let deckRef = meuBruxo.feitiçosEquipados;
+            let novaCarta = deckRef[proximaCartaIndex];
+            
+            // Avança o ponteiro circularmente
+            proximaCartaIndex = (proximaCartaIndex + 1) % deckRef.length;
+            
+            // Coloca no slot e redesenha
+            maoCombate[slotIndex] = novaCarta;
+            renderizarCartasActionHog();
+            playSFX('click');
+        }, 1000);
+
+        // --- RESTO DA LÓGICA DE ATAQUE VISUAL E FÍSICA COMPLETA ---
         playerHitbox.atkTimer = 1.0; 
-        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff'; 
+        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
         
         const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
         
         let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
-
-        // 🔥 AQUI ESTÁ A DEFINIÇÃO EXATA DA MECÂNICA!
-        // Lê a intenção do botão, e se não houver, extrai do próprio feitiço customizado
         let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
 
-        // ===============================================
         // 1. SE FOR ESCUDO / DEFESA
-        // ===============================================
         if (mecanica === 'escudo' || mecanica === 'defesa') {
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
             playerHitbox.mode = 'protego'; 
             playerHitbox.timer = 1200; 
-            
             criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-            socket.emit('multiplayer_spell', { 
-    instId: combatInstId, 
-    isDefensive: false, 
-    cor: cfg.color, 
-    nome: meuBruxo.nome, 
-    shooterId: meuBruxo.id, // <-- Identifica quem atirou
-    feiticoId: sid // <-- Envia qual foi a magia
-});
+            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: false, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
             processarImpactoNoServidor("protego_block_reflex", true); 
         } 
-        // ===============================================
         // 2. SE FOR CURA
-        // ===============================================
         else if (mecanica === 'cura') {
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
             criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
             processarImpactoNoServidor(sid, false); 
         } 
-        // ===============================================
-        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS)
-        // ===============================================
-        // ===============================================
-        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS)
-        // ===============================================
+        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS E FEITIÇOS FÍSICOS)
         else {
-            // 🔥 ADICIONADO PARA SINCRONIZAR OS TIROS COM OS ALIADOS!
-            socket.emit('multiplayer_spell', { 
-                instId: combatInstId, isDefensive: false, cor: cfg.color, 
-                nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid 
-            });
+            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: false, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
 
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
             let qt = cfg.quantity || 1;
             let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
             
-            // ... (resto do loop for de animação dos tiros permanece igual)
             for(let i = 0; i < qt; i++) {
                 setTimeout(() => {
                     let sX = corePlayerOffs.x;
@@ -4452,9 +4470,8 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
                     });
                 }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
             }
-            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: false, cor: cfg.color, nome: meuBruxo.nome, startY: corePlayerOffs.y });
         }
-    };  
+    };
     window.runTickArenaMatematica_E_Desenhar = function() {
     if(!combatEngineAtivo) return;
 
