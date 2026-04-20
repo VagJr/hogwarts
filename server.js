@@ -66,40 +66,8 @@ function iniciarDueloPvP(jogador1, jogador2) {
 async function inicializarServidor() {
     console.log("A invocar os feitiços de proteção de Gringotes...");
     const dbFilePath = path.join(__dirname, 'hogwarts_local_db.json');
-	function darRecompensa(alunoId, xp, galeoes, dropItens) {
-    let aluno = core.alunos[alunoId];
-    if (!aluno) return;
-
-    // Verifica se está num grupo
-    let liderId = Object.keys(core.grupos).find(key => core.grupos[key].membros.includes(alunoId));
     
-    if (liderId) {
-        // Divide o XP pelos membros para incentivar o Coop, mas dá um bónus de +20%
-        let membrosOnline = core.grupos[liderId].membros;
-        let xpDividido = Math.floor((xp / membrosOnline.length) * 1.2);
-        let goldDividido = Math.floor(galeoes / membrosOnline.length);
-
-        membrosOnline.forEach(mId => {
-            let membro = core.alunos[mId];
-            if(membro) {
-                membro.galeoes += goldDividido;
-                core.ganharXp(membro, xpDividido);
-                // Dá o drop de item a todos do grupo!
-                if(dropItens) {
-                    // Logica de inserir item no inventário
-                }
-                io.to(`priv_${mId}`).emit('notificacao_sucesso', `Grupo derrotou o alvo: +${xpDividido} XP e +${goldDividido} G`);
-            }
-        });
-    } else {
-        // Lógica Solo Normal
-        aluno.galeoes += galeoes;
-        core.ganharXp(aluno, xp);
-    }
-    core._salvarUrgente();
-}
-
-    // 1. FUNÇÃO AUXILIAR PARA CARREGAR OS DADOS PARA A MEMÓRIA
+    // 1. FUNÇÃO AUXILIAR PARA CARREGAR OS DADOS
     function carregarDadosNaMemoria(doc) {
         core.alunos = doc.alunos || {}; 
         core.mercadoJogadores = doc.mercadoJogadores || []; 
@@ -110,19 +78,21 @@ async function inicializarServidor() {
         if (doc.livroDeFeiticos) {
             let feiticosPersonalizados = {};
             for (let k in doc.livroDeFeiticos) {
-                if (doc.livroDeFeiticos[k] && doc.livroDeFeiticos[k].custom) {
-                    feiticosPersonalizados[k] = doc.livroDeFeiticos[k];
-                }
+                if (doc.livroDeFeiticos[k] && doc.livroDeFeiticos[k].custom) feiticosPersonalizados[k] = doc.livroDeFeiticos[k];
             }
             core.livroDeFeiticos = { ...core.livroDeFeiticos, ...feiticosPersonalizados };
-            console.log(`✨ Livro de Feitiços expandido: +${Object.keys(feiticosPersonalizados).length} magias customizadas.`);
         }
     }
 
-    // 2. TENTA LIGAR AO MONGO OU USA O FICHEIRO LOCAL
+    // 2. CONEXÃO BLINDADA AO MONGODB (Otimizada para o Render)
     if (MONGO_URI) {
         try {
-            const client = new MongoClient(MONGO_URI); 
+            // Adicionado Pool de conexões e Timeouts mais longos para não cair no Render
+            const client = new MongoClient(MONGO_URI, {
+                maxPoolSize: 10,
+                serverSelectionTimeoutMS: 5000,
+                socketTimeoutMS: 45000,
+            }); 
             await client.connect();
             const db = client.db('hogwarts_db'); 
             core.collection = db.collection('registos_escolares');
@@ -132,32 +102,14 @@ async function inicializarServidor() {
             if (doc) carregarDadosNaMemoria(doc);
             console.log("📜 Registos escolares carregados com sucesso do Atlas!");
 
-            // =====================================================================
-            // 🔥 WIPE ABSOLUTO - OBLITERA TODOS OS LIVROS ANTIGOS DA BASE DE DADOS
-            // =====================================================================
-            console.log("🔥 A QUEIMAR OS ARQUIVOS ANTIGOS DA BIBLIOTECA...");
-            //await core.db_biblioteca.deleteMany({});
-            console.log("✅ WIPE CONCLUÍDO! Todos os livros foram desintegrados.");
-
         } catch (error) { 
             console.error("❌ Falha na conexão a Gringotes!", error.message); 
         }
     } else {
-        console.log("⚠️ Nenhuma chave MongoDB detetada. A usar o Arquivo de Backup Local (hogwarts_local_db.json)...");
-        if (fs.existsSync(dbFilePath)) {
-            try {
-                const fileData = fs.readFileSync(dbFilePath, 'utf8');
-                const doc = JSON.parse(fileData);
-                carregarDadosNaMemoria(doc);
-                console.log("📜 Registos locais carregados com sucesso do disco rígido!");
-            } catch(e) {
-                console.error("Erro ao ler o arquivo local:", e.message);
-            }
-        }
+        console.log("⚠️ Nenhuma chave MongoDB detetada. A usar disco local (Efémero no Render!)...");
     }
 
-    // 3. INJEÇÃO DOS LIVROS APENAS NA LOJA (Sem gerar o conteúdo agora para poupar API)
-    // 3. INJEÇÃO DOS 14 LIVROS APENAS NA LOJA
+    // 3. INJEÇÃO DOS LIVROS
     const materiasParaGerar = [
         { m: "Feitiços", l: "Livro Padrão de Feitiços" }, { m: "Poções", l: "Poções Avançadas" },
         { m: "Transfiguração", l: "Guia de Transfiguração" }, { m: "Herbologia", l: "Mil Ervas Mágicas" },
@@ -170,17 +122,29 @@ async function inicializarServidor() {
 
     core.lojasBeco.floreios = [];
     let idCounter = 1;
-
     for (const mat of materiasParaGerar) {
-        const nomeLivroOficial = `${mat.l} (Ano 1)`;
-        // Regista na loja para o jogador poder comprar (O conteúdo será gerado apenas quando ele abrir o livro)
-        core.lojasBeco.floreios.push({ id: `l_${idCounter++}`, nome: nomeLivroOficial, tipo: "livro", preco: 25 });
+        core.lojasBeco.floreios.push({ id: `l_${idCounter++}`, nome: `${mat.l} (Ano 1)`, tipo: "livro", preco: 25 });
     }
-    console.log("📚 Prateleiras da Floreios e Borrões abastecidas com livros em branco (Lazy Loading ativo).");
 
-    // 🔥 4. A BLINDAGEM MÁXIMA DA FUNÇÃO DE SALVAR 🔥
-    // 🔥 4. A BLINDAGEM MÁXIMA DA FUNÇÃO DE SALVAR 🔥
-    core._salvarUrgente = async () => {
+    // =====================================================================
+    // 🔥 4. NOVO SISTEMA DE SALVAMENTO (DEBOUNCE + GRACEFUL SHUTDOWN)
+    // =====================================================================
+    let precisaSalvar = false;
+    let salvandoAgora = false;
+
+    // Sempre que o jogo pedir para salvar, apenas sinalizamos que é necessário.
+    // Isto impede que o servidor seja bombardeado com centenas de pedidos ao MongoDB.
+    core._salvarUrgente = () => {
+        precisaSalvar = true; 
+    };
+    core._salvarBancoDeDados = () => { core._salvarUrgente(); };
+
+    // Loop em background: Salva a cada 5 segundos SE houver alterações
+    setInterval(async () => {
+        if (!precisaSalvar || salvandoAgora) return;
+        salvandoAgora = true;
+        precisaSalvar = false; // Reset da flag
+
         const data = { 
             alunos: core.alunos, 
             mercadoJogadores: core.mercadoJogadores, 
@@ -198,20 +162,34 @@ async function inicializarServidor() {
                     { upsert: true }
                 );
             } catch(e) { 
-                console.error("❌ ERRO CRÍTICO AO SALVAR NO MONGODB:", e.message); 
-                // Se falhar a nuvem, guarda localmente para não perder os dados na hora!
-                try { fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2), 'utf8'); } catch(ex){}
+                console.error("❌ ERRO AO SALVAR NO MONGODB:", e.message); 
+                precisaSalvar = true; // Tenta de novo no próximo ciclo
             }
-        } else {
-            try {
-                fs.writeFileSync(dbFilePath, JSON.stringify(data, null, 2), 'utf8');
-                console.warn("⚠️ Aviso: Jogo a gravar apenas no disco local (Será apagado no restart do Render).");
-            } catch(e) { console.error("Erro ao salvar localmente:", e.message); }
         }
+        salvandoAgora = false;
+    }, 5000);
+
+    // 🔥 PREVENÇÃO CONTRA REINÍCIO DO RENDER (SIGTERM)
+    // O Render envia um sinal SIGTERM antes de desligar. Se não ouvirmos isto, o último progresso perde-se!
+    const desligarServidorEmSeguranca = async () => {
+        console.log("⚠️ O Render ordenou o encerramento do Servidor! A forçar um último feitiço de gravação...");
+        if (core.collection && precisaSalvar) {
+            try {
+                await core.collection.updateOne(
+                    { _id: 'MATRIZ_HOGWARTS' }, 
+                    { $set: { alunos: core.alunos, mercadoJogadores: core.mercadoJogadores, pontuacaoCasas: core.pontuacaoCasas, gremios: core.gremios, livroDeFeiticos: core.livroDeFeiticos } }, 
+                    { upsert: true }
+                );
+                console.log("✅ Gravação de emergência bem sucedida! A desligar...");
+            } catch(e) { console.error("❌ Falha na gravação final:", e); }
+        }
+        process.exit(0);
     };
 
-    core._salvarBancoDeDados = () => { core._salvarUrgente(); };
-    setInterval(() => { core._salvarUrgente(); }, 10000); 
+    process.on('SIGTERM', desligarServidorEmSeguranca);
+    process.on('SIGINT', desligarServidorEmSeguranca);
+
+  
 
     // =====================================================================
     // 🧙‍♂️ O MONGE ARQUIVISTA (MÁQUINA DE ESCREVER AUTOMATIZADA EM BACKGROUND)

@@ -1657,7 +1657,7 @@
             </div>
         </div>
     </div>
-	
+	<div id="hud-bloqueios-centro" style="position:fixed; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 1000000; pointer-events: none; display: flex; gap: 10px;"></div>
 	<div id="arena-acao" class="arena-action-bg oculto">
         <div id="arena-flash" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:9999; pointer-events:none; opacity:0;"></div>
         
@@ -2566,20 +2566,39 @@ safeSet('ui-galeoes', meuBruxo.galeoes);
 
     // 🔥 CORREÇÃO PRINCIPAL DO LAG: O Socket já tem a informação nova! 
     // Não precisa de fazer fetch de novo! Só chama a função de desenhar.
-    socket.on('sync_imediato', (dados) => { 
-    meuBruxo = dados.aluno; 
-    servidorGlobal = dados.servidor; 
-    
-    // 🔥 FORÇA O DESBLOQUEIO GLOBAL DE TODOS OS BOTÕES AO RECEBER O NOVO ESTADO
-    document.querySelectorAll('button').forEach(btn => {
-        // Ignora botões que devem estar naturalmente bloqueados
-        if (!btn.id.includes('btn-wand') && !btn.innerText.includes('Aguardando')) {
-            btn.disabled = false;
-        }
-    });
-
-    atualizarInterfaceMagica(); // Desenha a interface sem fazer pedidos HTTP extra
+    // ==========================================================
+// 🔄 MOTOR DE SINCRONIZAÇÃO EM TEMPO REAL ABSOLUTO
+// ==========================================================
+socket.on('sync_imediato', (dados) => {
+    if (dados.aluno) {
+        // Atualiza a base de dados local na hora
+        meuBruxo = dados.aluno; 
+        
+        // Alimenta a interface com os novos valores de HP, Galeões, Foco, etc.
+        atualizarInterfaceMagica(); 
+    }
+    if (dados.servidor) {
+        servidorGlobal = dados.servidor;
+    }
 });
+
+// Garante que qualquer atualização de combate PVE/PVP atualiza as barras e botões
+socket.on('mmo_combat_update', (dados) => {
+    if(!combatEngineAtivo) return;
+    
+    // Atualiza a vida dos mobs na arena
+    if (dados.entidades) renderizarAlvos(dados.entidades);
+    if (dados.hpBoss !== undefined) bossCurrentHp = dados.hpBoss;
+    
+    // ATUALIZAÇÃO EM TEMPO REAL DO JOGADOR DURANTE O COMBATE
+    if (dados.jogadores && dados.jogadores[meuBruxo.id]) {
+        meuBruxo.hpAtual = dados.jogadores[meuBruxo.id].hp;
+        meuBruxo.efeitos = dados.jogadores[meuBruxo.id].efeitos || [];
+        atualizarInterfaceMagica(); // Refresca a UI sem recarregar a página
+    }
+});
+
+
 let arenaAliados = []; // Guarda os jogadores a lutar contigo
 let arenaInimigoPvP = null; // Guarda o jogador oponente no PvP
 let arenaInimigos = []; // Array de inimigos
@@ -2612,7 +2631,19 @@ let arenaInimigos = []; // Array de inimigos
     // Ao invés de mandar um alvo fixo, o jogador envia o índice do alvo
    window.processarImpactoNoServidor = async function(spellCodeDataId, isParryModeAutoTrue) {
         if(!combatEngineAtivo) return;
+        // BLOQUEIO TOTAL: Impede que a magia seja sequer enviada para o servidor se o jogador estiver com CC
+    if (meuBruxo && meuBruxo.efeitos) {
+        let agora = Date.now();
+        let statusArray = meuBruxo.efeitos.filter(e => e.expiresAt > agora);
+        let trancado = statusArray.find(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         
+        if (trancado && !isParryModeAutoTrue && spellCodeDataId !== "dano_recebido") {
+            mostrarNotificacao(`Magia falhou! Estás sob efeito de ${trancado.tipo.toUpperCase()}.`, "erro");
+            document.body.classList.add('shake-screen');
+            setTimeout(() => document.body.classList.remove('shake-screen'), 300);
+            return; // 🛑 CORTA AQUI! Nenhuma animação ou gasto de magia acontece.
+        }
+    }
         try {
              const endpoint = isPvP ? '/api/pvp/action' : '/api/combate/action';
              const rep = await fetch(endpoint, { method:'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({id: meuBruxo.id, instId: combatInstId, feiticoId: (isParryModeAutoTrue? "protego" : spellCodeDataId), alvoIdx: alvoAtualIdx}) });
@@ -2734,6 +2765,55 @@ let arenaInimigos = []; // Array de inimigos
             });
         }
     });
+	
+	// ==========================================================
+// 🔄 RENDERIZADOR DE DEBUFFS EM TEMPO REAL
+// ==========================================================
+setInterval(() => {
+    if (!meuBruxo || !meuBruxo.efeitos || !combatEngineAtivo) return;
+    
+    const agora = Date.now();
+    let htmlDebuffs = '';
+    
+    // Filtra apenas os efeitos que ainda estão ativos
+    meuBruxo.efeitos = meuBruxo.efeitos.filter(e => e.expiresAt > agora);
+    
+    meuBruxo.efeitos.forEach(e => {
+        if (['desarmar', 'atordoar', 'congelado'].includes(e.tipo)) {
+            let tempoRestante = ((e.expiresAt - agora) / 1000).toFixed(1);
+            let icone = e.tipo === 'desarmar' ? '⚔️❌' : (e.tipo === 'congelado' ? '🧊' : '💫');
+            
+            htmlDebuffs += `
+            <div style="background: rgba(200, 0, 0, 0.8); border: 2px solid #ff4c4c; border-radius: 8px; padding: 10px 20px; text-align: center; box-shadow: 0 0 20px rgba(255,0,0,0.5); animation: pulse 0.5s infinite;">
+                <div style="font-size: 2em;">${icone}</div>
+                <div style="color: #fff; font-weight: bold; font-family: 'Cinzel', serif;">BLOQUEADO</div>
+                <div style="color: #ffda47; font-size: 1.5em; font-weight: 900;">${tempoRestante}s</div>
+            </div>`;
+        }
+    });
+    
+    const hudBlock = document.getElementById('hud-bloqueios-centro');
+    if (hudBlock) {
+        if (htmlDebuffs !== '') {
+            hudBlock.innerHTML = htmlDebuffs;
+            hudBlock.style.display = 'flex';
+        } else {
+            hudBlock.style.display = 'none';
+        }
+    }
+}, 100);
+
+// ==========================================================
+// 🛡️ RECEPTOR GLOBAL DE COMBATE
+// ==========================================================
+socket.on('mmo_combat_update', (dados) => {
+    if(!combatEngineAtivo) return;
+    
+    if (dados.alertaGeral) {
+        spawnFloatingText(dados.alertaGeral.x, dados.alertaGeral.y - 40, dados.alertaGeral.msg, dados.alertaGeral.cor, "40px");
+        if(typeof playSFX === 'function') playSFX('error'); 
+    }
+});
 
     // Modifique a lógica do "telegraphTimer" dentro da função drawCombatScene() para lidar com múltiplos ataques simultâneos.
     // 🔮 NOVA FUNÇÃO: Deteta exatamente o que falta e escreve no botão!
@@ -3659,7 +3739,18 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
 // ==============================================================================
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
         if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
-        
+        // Substitui a validação de stun nestas duas funções por esta blindagem absoluta:
+let agora = Date.now();
+let statusArray = meuBruxo.efeitos || []; // Lê os efeitos atualizados do sync_imediato
+let efeitoBloqueio = statusArray.find(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
+
+if (efeitoBloqueio) {
+    playSFX('error'); 
+    document.body.classList.add('shake-screen');
+    setTimeout(() => document.body.classList.remove('shake-screen'), 300);
+    mostrarNotificacao(`Não podes lançar magia! Efeito ativo: ${efeitoBloqueio.tipo.toUpperCase()}`, "erro");
+    return; // 🛑 CORTA AQUI IMEDIATAMENTE. Nenhuma animação ou gasto de mana ocorre.
+}
         // 🔥 TRAVA MECÂNICA: Se estiver desarmado/atordoado, sai da função antes de rodar qualquer animação
         let isStunned = (meuBruxo.efeitos || []).some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         if (isStunned) {
@@ -3984,18 +4075,17 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawCombatScene(ctx, timestamp, isAtk); 
     };
-function lançarFeiticoFloresta(feiticoId) {
-    // 1. Gatilho visual imediato! O braço mexe na hora.
-    ultimoTempoAtaque = Date.now();
 
-    // 2. Envia a matemática pesada para o servidor resolver
-    socket.emit('pve_acao', { id: meuBruxo.id, acao: feiticoId });
-	window.ultimoTempoAtaque = Date.now();
-}
 window.lançarFeiticoFloresta = function(feiticoId) {
     // 1. Gatilho visual imediato! O braço mexe na hora.
     window.ultimoTempoAtaque = Date.now();
-
+if (efeitoBloqueio) {
+    playSFX('error'); 
+    document.body.classList.add('shake-screen');
+    setTimeout(() => document.body.classList.remove('shake-screen'), 300);
+    mostrarNotificacao(`Não podes lançar magia! Efeito ativo: ${efeitoBloqueio.tipo.toUpperCase()}`, "erro");
+    return; // 🛑 CORTA AQUI IMEDIATAMENTE. Nenhuma animação ou gasto de mana ocorre.
+}
     // 2. Envia a matemática pesada para o servidor resolver
     socket.emit('pve_acao', { id: meuBruxo.id, acao: feiticoId });
 }
@@ -4983,23 +5073,7 @@ socket.on('receber_convite_grupo', (dados) => {
    // =====================================
     // RECEPTORES DE DADOS DO MMO COOP (BOSS E ALIADOS)
     // =====================================
-    socket.on('mmo_combat_update', (dados) => {
-        if(!combatEngineAtivo) return;
-        
-        // 🔥 Sincroniza a vida dos inimigos para toda a gente na sala!
-        if (dados.entidades) {
-            renderizarAlvos(dados.entidades); // Atualiza os botões e a vida do alvo focado
-        } else if (dados.hpBoss !== undefined) {
-            bossCurrentHp = dados.hpBoss;
-            atualizarHPUIVisual();
-        }
-        
-        // Se foi um aliado a bater, diz na tela e treme um bocadinho
-        if(dados.atacanteNome && dados.atacanteNome !== meuBruxo.nome) {
-            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 100);
-            safeSet('ca-dungeon-info', `⚔️ Aliado ${dados.atacanteNome} atacou!`);
-        }
-    });
+    
     socket.on('mmo_boss_morto', (dados) => {
         if(combatEngineAtivo) {
             document.getElementById('ca-boss-hp').style.width = `0%`; safeSet('ca-boss-hp-txt', "0");
