@@ -1188,42 +1188,7 @@ io.on('connection', (socket) => {
     // =====================================
     // CORREÇÃO AAA: CRIAÇÃO E SYNC DE GRUPOS
     // =====================================
-    socket.on('grupo_aceitar', (dados) => {
-        let liderId = dados.liderId;
-        
-        // 1. Cria o grupo se não existir
-        if (!core.grupos[liderId]) {
-            core.grupos[liderId] = { lider: liderId, membros: [liderId] };
-            if(core.alunos[liderId]) core.alunos[liderId].partyId = liderId; // Regista o líder!
-        }
-        
-        // 2. Adiciona o jogador que aceitou
-        if (!core.grupos[liderId].membros.includes(socket.alunoId)) {
-            core.grupos[liderId].membros.push(socket.alunoId);
-            if(core.alunos[socket.alunoId]) core.alunos[socket.alunoId].partyId = liderId; // Regista o membro!
-        }
-        
-        core._salvarUrgente();
-        
-        // 3. Envia os dados completos de TODOS os membros para o Front-End (Incluindo roupas para o Combate)
-        let infoGrupo = { 
-            lider: liderId, 
-            membrosNomes: core.grupos[liderId].membros.map(id => {
-                let a = core.alunos[id];
-                return { 
-                    id: id, 
-                    nome: a.nome, 
-                    equipamentos: a.equipamentos, 
-                    casa: a.casa 
-                };
-            }) 
-        };
-        
-        // 4. Atualiza a UI de toda a party
-        core.grupos[liderId].membros.forEach(mId => {
-            io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo);
-        });
-    });
+    
 socket.on('forest_mover', (dados) => {
         // Blindagem: impede crash se o servidor reiniciar enquanto jogadores andam
         if (!core.florestaEngine || !core.florestaEngine.instancias || !dados.instId) return; 
@@ -1406,47 +1371,95 @@ socket.on('mmo_interagir_objeto', async (dados) => {
     // ==============================================================================
     // MMO MOTOR DE POSIÇÕES E ZONAS EM TEMPO REAL
     // ==============================================================================
-    if(!core.playersOnlineMmo) core.playersOnlineMmo = {};
+    // ==============================================================================
+    // 🌍 MOTOR MMO GLOBAL: GESTÃO DE ZONAS E SINCRONIZAÇÃO DE MOVIMENTO
+    // ==============================================================================
+    if (!core.playersOnlineMmo) core.playersOnlineMmo = {};
 
-    socket.on('entrar_zona_castelo', async (dados) => {
+    socket.on('entrar_zona_castelo', (dados) => {
+        // 1. Remove da zona antiga
         if (socket.zonaAtual) {
             socket.leave(`zona_${socket.zonaAtual}`);
             io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
         }
         
+        // 2. Coloca na nova zona
         socket.zonaAtual = dados.zona;
         socket.join(`zona_${dados.zona}`);
         
-        // Regista o jogador no mapa do servidor
+        // 3. Regista a entidade física no Servidor
         const a = core.alunos[socket.alunoId];
         if (a) {
             core.playersOnlineMmo[a.id] = {
                 id: a.id, nome: a.nome, casa: a.casa, nivel: a.nivel,
                 x: dados.startX || 400, y: dados.startY || 300, dir: 1, isMoving: false,
-                equipamentos: a.equipamentos // 🔥 ENVIA AS ROUPAS PARA TODOS VEREM!
+                equipamentos: a.equipamentos || {}, // Para renderizar o Guarda-Roupa dos outros!
+                zona: dados.zona
             };
         }
 
-        io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '🏰 [SISTEMA]', texto: `${dados.nome} entrou em ${dados.zona}.` });
+        io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '🏰 [SISTEMA]', texto: `${a.nome} chegou a ${dados.zona}.` });
         
-        core.cerebroIA.gerarAtmosferaLocal(dados.zona).then(ambienteMsg => {
-            if(ambienteMsg) io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '✨ [AMBIENTE]', texto: ambienteMsg });
-        });
-
-        atualizarPresencaZona(dados.zona);
+        // Dispara o estado atual da sala para quem acabou de entrar
+        if (core.zonasVivas[dados.zona]) {
+            socket.emit('mmo_world_update', core.zonasVivas[dados.zona]);
+        }
     });
 
-    // 🔥 NOVO: Recebe o movimento a 15fps e retransmite para a sala
+    // O jogador envia a sua posição local para o servidor
     socket.on('mmo_mover', (dados) => {
-    // Faz o broadcast das coordenadas apenas para quem está na mesma Zona/Instância
-    socket.to(dados.zona).emit('mmo_jogador_moveu', { 
-        id: socket.alunoId, 
-        x: dados.x, 
-        y: dados.y, 
-        dir: dados.dir 
+        if (!core.playersOnlineMmo[socket.alunoId]) return;
+        
+        let p = core.playersOnlineMmo[socket.alunoId];
+        p.x = dados.x;
+        p.y = dados.y;
+        p.dir = dados.dir;
+        p.isMoving = dados.isMoving;
+        p.zona = dados.zona; // Garante que sabemos onde ele está
     });
-});
 
+     // ==============================================================================
+    // 🤝 SISTEMA DE GRUPOS E COOP INSTANCIADO
+    // ==============================================================================
+    socket.on('grupo_convidar', (dados) => {
+        if(!core.alunos[dados.alvoId] || dados.alvoId === socket.alunoId) return;
+        io.to(`priv_${dados.alvoId}`).emit('grupo_receber_convite', { 
+            deId: socket.alunoId, 
+            deNome: core.alunos[socket.alunoId].nome 
+        });
+    });
+
+    socket.on('grupo_aceitar', (dados) => {
+        let liderId = dados.liderId;
+        if (!core.grupos[liderId]) core.grupos[liderId] = { lider: liderId, membros: [liderId] };
+        
+        if (!core.grupos[liderId].membros.includes(socket.alunoId)) {
+            core.grupos[liderId].membros.push(socket.alunoId);
+        }
+        
+        // Atualiza as contas
+        if(core.alunos[liderId]) core.alunos[liderId].partyId = liderId;
+        if(core.alunos[socket.alunoId]) core.alunos[socket.alunoId].partyId = liderId;
+        core._salvarUrgente();
+        
+        // Puxa os dados visuais completos (Roupas, Casas, etc) para a interface do grupo
+        let infoGrupo = { 
+            lider: liderId, 
+            membrosNomes: core.grupos[liderId].membros.map(id => {
+                let a = core.alunos[id];
+                return { id: id, nome: a.nome, equipamentos: a.equipamentos, casa: a.casa };
+            }) 
+        };
+        
+        core.grupos[liderId].membros.forEach(mId => io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo));
+    });
+
+    socket.on('disconnect', () => {
+        if (socket.alunoId && core.playersOnlineMmo[socket.alunoId]) {
+            io.to(`zona_${core.playersOnlineMmo[socket.alunoId].zona}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
+            delete core.playersOnlineMmo[socket.alunoId];
+        }
+    });
     socket.on('pedir_presenca', (dados) => {
         atualizarPresencaZona(dados.zona);
     });
@@ -1466,12 +1479,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
     }
 
-    socket.on('disconnect', () => {
-        if (socket.zonaAtual && socket.alunoId) {
-            io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
-            delete core.playersOnlineMmo[socket.alunoId];
-        }
-    });
+
 	socket.on('pedir_presenca', (dados) => {
         atualizarPresencaZona(dados.zona);
     });
@@ -1635,8 +1643,26 @@ async function iniciarSistema() {
     await inicializarServidor();
     server.listen(PORT, '0.0.0.0', () => { 
         console.log(`🏰 O Expresso de Hogwarts chegou à porta ${PORT}`); 
-        setInterval(() => { core.tickServerGlobal(); }, 2000); 
+        
+        setInterval(() => { core.tickServerGlobal(); }, 2000); // Lógica de recursos e economia
+        
+        // 🔥 O BATIMENTO CARDÍACO DO MMO (15 FPS) 🔥
+        setInterval(() => {
+            if (!core.playersOnlineMmo) return;
+            
+            // Agrupa os jogadores por zona
+            let zonasPacotes = {};
+            Object.values(core.playersOnlineMmo).forEach(p => {
+                if(!zonasPacotes[p.zona]) zonasPacotes[p.zona] = [];
+                zonasPacotes[p.zona].push(p);
+            });
+
+            // Envia apenas o pacote da zona para quem está nessa zona
+            for (let zona in zonasPacotes) {
+                io.to(`zona_${zona}`).emit('mmo_sync_posicoes', zonasPacotes[zona]);
+            }
+        }, 60); 
+
     });
 }
-
 iniciarSistema();

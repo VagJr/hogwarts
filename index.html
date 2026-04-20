@@ -3560,15 +3560,16 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         cvs = document.getElementById('engine-combate'); ctxCombat = cvs.getContext('2d');
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
-        // 1. CARREGA OS ALIADOS (Se estiver sozinho, cria array só com ele)
+        // 1. CARREGA E ORGANIZA OS ALIADOS FÍSICOS
+        // Se a chamada não enviar aliados, cria uma array onde tu és o único aliado.
         arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
         
-        // Dá posições físicas (Formação de batalha) a cada aliado
         arenaAliados.forEach((aliado, index) => {
-            aliado.combatX = 100 + (index * 40); // Faz uma escadinha para a direita
-            aliado.combatY = 280 + ((index % 2 === 0 ? 1 : -1) * Math.ceil(index / 2) * 80);
-            aliado.atkProgress = 0; // Para animar a varinha deles
+            aliado.combatX = 100 + (index * 40); // Escadinha
+            aliado.combatY = 280 + ((index % 2 === 0 ? 1 : -1) * Math.ceil(index / 2) * 80); // Cima / Baixo alternado
+            aliado.atkProgress = 0;
             
+            // Grava a tua posição na variável mestre para que os cliques das tuas magias saiam do sítio certo
             if(aliado.id === meuBruxo.id) {
                 playerHitbox.x = aliado.combatX;
                 playerHitbox.y = aliado.combatY;
@@ -3577,8 +3578,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
 
         // 2. LÓGICA DE PVP VS PVE
         if(isDuel) {
-            arenaInimigos = []; // Limpa mobs
-            arenaInimigoPvP = nomeInimigo; // O servidor deve enviar o objeto {id, nome, equipamentos...} aqui
+            arenaInimigos = []; 
             if(typeof nomeInimigo === 'object') {
                 arenaInimigoPvP = nomeInimigo;
                 arenaInimigoPvP.combatX = 800; arenaInimigoPvP.combatY = 300;
@@ -3596,7 +3596,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         renderizarCartasActionHog(); 
         
         const hudDungeon = document.getElementById('ca-dungeon-info');
-        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Nível de Ameaça: Fase 1"; } 
+        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Combate Cooperativo Ativo"; } 
         else { hudDungeon.classList.add('oculto'); }
 
         if(arenaLoop) clearInterval(arenaLoop); 
@@ -4817,7 +4817,46 @@ socket.on('mmo_item_coletado', (d) => {
         if(nome) socket.emit('enviar_convite_grupo', { meuId: meuBruxo.id, meuNome: meuBruxo.nome, alvoNome: nome });
     }
 
-    
+    // ==============================================================================
+    // 🌍 RECEPTORES GLOBAIS DO MMO (INTERPOLAÇÃO E SYNC)
+    // ==============================================================================
+    socket.on('mmo_sync_posicoes', (jogadoresDaZona) => {
+        // Decide que motor está ativo neste momento para injetar os "fantasmas" dos outros jogadores
+        let motorAtivo = null;
+        if (meuBruxo.estadoJogo === 'BECO_DIAGONAL') motorAtivo = BecoEngine;
+        else if (modoMmoAtivo) motorAtivo = HogwartsMMOEngine;
+        else if (currentForestInstId) motorAtivo = ForestMMOEngine;
+
+        if (!motorAtivo) return;
+        if (!motorAtivo.remotes) motorAtivo.remotes = {};
+
+        // Regista ou atualiza o alvo (target) dos jogadores
+        jogadoresDaZona.forEach(p => {
+            if (p.id === meuBruxo.id) return; // Não te desenhas a ti mesmo via rede!
+
+            if (!motorAtivo.remotes[p.id]) {
+                // Primeira vez que vemos este jogador na zona
+                motorAtivo.remotes[p.id] = { 
+                    id: p.id, nome: p.nome, casa: p.casa, equipamentos: p.equipamentos,
+                    x: p.x, y: p.y, targetX: p.x, targetY: p.y, dir: p.dir, isMoving: p.isMoving 
+                };
+            } else {
+                // Atualiza os dados alvo para a interpolação suave
+                let r = motorAtivo.remotes[p.id];
+                r.targetX = p.x;
+                r.targetY = p.y;
+                r.dir = p.dir;
+                r.isMoving = p.isMoving;
+                r.equipamentos = p.equipamentos; // Caso ele tenha mudado de roupa
+            }
+        });
+    });
+
+    socket.on('mmo_jogador_saiu', (dados) => {
+        if (BecoEngine && BecoEngine.remotes) delete BecoEngine.remotes[dados.id];
+        if (HogwartsMMOEngine && HogwartsMMOEngine.remotes) delete HogwartsMMOEngine.remotes[dados.id];
+        if (ForestMMOEngine && ForestMMOEngine.remotes) delete ForestMMOEngine.remotes[dados.id];
+    });
 
    // =====================================
     // SYNC DE FEITIÇOS MULTIPLAYER E PVP
@@ -4825,39 +4864,37 @@ socket.on('mmo_item_coletado', (d) => {
     socket.on('render_multiplayer_spell', (dados) => {
         if(!combatEngineAtivo || dados.shooterId === meuBruxo.id) return;
         
-        // Descobre quem atirou (Aliado ou Inimigo)
+        // 1. Descobre de onde deve sair a magia
         let shooter = arenaAliados.find(a => a.id === dados.shooterId);
-        let sY = shooter ? shooter.combatY : 300;
-        let sX = shooter ? shooter.combatX : 650; // Se não for aliado, é inimigo (PvP ou Mob), nasce à direita
-        let dirMulti = shooter ? 1 : -1; 
+        let sX = shooter ? shooter.combatX + 40 : 650; 
+        let sY = shooter ? shooter.combatY - 30 : 300; 
+        let dirMulti = shooter ? 1 : -1; // Se não for do grupo, atira da direita para a esquerda
         
         if (arenaInimigoPvP && arenaInimigoPvP.id === dados.shooterId) {
             shooter = arenaInimigoPvP;
-            sX = shooter.combatX || 800; sY = shooter.combatY || 300;
+            sX = shooter.combatX - 40; sY = shooter.combatY - 30;
             dirMulti = -1;
         }
 
         if(dados.isDefensive) {
             gerarSparksEmCombate(sX, sY, "#0ff", 30);
         } else {
-            // Anima a varinha de quem atirou
+            // Anima o braço da pessoa que atirou!
             if (shooter) {
                 shooter.atkProgress = 1.0;
                 shooter.atkColor = dados.cor;
             }
 
-            // Puxa as regras visuais do feitiço original
             const feiticoObj = servidorGlobal.livroDeFeiticos[dados.feiticoId];
             const cfg = feiticoObj ? feiticoObj.visualConfig : {};
-            let sShape = cfg ? cfg.shape : 'sphere';
 
             projeteis.push({ 
-                x: sX, y: sY, ty: playerHitbox.y,
+                x: sX, y: sY, ty: 300,
                 speed: (cfg ? cfg.speed || 25 : 25) * dirMulti, 
-                pBoss: !shooter || dirMulti === -1, // Se for inimigo, atinge-te
+                pBoss: !shooter || dirMulti === -1, 
                 scale: 15, cor: dados.cor, glow: dados.cor,
                 aliado: !!shooter && dirMulti === 1,
-                shape: sShape,
+                shape: cfg ? cfg.shape : 'sphere',
                 pStyle: cfg ? cfg.particleStyle : 'sparks',
                 mov: cfg ? cfg.movement : 'linear',
                 trailLen: cfg ? cfg.trailSize : 15
@@ -6857,7 +6894,37 @@ window.equiparItemMistico = async function(itemId) {
                 grad.addColorStop(0, 'rgba(100,150,200,0.08)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
                 ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2); ctx.fill();
             });
+// 🔥 DESENHA OS OUTROS JOGADORES NO BECO DIAGONAL 🔥
+            for (let id in this.remotes) {
+                let rp = this.remotes[id];
+                
+                // Interpolação suave (Lerp)
+                rp.x += (rp.targetX - rp.x) * 0.2; 
+                rp.y += (rp.targetY - rp.y) * 0.2;
+                
+                let rBob = rp.isMoving ? Math.sin(this.tickCount * 0.4) * 4 : 0;
+                
+                ctx.save();
+                ctx.translate(rp.x, rp.y + rBob);
+                ctx.scale(rp.dir, 1); 
+                
+                // Desenha a sombra
+                ctx.fillStyle = "rgba(0,0,0,0.5)"; 
+                ctx.beginPath(); ctx.ellipse(0, 18, 14, 5, 0, 0, Math.PI*2); ctx.fill();
+                
+                // Desenha a Arte do Bruxo usando a roupa dele
+                drawAnimeWizard(ctx, 0, 0, 0.30, this.tickCount*0.1, 0, null, false, rp.equipamentos || {}, rp.casa);
+                ctx.restore();
+                
+                ctx.fillStyle = '#fff'; ctx.font = "bold 10px Arial"; ctx.textAlign="center"; 
+                ctx.fillText(rp.nome, rp.x, rp.y - 35);
+            }
 
+            // Emite o próprio movimento para o servidor
+            if (this.player.isMoving || this.wasMoving) {
+                socket.emit('mmo_mover', { zona: 'Beco Diagonal', x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
+                this.wasMoving = this.player.isMoving;
+            }
             ctx.restore();
             mapLoop = requestAnimationFrame(this.tick.bind(this));
         }
@@ -7959,24 +8026,37 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
                 ctx.fillText(p.label, p.x + p.w/2, p.y + p.h/2 + 6);
             });
 
+            // 🔥 DESENHA OS OUTROS JOGADORES NO CASTELO 🔥
             for (let id in this.remotes) {
                 let rp = this.remotes[id];
-                if(rp.rx === undefined) { rp.rx = rp.x; rp.ry = rp.y; }
-                rp.rx += (rp.x - rp.rx) * 0.2; 
-                rp.ry += (rp.y - rp.ry) * 0.2;
+                
+                // Interpolação Linear (Smooth Movement)
+                rp.x += (rp.targetX - rp.x) * 0.2; 
+                rp.y += (rp.targetY - rp.y) * 0.2;
                 
                 let rBob = rp.isMoving ? Math.sin(this.tickCount * 0.5) * 3 : 0;
                 
-                ctx.globalAlpha = 0.8;
                 ctx.save();
-                ctx.translate(rp.rx, rp.ry + rBob);
+                ctx.translate(rp.x, rp.y + rBob);
                 ctx.scale(rp.dir, 1); 
+                
+                ctx.fillStyle = "rgba(0,0,0,0.4)"; 
+                ctx.beginPath(); ctx.ellipse(0, 18, 14, 5, 0, 0, Math.PI*2); ctx.fill();
+                
                 drawAnimeWizard(ctx, 0, 0, 0.30, this.tickCount*0.1, 0, null, false, rp.equipamentos || {}, rp.casa);
                 ctx.restore();
-                ctx.globalAlpha = 1.0;
                 
                 let corNome = rp.casa === 'Gryffindor' ? '#e74c3c' : (rp.casa === 'Slytherin' ? '#2ecc71' : (rp.casa === 'Ravenclaw' ? '#3498db' : (rp.casa === 'Hufflepuff' ? '#f1c40f' : '#ccc')));
-                ctx.fillStyle = corNome; ctx.font = "bold 14px Arial"; ctx.textAlign="center"; ctx.fillText(rp.nome, rp.rx, rp.ry - 35);
+                if (meuBruxo.partyId && rp.partyId === meuBruxo.partyId) corNome = '#0f5'; // Amigos de Grupo ficam a verde!
+
+                ctx.fillStyle = corNome; ctx.font = "bold 12px Arial"; ctx.textAlign="center"; 
+                ctx.fillText(rp.nome, rp.x, rp.y - 35);
+            }
+
+            // Emite o movimento local
+            if (this.player.isMoving || this.wasMoving) {
+                socket.emit('mmo_mover', { zona: zonaAtual, x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
+                this.wasMoving = this.player.isMoving;
             }
 
             let bob = this.player.isMoving ? Math.sin(this.tickCount * 0.5) * 3 : 0;
