@@ -2517,22 +2517,24 @@ a.siclos += 5; // Bonus pro Last Hit
         else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2, expiresAt: agora + 4000 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; prof.explorouFraqueza++; prof.ccAplicado++; } 
         else if (feitico.elemento === 'cinetico' && alvoCongelado) { multiplicador += 2.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'congelado'); relatoAcao += "❄️ SHATTER! "; prof.explorouFraqueza++; }
 
-        let interrompeu = false; 
+// Rastreio de Crowd Control e INTERRUPÇÕES (Action Combat Rápido)
+        let interrompeu = false;
         if (feitico.efeitoSecundario) {
+            // FÓRMULA DE TEMPO: Duração base extremamente curta (1.0s) + (0.1s por nível de maestria)
+            // Exemplo: Expelliarmus Nv 5 dura apenas 1.5s, tempo perfeito para quebrar combos!
+            let nivelMagia = (a.maestriaFeiticos && a.maestriaFeiticos[feiticoId]) ? a.maestriaFeiticos[feiticoId].nivel : 1;
+            let duracaoCalculada = parseFloat((1.0 + (nivelMagia * 0.1)).toFixed(1)); 
+
             if (['atordoar', 'congelado', 'desarmar', 'vulneravel'].includes(feitico.efeitoSecundario)) {
                 prof.ccAplicado++;
+                // Quebra a guarda/animação do inimigo na hora
                 if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) {
                     interrompeu = true;
                 }
             }
-            let duracaoMs = (feitico.duracao || 2) * 2000;
             let eExistente = mob.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
-            if (eExistente) {
-                eExistente.duracao = feitico.duracao || 3;
-                eExistente.expiresAt = agora + duracaoMs;
-            } else {
-                mob.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: feitico.duracao || 3, expiresAt: agora + duracaoMs });
-            }
+            if (eExistente) eExistente.duracao = duracaoCalculada;
+            else mob.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: duracaoCalculada });
         }
 
         if (mob.padrao === 'defensivo' && mecanica !== 'status' && !alvoAntiCura) {

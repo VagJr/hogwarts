@@ -3890,16 +3890,17 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
    window.runTickArenaMatematica_E_Desenhar = function() {
         if(!combatEngineAtivo) return;
 
-        // Regeneração de Mana
+        // Regeneração Rápida de Mana
         if(arenaMana < arenaMaxMana) arenaMana += 0.055; 
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`; 
         safeSet('ca-mana-text', `${Math.floor(arenaMana)} M`); 
         
+        // Atualiza a barra de escudo visual em tempo real (para os segundos descerem)
+        if (playerHitbox.mode === 'protego') atualizarHPUIVisual();
+
         // 🔥 VERIFICA SE O JOGADOR ESTÁ INCAPACITADO (DESARMADO / CONGELADO / ATORDOADO)
-        let isStunned = false;
-        if (meuBruxo && meuBruxo.efeitos) {
-            isStunned = meuBruxo.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
-        }
+        let statusArray = meuBruxo.buffs || meuBruxo.efeitos || [];
+        let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         
         // Atualização visual das cartas na mão (Deck System)
         maoCombate.forEach((fId, slotIndex) => { 
@@ -3917,14 +3918,14 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
                 } else {
                     slotEl.style.filter = "grayscale(100%)"; 
                     slotEl.style.opacity = "0.5";
-                    if (isStunned) slotEl.style.borderColor = "#e74c3c"; // Fica vermelho vibrante se bloqueado
-                    else slotEl.style.borderColor = "#333";
+                    if (isStunned) slotEl.style.borderColor = "#e74c3c"; // Borda Vermelha (Bloqueado por CC!)
+                    else slotEl.style.borderColor = "#333"; // Borda normal (Sem mana)
                 }
             } 
         });
 
-        drawCombatScene(); 
-    }
+        drawCombatScene(ctxCombat, performance.now(), false); // Atualize se precisar dos argumentos exatos da sua versão
+    };
 function lançarFeiticoFloresta(feiticoId) {
     // 1. Gatilho visual imediato! O braço mexe na hora.
     ultimoTempoAtaque = Date.now();
@@ -4579,28 +4580,30 @@ let arenaOndasEspeciais = []; // Fila leve de efeitos
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
         if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
         
-        // 🔥 IMPEDE MECANICAMENTE O LANÇAMENTO DE FEITIÇOS SE DESARMADO/ATORDOADO
-        let isStunned = meuBruxo.efeitos && meuBruxo.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+        // 🔥 BLOQUEIO ABSOLUTO: Impede mecânicamente de lançar se estiver desarmado/atordoado
+        let statusArray = meuBruxo.buffs || meuBruxo.efeitos || [];
+        let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         if (isStunned) {
             playSFX('error');
             mostrarNotificacao("Estás incapacitado e não podes lançar feitiços!", "erro");
             document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-            return; // 🛑 Bloqueia a execução integralmente!
+            return; // 🛑 Cancela a função aqui!
         }
         
         const feitico = servidorGlobal.livroDeFeiticos[sid];
         if (!feitico) return;
 
+        // Calcula a Maestria deste feitiço em específico
+        let maestria = (meuBruxo.maestriaFeiticos && meuBruxo.maestriaFeiticos[sid]) ? meuBruxo.maestriaFeiticos[sid].nivel : 1;
+
         playSFX('magic');
         arenaMana -= cMana;
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
         
-        // --- 🃏 LÓGICA DE DESCARTE E COMPRA ---
         maoCombate[slotIndex] = null; 
         renderizarCartasActionHog(); 
         setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
 
-        // --- RESTO DA LÓGICA DE ATAQUE VISUAL E FÍSICA COMPLETA ---
         playerHitbox.atkTimer = 1.0; 
         playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
         const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
@@ -4610,14 +4613,20 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
 
         socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
 
-        // 1. SE FOR ESCUDO / DEFESA (COM VIDA EXTRA E TEMPO DE ESGOTAMENTO)
+        // 1. SE FOR ESCUDO / DEFESA
         if (mecanica === 'escudo' || mecanica === 'defesa') {
+            // 🔥 FÓRMULAS DE COMBATE RÁPIDO PARA ESCUDOS:
+            // Duração: 1.5s base + 0.1s por nível (Action Reaction)
+            let tempoEscudoCalculado = 1500 + (maestria * 100); 
+            // Vida da Barreira: 300 base + 40 por nível
+            let hpEscudoCalculado = (feitico.valorBase || 300) + (maestria * 40); 
+
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
             playerHitbox.mode = 'protego'; 
-            playerHitbox.timer = 2000; // 🔥 Duração base 2 Segundos (Acaba se o tempo esgotar)
-            playerHitbox.escudoMax = feitico.valorBase || 400; // 🔥 Vida Extra do Escudo (Quebra com dano forte)
-            playerHitbox.escudoHp = playerHitbox.escudoMax;
-            atualizarHPUIVisual(); // Atualiza a barra azul
+            playerHitbox.timer = tempoEscudoCalculado; 
+            playerHitbox.escudoMax = hpEscudoCalculado; 
+            playerHitbox.escudoHp = hpEscudoCalculado;
+            atualizarHPUIVisual(); 
             
             criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
             processarImpactoNoServidor("protego_block_reflex", true); 
@@ -4628,11 +4637,12 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
             criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
             processarImpactoNoServidor(sid, false); 
         } 
-        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS E FEITIÇOS FÍSICOS)
+        // 3. SE FOR ATAQUE OU STATUS
         else {
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
             let qt = cfg.quantity || 1;
             let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
+            
             for(let i = 0; i < qt; i++) {
                 setTimeout(() => {
                     let sX = corePlayerOffs.x;
@@ -5848,10 +5858,10 @@ socket.on('pvp_start', (dados) => {
         atualizarHPUIVisual();
     });
 
-    function atualizarHPUIVisual() {
+    window.atualizarHPUIVisual = function() {
         document.getElementById('ca-player-hp').style.width = `${Math.max(0, (playerCurrentHp / meuBruxo.hpMax) * 100)}%`; 
         
-        // 🔥 BARRA DE VIDA DO ESCUDO (PROTEGO)
+        // 🔥 BARRA DE VIDA DINÂMICA DO ESCUDO (PROTEGO)
         let containerHp = document.getElementById('ca-player-hp').parentElement;
         let barraEscudo = document.getElementById('ca-player-escudo');
         if (!barraEscudo) {
@@ -5860,17 +5870,19 @@ socket.on('pvp_start', (dados) => {
             barraEscudo.style.position = 'absolute';
             barraEscudo.style.top = '0'; barraEscudo.style.left = '0'; barraEscudo.style.height = '100%';
             barraEscudo.style.background = 'linear-gradient(90deg, #00ffff, #3498db)';
-            barraEscudo.style.transition = 'width 0.2s ease-out';
+            barraEscudo.style.transition = 'width 0.1s linear';
             barraEscudo.style.opacity = '0.9';
             barraEscudo.style.boxShadow = '0 0 10px rgba(0, 255, 255, 0.8)';
             barraEscudo.style.pointerEvents = 'none';
             containerHp.appendChild(barraEscudo);
         }
 
-        if (playerHitbox.mode === 'protego' && playerHitbox.escudoMax > 0) {
+        // Atualiza a vida e o timer do Escudo visualmente
+        if (playerHitbox.mode === 'protego' && playerHitbox.escudoMax > 0 && playerHitbox.timer > 0) {
             let pctEscudo = Math.max(0, (playerHitbox.escudoHp / playerHitbox.escudoMax) * 100);
             barraEscudo.style.width = `${pctEscudo}%`;
-            safeSet('ca-player-hp-txt', `🛡️ ${Math.floor(playerHitbox.escudoHp)} | HP: ${Math.floor(playerCurrentHp)}`);
+            let tempoSec = (playerHitbox.timer / 1000).toFixed(1);
+            safeSet('ca-player-hp-txt', `🛡️ ${Math.floor(playerHitbox.escudoHp)} HP | ⏳ ${tempoSec}s`);
         } else {
             barraEscudo.style.width = `0%`;
             safeSet('ca-player-hp-txt', `${Math.floor(playerCurrentHp)} / ${meuBruxo.hpMax}`);
@@ -5879,12 +5891,18 @@ socket.on('pvp_start', (dados) => {
         document.getElementById('ca-boss-hp').style.width = `${Math.max(0, (bossCurrentHp / bossMaxHp) * 100)}%`; 
         safeSet('ca-boss-hp-txt', `${Math.floor(bossCurrentHp)} / ${bossMaxHp}`);
 
-        // 🔥 RENDERIZA OS BUFFS DO JOGADOR
-        const iconesB = { 'espinhos': '🛡️ Espinhos', 'regeneracao': '💚 Regen', 'pressa': '⚡ Pressa' };
+        // 🔥 RENDERIZA OS BUFFS E DEBUFFS DO JOGADOR NO HUD
+        const iconesB = { 'espinhos': '🛡️ Espinhos', 'regeneracao': '💚 Regen', 'pressa': '⚡ Pressa', 'queimar': '🔥 Queima', 'sangrar': '🩸 Sangra', 'envenenar': '🤢 Veneno', 'atordoar': '💫 Atordoado', 'congelado': '🧊 Congelado', 'desarmar': '⚔️🚫 Desarmado', 'vulneravel': '💔 Vulnerável' };
+        
         let htmlBuffs = "";
-        if (meuBruxo && meuBruxo.buffs && meuBruxo.buffs.length > 0) {
-            meuBruxo.buffs.forEach(b => {
-                htmlBuffs += `<span style="background:rgba(46,204,113,0.2); border: 1px solid #2ecc71; padding:2px 6px; border-radius:10px; color:#fff;">${iconesB[b.tipo] || b.tipo} (${b.duracao}t)</span>`;
+        let statusArray = meuBruxo.buffs || meuBruxo.efeitos || []; // Lê os arrays do Servidor
+        
+        if (statusArray.length > 0) {
+            statusArray.forEach(b => {
+                let isDebuff = ['atordoar', 'congelado', 'desarmar', 'queimar', 'sangrar', 'envenenar'].includes(b.tipo);
+                let corBg = isDebuff ? 'rgba(231,76,60,0.3)' : 'rgba(46,204,113,0.2)';
+                let corBd = isDebuff ? '#e74c3c' : '#2ecc71';
+                htmlBuffs += `<span style="background:${corBg}; border: 1px solid ${corBd}; padding:2px 6px; border-radius:10px; color:#fff;">${iconesB[b.tipo] || b.tipo} (${b.duracao}s)</span>`;
             });
         }
         safeSet('ca-player-buffs', htmlBuffs, true);
@@ -5892,13 +5910,11 @@ socket.on('pvp_start', (dados) => {
         // 🔥 RENDERIZA OS DEBUFFS DO INIMIGO FOCADO
         let alvoFocado = arenaInimigos.find(m => m.idx === alvoAtualIdx);
         let htmlDebuffs = "";
-        const iconesD = { 'queimar': '🔥 Queima', 'sangrar': '🩸 Sangra', 'envenenar': '🤢 Veneno', 'atordoar': '💫 Atordoado', 'congelado': '🧊 Congelado', 'desarmar': '⚔️🚫 Desarmado', 'vulneravel': '💔 Vulnerável', 'molhado': '💧 Molhado', 'anti_cura': '🚫 Anti-Cura' };
-
         if (alvoFocado && alvoFocado.efeitos && alvoFocado.efeitos.length > 0) {
             alvoFocado.efeitos.forEach(e => {
                 let corBg = (e.tipo === 'congelado' || e.tipo === 'molhado') ? 'rgba(52, 152, 219, 0.3)' : 'rgba(231, 76, 60, 0.3)';
                 let corBd = (e.tipo === 'congelado' || e.tipo === 'molhado') ? '#3498db' : '#e74c3c';
-                htmlDebuffs += `<span style="background:${corBg}; border: 1px solid ${corBd}; padding:2px 6px; border-radius:10px; color:#fff;">${iconesD[e.tipo] || e.tipo} (${e.duracao}t)</span>`;
+                htmlDebuffs += `<span style="background:${corBg}; border: 1px solid ${corBd}; padding:2px 6px; border-radius:10px; color:#fff;">${iconesB[e.tipo] || e.tipo} (${e.duracao}s)</span>`;
             });
         }
         safeSet('ca-boss-debuffs', htmlDebuffs, true);
