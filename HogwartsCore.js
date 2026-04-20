@@ -1708,24 +1708,7 @@ async folhearLivro(alunoId) {
         };
     }
 	
-	entrarQuadribol(alunoId, posicao) {
-        const a = this.alunos[alunoId]; if(!a) return { erro: "Fantasma." };
-        let match = Object.values(this.quadribol.partidas).find(p => p.status === 'aguardando');
-        if (!match) match = this.quadribol.iniciarPartida('Gryffindor', 'Slytherin'); 
-        
-        let equipa = match.casaA === a.casa ? 'A' : 'B';
-        let startX = equipa === 'A' ? 200 : 600; let startY = 200 + (Math.random() * 50 - 25);
 
-        match.jogadores[a.id] = { id: a.id, nome: a.nome, posicao, equipa, x: startX, y: startY, isBot: false };
-        
-        // SE FOR O PRIMEIRO JOGADOR, PREENCHE O RESTO DO CAMPO COM IAs
-        if (Object.keys(match.jogadores).length === 1) {
-            this.quadribol.preencherComBots(match);
-        }
-
-        match.status = 'jogando';
-        return { sucesso: true, matchId: match.id, msg: `Entraste em campo!` };
-    }
 
     adicionarPontosCasa(casa, pontos) {
         if(this.pontuacaoCasas[casa] !== undefined && casa !== "Nenhuma") {
@@ -2737,10 +2720,17 @@ async folhearLivro(alunoId) {
                 status: 'jogando'
             };
             
-            // Puxa ambos os jogadores para a Arena de Ação!
-            ioGlobal.to(`priv_${b1.id}`).emit('pvp_start', { instId, inimigoNome: b2.nome, maxHpInimigo: b2.hpMax });
-            ioGlobal.to(`priv_${b2.id}`).emit('pvp_start', { instId, inimigoNome: b1.nome, maxHpInimigo: b1.hpMax });
-            
+            // Puxa ambos os jogadores para a Arena de Ação (Com Equipamentos para Renderizar)!
+            ioGlobal.to(`priv_${b1.id}`).emit('pvp_start', { 
+                instId, 
+                inimigo: { id: b2.id, nome: b2.nome, hpMax: b2.hpMax, equipamentos: b2.equipamentos, casa: b2.casa },
+                isInvade: true
+            });
+            ioGlobal.to(`priv_${b2.id}`).emit('pvp_start', { 
+                instId, 
+                inimigo: { id: b1.id, nome: b1.nome, hpMax: b1.hpMax, equipamentos: b1.equipamentos, casa: b1.casa },
+                isInvade: true
+            });
             return { sucesso: true, msg: "Adversário encontrado! O Duelo vai começar!" };
         }
         return { sucesso: true, msg: "Entraste na fila. Aguarda um oponente..." };

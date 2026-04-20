@@ -2559,6 +2559,8 @@ if(sel && meuBruxo) {
     servidorGlobal = dados.servidor; 
     atualizarInterfaceMagica(); // Desenha a interface diretamente, sem fazer mais pedidos à net!
 });
+let arenaAliados = []; // Guarda os jogadores a lutar contigo
+let arenaInimigoPvP = null; // Guarda o jogador oponente no PvP
 let arenaInimigos = []; // Array de inimigos
     let alvoAtualIdx = 0; // Inimigo focado
     let telegraficos = []; // Array de ataques iminentes
@@ -3550,30 +3552,55 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
     };
 
     // 2. A Função que Inicia a Arena
-    window.iniciarArenaLocal = function(nomeInimigo, maxHpInimigo, visualInimigo, isDuel, entidadesArray = null) {
-        document.getElementById('ui-main').classList.add('oculto'); document.getElementById('arena-acao').classList.remove('oculto');
+    window.iniciarArenaLocal = function(nomeInimigo, maxHpInimigo, visualInimigo, isDuel, entidadesArray = null, aliadosArray = null) {
+        document.getElementById('ui-main').classList.add('oculto'); 
+        document.getElementById('arena-acao').classList.remove('oculto');
+        
         combatEngineAtivo = true; projeteis = []; effectParticles = []; telegraficos = [];
         cvs = document.getElementById('engine-combate'); ctxCombat = cvs.getContext('2d');
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
-        if(entidadesArray && entidadesArray.length > 0) {
-            renderizarAlvos(entidadesArray);
+        // 1. CARREGA OS ALIADOS (Se estiver sozinho, cria array só com ele)
+        arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
+        
+        // Dá posições físicas (Formação de batalha) a cada aliado
+        arenaAliados.forEach((aliado, index) => {
+            aliado.combatX = 100 + (index * 40); // Faz uma escadinha para a direita
+            aliado.combatY = 280 + ((index % 2 === 0 ? 1 : -1) * Math.ceil(index / 2) * 80);
+            aliado.atkProgress = 0; // Para animar a varinha deles
+            
+            if(aliado.id === meuBruxo.id) {
+                playerHitbox.x = aliado.combatX;
+                playerHitbox.y = aliado.combatY;
+            }
+        });
+
+        // 2. LÓGICA DE PVP VS PVE
+        if(isDuel) {
+            arenaInimigos = []; // Limpa mobs
+            arenaInimigoPvP = nomeInimigo; // O servidor deve enviar o objeto {id, nome, equipamentos...} aqui
+            if(typeof nomeInimigo === 'object') {
+                arenaInimigoPvP = nomeInimigo;
+                arenaInimigoPvP.combatX = 800; arenaInimigoPvP.combatY = 300;
+                arenaInimigoPvP.atkProgress = 0;
+            }
+            safeSet('ca-boss-name', arenaInimigoPvP.nome || "Duelista");
+            bossMaxHp = arenaInimigoPvP.hpMax || maxHpInimigo;
+            bossCurrentHp = bossMaxHp;
         } else {
-            // Se for duelo, cria um falso array com os dois para separar na tela
-            let p1 = { idx: 1, nome: meuBruxo.nome, equipa: 'A', hpAtual: meuBruxo.hpAtual, vivo: true, isPlayer: true };
-            let p2 = { idx: 2, nome: nomeInimigo, equipa: 'B', hpMax: maxHpInimigo, hpAtual: maxHpInimigo, vivo: true, isMob: true };
-            renderizarAlvos([p1, p2]);
+            arenaInimigoPvP = null;
+            if(entidadesArray && entidadesArray.length > 0) renderizarAlvos(entidadesArray);
         }
         
-        // 🔥 APLICA A FORMAÇÃO PARA NÃO FICAREM UM EM CIMA DO OUTRO
-        organizarFormacaoBatalha(arenaInimigos);
-
-        safeSet('ca-player-name', meuBruxo.nome); renderizarCartasActionHog(); 
+        safeSet('ca-player-name', meuBruxo.nome); 
+        renderizarCartasActionHog(); 
         
         const hudDungeon = document.getElementById('ca-dungeon-info');
-        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Nível de Ameaça: Fase 1"; } else { hudDungeon.classList.add('oculto'); }
+        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Nível de Ameaça: Fase 1"; } 
+        else { hudDungeon.classList.add('oculto'); }
 
-        if(arenaLoop) clearInterval(arenaLoop); arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
+        if(arenaLoop) clearInterval(arenaLoop); 
+        arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
     }
     
     window.fugirCombate = async function() { 
@@ -3788,7 +3815,69 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
     ctx.beginPath(); 
     ctx.arc(200, cvs.height, cvs.width/1.5 + Math.sin(atTick)*20, 0, Math.PI, true); 
     ctx.fill();
+// ==========================================
+    // 1. JOGADORES ALIADOS E PVP (MULTILAYER SYNC)
+    // ==========================================
+    
+    // Anima a queda do cooldown dos ataques dos aliados para a varinha deles mexer suavemente
+    arenaAliados.forEach(al => {
+        if (al.atkProgress > 0) al.atkProgress = Math.max(0, al.atkProgress - 0.04);
+    });
+    if (arenaInimigoPvP && arenaInimigoPvP.atkProgress > 0) {
+        arenaInimigoPvP.atkProgress = Math.max(0, arenaInimigoPvP.atkProgress - 0.04);
+    }
 
+    // Desenha todos os teus amigos na tela do teu grupo (ou apenas tu se estiveres sozinho)
+    arenaAliados.forEach(aliado => {
+        let isMe = (aliado.id === meuBruxo.id);
+        
+        let dX = isMe ? playerHitbox.x : aliado.combatX;
+        let dY = isMe ? playerHitbox.y : aliado.combatY;
+        let dHurt = isMe ? (playerHitbox.mode === 'hurt') : false;
+        
+        // Puxa as animações partilhadas (O teu usa o playerHitbox, os amigos usam a variável deles)
+        let dAtkProg = isMe ? playerHitbox.atkTimer : aliado.atkProgress;
+        let dAtkCor = isMe ? playerHitbox.atkColor : (aliado.atkColor || '#fff');
+
+        // Sombra no chão
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.beginPath(); ctx.ellipse(dX + 20, dY + 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
+
+        // O renderizador cinemático que puxa a roupa exata de cada um
+        drawAnimeWizard(ctx, dX + 20, dY, 1.5, atTick, dAtkProg, dAtkCor, dHurt, aliado.equipamentos || {}, aliado.casa);
+
+        // Se for o teu jogador e tiver escudo
+        if (isMe && playerHitbox.mode === 'protego') {
+            ctx.save(); ctx.translate(playerHitbox.x + 20, playerHitbox.y);
+            ctx.shadowColor = '#3498db'; ctx.shadowBlur = 20; 
+            ctx.strokeStyle = 'rgba(52, 152, 219, 0.8)'; ctx.lineWidth = 6; 
+            ctx.beginPath(); ctx.arc(20, 0, 90, -Math.PI/2.2, Math.PI/2.2); ctx.stroke();
+            ctx.restore();
+        }
+        
+        // Nome em cima da cabeça dos aliados
+        if (!isMe) {
+            ctx.fillStyle = '#2ecc71'; ctx.font = "bold 12px Arial"; ctx.textAlign="center";
+            ctx.fillText(aliado.nome, dX + 20, dY - 20);
+        }
+    });
+
+    // Se estiver em modo PvP, desenha o oponente (em vez dos monstros)
+    if (arenaInimigoPvP) {
+        ctx.save();
+        // O inimigo é desenhado na direita, virado para a esquerda (scale -1)
+        ctx.translate(arenaInimigoPvP.combatX || 800, arenaInimigoPvP.combatY || 300);
+        ctx.scale(-1.5, 1.5); 
+        
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.beginPath(); ctx.ellipse(0, 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
+
+        drawAnimeWizard(ctx, 0, 0, 1.0, atTick, arenaInimigoPvP.atkProgress, arenaInimigoPvP.atkColor, false, arenaInimigoPvP.equipamentos || {}, arenaInimigoPvP.casa);
+        ctx.restore();
+
+        ctx.fillStyle = '#e74c3c'; ctx.font = "bold 16px Cinzel"; ctx.textAlign="center";
+        ctx.fillText(arenaInimigoPvP.nome, (arenaInimigoPvP.combatX || 800), (arenaInimigoPvP.combatY || 300) - 30);
+    }
     // ==========================================
     // 1. JOGADOR (ESTILO ANIME C/ KINEMATICS PROTEGIDAS)
     // ==========================================
@@ -4315,7 +4404,14 @@ let bY = mob.y || (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos
             playerHitbox.timer = 1200; 
             
             criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: true, nome: meuBruxo.nome });
+            socket.emit('multiplayer_spell', { 
+    instId: combatInstId, 
+    isDefensive: false, 
+    cor: cfg.color, 
+    nome: meuBruxo.nome, 
+    shooterId: meuBruxo.id, // <-- Identifica quem atirou
+    feiticoId: sid // <-- Envia qual foi a magia
+});
             processarImpactoNoServidor("protego_block_reflex", true); 
         } 
         // ===============================================
@@ -4721,27 +4817,75 @@ socket.on('mmo_item_coletado', (d) => {
         if(nome) socket.emit('enviar_convite_grupo', { meuId: meuBruxo.id, meuNome: meuBruxo.nome, alvoNome: nome });
     }
 
+    
+
+   // =====================================
+    // SYNC DE FEITIÇOS MULTIPLAYER E PVP
+    // =====================================
+    socket.on('render_multiplayer_spell', (dados) => {
+        if(!combatEngineAtivo || dados.shooterId === meuBruxo.id) return;
+        
+        // Descobre quem atirou (Aliado ou Inimigo)
+        let shooter = arenaAliados.find(a => a.id === dados.shooterId);
+        let sY = shooter ? shooter.combatY : 300;
+        let sX = shooter ? shooter.combatX : 650; // Se não for aliado, é inimigo (PvP ou Mob), nasce à direita
+        let dirMulti = shooter ? 1 : -1; 
+        
+        if (arenaInimigoPvP && arenaInimigoPvP.id === dados.shooterId) {
+            shooter = arenaInimigoPvP;
+            sX = shooter.combatX || 800; sY = shooter.combatY || 300;
+            dirMulti = -1;
+        }
+
+        if(dados.isDefensive) {
+            gerarSparksEmCombate(sX, sY, "#0ff", 30);
+        } else {
+            // Anima a varinha de quem atirou
+            if (shooter) {
+                shooter.atkProgress = 1.0;
+                shooter.atkColor = dados.cor;
+            }
+
+            // Puxa as regras visuais do feitiço original
+            const feiticoObj = servidorGlobal.livroDeFeiticos[dados.feiticoId];
+            const cfg = feiticoObj ? feiticoObj.visualConfig : {};
+            let sShape = cfg ? cfg.shape : 'sphere';
+
+            projeteis.push({ 
+                x: sX, y: sY, ty: playerHitbox.y,
+                speed: (cfg ? cfg.speed || 25 : 25) * dirMulti, 
+                pBoss: !shooter || dirMulti === -1, // Se for inimigo, atinge-te
+                scale: 15, cor: dados.cor, glow: dados.cor,
+                aliado: !!shooter && dirMulti === 1,
+                shape: sShape,
+                pStyle: cfg ? cfg.particleStyle : 'sparks',
+                mov: cfg ? cfg.movement : 'linear',
+                trailLen: cfg ? cfg.trailSize : 15
+            });
+            playSFX('magic');
+        }
+    });
+
     socket.on('puxado_para_dungeon', (dados) => {
         isPvP = false; combatInstId = dados.idInstancia; 
         
-        // 🔥 FIX CRÍTICO: Removido o window.syncRequest() daqui! 
-        // Ele estava a fazer refresh à UI por cima do canvas de combate e deixava o ecrã transparente!
-        
-        iniciarArenaLocal(dados.estado.entidades[0].nome, dados.estado.entidades[0].hpMax, null, false, dados.estado.entidades);
-        mostrarNotificacao(`A Batalha Começou! O portal fechou-se atrás de ti.`, "info");
+        // Agora inicia a arena e PASSA O ARRAY DE ALIADOS QUE O SERVIDOR ENVIOU!
+        iniciarArenaLocal(dados.estado.entidades[0].nome, dados.estado.entidades[0].hpMax, null, false, dados.estado.entidades, dados.aliados);
+        mostrarNotificacao(`Formação de batalha estabelecida!`, "info");
     });
 
-    socket.on('render_multiplayer_spell', (dados) => {
-        // Renderiza o feitiço do teu aliado a passar na tua tela em tempo real!
-        if(!combatEngineAtivo || dados.nome === meuBruxo.nome) return;
+    socket.on('pvp_start', (dados) => {
+        isPvP = true;
+        combatInstId = dados.instId;
         
-        if(dados.isDefensive) {
-            gerarSparksEmCombate(playerHitbox.x + 80, playerHitbox.y, "#0ff", 30);
-            mostrarNotificacao(`🛡️ ${dados.nome} usou Protego!`, "info");
-        } else {
-            // Desenha o projétil aliado a voar para o Boss
-            projeteis.push({ x: 150, y: dados.startY, speed: 25, pBoss: false, scale:15, cor: dados.cor, aliado: true });
-        }
+        document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
+        document.querySelector('.main-nav-container').classList.add('oculto');
+        document.getElementById('arena-acao').classList.remove('oculto');
+        
+        // Chama a arena e passa os dados complexos do inimigo PVP
+        iniciarArenaLocal(dados.inimigo, dados.inimigo.hpMax, null, true);
+        mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
+        playSFX('error');
     });
 
    
