@@ -5681,7 +5681,6 @@ function pararDragMovel() {
         zonaAtual = zona; 
         safeSet('ui-zona-nome', zonaAtual); 
         
-        // Avisa a engine que a zona carregada já é esta, para não duplicar o sinal no init()
         if (typeof HogwartsMMOEngine !== 'undefined') {
             HogwartsMMOEngine.zonaAtualCarregada = zona;
         }
@@ -5695,21 +5694,34 @@ function pararDragMovel() {
         
         let m = HogwartsMMOEngine.mapas[zona] || {startX: 400, startY: 400};
         
-        // 🔥 CORREÇÃO: Evita enviar sinal duplicado para não cancelar a IA!
+        // Se o mapa 2D estiver aberto, força a transição (Lore + Teleporte)
         if (modoMmoAtivo) {
             zonaAtual = zona; 
             safeSet('ui-zona-nome', zonaAtual);
-            // O init(true) já faz o trabalho de emitir o sinal e posicionar o boneco!
-            HogwartsMMOEngine.init(true); 
+            HogwartsMMOEngine.init(true); // forcarRespawn = true para disparar a IA
         } else {
-            // Se o mapa 2D não estiver aberto, usamos a função normal
+            // Se estiver em menus, apenas avisa o servidor que mudou de sala
             window.entrarZonaCastelo(zona, m.startX, m.startY); 
         }
         
         mudarCategoria('explorar');
     };
 
-    
+    window.viajarPara = function(zona) {
+        fecharMapaSalteador(null, true);
+        mostrarNotificacao(`Viajaste para: ${zona}`, 'info');
+        
+        // Descobre o ponto de spawn do mapa destino
+        let m = HogwartsMMOEngine.mapas[zona] || {startX: 400, startY: 400};
+        window.entrarZonaCastelo(zona, m.startX, m.startY); 
+        
+        // Se a tela 2D estiver aberta, força-a a redesenhar para o local novo
+        if (modoMmoAtivo) {
+            HogwartsMMOEngine.init(true); 
+        }
+        
+        mudarCategoria('explorar');
+    };
 
     window.enviarChatAula = function() { 
         playSFX('click'); 
@@ -6911,10 +6923,10 @@ window.equiparItemMistico = async function(itemId) {
     let mapLoop;
     let lojaAbertaAtualmente = null;
     
-    const BecoEngine = {
+   const BecoEngine = {
         ctx: null, cvs: null,
         vw: 0, vh: 0,
-        mapW: 2200, mapH: 400, // <--- Aumente o tamanho do mapa para caber as lojas novas
+        mapW: 2200, mapH: 400,
         camera: { x: 0, y: 0 },
         tickCount: 0,
         keys: { w:0, a:0, s:0, d:0 },
@@ -6931,46 +6943,36 @@ window.equiparItemMistico = async function(itemId) {
         ],
         particulas: [],
         chaoPedras: [], 
+        remotes: {},
         
-        player: { x: 400, y: 250, vx: 0, vy: 0, speed: 1, size: 14, dir: 1, isMoving: false },
+        player: { x: 400, y: 250, vx: 0, vy: 0, speed: 3, size: 14, dir: 1, isMoving: false }, // Aumentei a speed para andar mais rapido
         controlesCriados: false,
 
-        init: function(forcarRespawn = false) {
-            this.cvs = document.getElementById('mmo-world-canvas');
+        init: function() {
+            this.cvs = document.getElementById('mapa-beco-canvas');
             if(!this.cvs) return;
             this.ctx = this.cvs.getContext('2d');
             
-            const rect = document.getElementById('mmo-world-container').getBoundingClientRect();
+            const rect = document.getElementById('mapa-container').getBoundingClientRect();
             this.cvs.width = rect.width; this.cvs.height = rect.height;
             this.vw = this.cvs.width; this.vh = this.cvs.height;
 
-            this.construirMundo();
-            this.setupControls();
-            
-            if (!this.mapas[zonaAtual]) zonaAtual = "Pátio";
-            let m = this.mapas[zonaAtual];
+            if (!this.inicializado) {
+                this.player.x = 200; this.player.y = 220; 
+                this.particulas = [];
+                for(let i=0; i<60; i++) this.particulas.push({x: Math.random()*this.mapW, y: 150+Math.random()*150, vx: Math.random()*0.5-0.25, s: Math.random()*30+20 });
 
-            // 🔥 MÁGICA AQUI: Só teleporta para o início e emite pro servidor se a zona MUDOU!
-            if (this.zonaAtualCarregada !== zonaAtual || forcarRespawn) {
-                this.player.x = m.startX; this.player.y = m.startY;
-                safeSet('mmo-world-zona-nome', zonaAtual);
-
-                this.particulasGlobais = [];
-                for(let i=0; i<200; i++) {
-                    this.particulasGlobais.push({ x: Math.random()*m.mapW, y: Math.random()*m.mapH, vx: Math.random()*1-0.5, vy: Math.random()*1-0.5, s: Math.random()*3+1 });
+                this.chaoPedras = [];
+                for(let i=0; i<this.mapW; i+=40) {
+                    for(let j=140; j<310; j+=20) {
+                        if(Math.random() < 0.15) this.chaoPedras.push({x: i + (j%40), y: j});
+                    }
                 }
-
-                // Avisa o servidor apenas nesta transição real
-                socket.emit('entrar_zona_castelo', { zona: zonaAtual, nome: meuBruxo.nome, startX: m.startX, startY: m.startY });
-                this.zonaAtualCarregada = zonaAtual;
+                this.setupControls();
+                this.inicializado = true;
             }
 
-            clearInterval(syncMovementInterval);
-            syncMovementInterval = setInterval(() => {
-                socket.emit('mmo_mover', { x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
-            }, 100);
-
-            if(this.loop) cancelAnimationFrame(this.loop);
+            if(mapLoop) cancelAnimationFrame(mapLoop);
             this.tick();
         },
 
@@ -6981,17 +6983,19 @@ window.equiparItemMistico = async function(itemId) {
             window.addEventListener('keydown', (e) => { 
                 const tag = document.activeElement ? document.activeElement.tagName : '';
                 if(tag === 'INPUT' || tag === 'TEXTAREA') return; 
-                if(modoMmoAtivo) return; // 🔥 CORREÇÃO: Ignora as teclas apenas se estiver no MMO
-                const k = e.key.toLowerCase(); if(['w','a','s','d'].includes(k)) BecoEngine.keys[k] = 1; 
+                // Permite andar apenas se estivermos no Beco
+                if(meuBruxo && meuBruxo.estadoJogo === 'BECO_DIAGONAL') {
+                    const k = e.key.toLowerCase(); if(['w','a','s','d'].includes(k)) BecoEngine.keys[k] = 1; 
+                }
             });
             window.addEventListener('keyup', (e) => { 
                 const tag = document.activeElement ? document.activeElement.tagName : '';
                 if(tag === 'INPUT' || tag === 'TEXTAREA') return; 
-                if(modoMmoAtivo) return; // 🔥 CORREÇÃO: Ignora as teclas apenas se estiver no MMO
-                const k = e.key.toLowerCase(); if(['w','a','s','d'].includes(k)) BecoEngine.keys[k] = 0; 
+                if(meuBruxo && meuBruxo.estadoJogo === 'BECO_DIAGONAL') {
+                    const k = e.key.toLowerCase(); if(['w','a','s','d'].includes(k)) BecoEngine.keys[k] = 0; 
+                }
             });
             
-            // 🔥 CORREÇÃO DO JOYSTICK MOBILE (ID Correta do HTML do Beco)
             const zone = document.getElementById('map-joystick-zone');
             const knob = document.getElementById('map-joystick-knob');
             if(zone && knob) {
@@ -7068,7 +7072,12 @@ window.equiparItemMistico = async function(itemId) {
             if (!lojaAbertaAtualmente) {
                 this.player.vx = (this.keys.d - this.keys.a) * this.player.speed;
                 this.player.vy = (this.keys.s - this.keys.w) * this.player.speed;
-                if(this.player.vx !== 0) this.player.dir = this.player.vx > 0 ? 1 : -1;
+                if(this.player.vx !== 0 || this.player.vy !== 0) {
+                    this.player.isMoving = true;
+                    if(this.player.vx !== 0) this.player.dir = this.player.vx > 0 ? 1 : -1;
+                } else {
+                    this.player.isMoving = false;
+                }
                 
                 let px = this.player.x + this.player.vx;
                 let py = this.player.y + this.player.vy;
@@ -7134,37 +7143,13 @@ window.equiparItemMistico = async function(itemId) {
                 grad.addColorStop(0, 'rgba(100,150,200,0.08)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
                 ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2); ctx.fill();
             });
-// 🔥 DESENHA OS OUTROS JOGADORES NO BECO DIAGONAL 🔥
-            for (let id in this.remotes) {
-                let rp = this.remotes[id];
-                
-                // Interpolação suave (Lerp)
-                rp.x += (rp.targetX - rp.x) * 0.2; 
-                rp.y += (rp.targetY - rp.y) * 0.2;
-                
-                let rBob = rp.isMoving ? Math.sin(this.tickCount * 0.4) * 4 : 0;
-                
-                ctx.save();
-                ctx.translate(rp.x, rp.y + rBob);
-                ctx.scale(rp.dir, 1); 
-                
-                // Desenha a sombra
-                ctx.fillStyle = "rgba(0,0,0,0.5)"; 
-                ctx.beginPath(); ctx.ellipse(0, 18, 14, 5, 0, 0, Math.PI*2); ctx.fill();
-                
-                // Desenha a Arte do Bruxo usando a roupa dele
-                drawAnimeWizard(ctx, 0, 0, 0.30, this.tickCount*0.1, 0, null, false, rp.equipamentos || {}, rp.casa);
-                ctx.restore();
-                
-                ctx.fillStyle = '#fff'; ctx.font = "bold 10px Arial"; ctx.textAlign="center"; 
-                ctx.fillText(rp.nome, rp.x, rp.y - 35);
-            }
 
             // Emite o próprio movimento para o servidor
             if (this.player.isMoving || this.wasMoving) {
                 socket.emit('mmo_mover', { zona: 'Beco Diagonal', x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
                 this.wasMoving = this.player.isMoving;
             }
+            
             ctx.restore();
             mapLoop = requestAnimationFrame(this.tick.bind(this));
         }
@@ -7912,36 +7897,35 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
         },
 
         init: function() {
-            this.cvs = document.getElementById('mmo-world-canvas');
+            this.cvs = document.getElementById('mapa-beco-canvas');
             if(!this.cvs) return;
             this.ctx = this.cvs.getContext('2d');
             
-            const rect = document.getElementById('mmo-world-container').getBoundingClientRect();
-            this.cvs.width = rect.width; this.cvs.height = rect.height;
-            this.vw = this.cvs.width; this.vh = this.cvs.height;
+            const rect = document.getElementById('mapa-container').getBoundingClientRect();
+            this.cvs.width = rect.width;
+            this.cvs.height = rect.height;
+            this.vw = this.cvs.width;
+            this.vh = this.cvs.height;
 
-            this.construirMundo();
-            this.setupControls();
-            
-            if (!this.mapas[zonaAtual]) zonaAtual = "Pátio";
+            if (!this.inicializado) {
+                this.player.x = 200; this.player.y = 220; 
+                this.particulas = [];
+                for(let i=0; i<60; i++) this.particulas.push({x: Math.random()*this.mapW, y: 150+Math.random()*150, vx: Math.random()*0.5-0.25, s: Math.random()*30+20 });
 
-            let m = this.mapas[zonaAtual];
-            this.player.x = m.startX; this.player.y = m.startY;
-            safeSet('mmo-world-zona-nome', zonaAtual);
+                this.chaoPedras = [];
+                for(let i=0; i<this.mapW; i+=40) {
+                    for(let j=140; j<310; j+=20) {
+                        if(Math.random() < 0.15) this.chaoPedras.push({x: i + (j%40), y: j});
+                    }
+                }
 
-            this.particulasGlobais = [];
-            for(let i=0; i<200; i++) {
-                this.particulasGlobais.push({ x: Math.random()*m.mapW, y: Math.random()*m.mapH, vx: Math.random()*1-0.5, vy: Math.random()*1-0.5, s: Math.random()*3+1 });
+                this.setupControls();
+                this.inicializado = true;
             }
 
-            socket.emit('entrar_zona_castelo', { zona: zonaAtual, nome: meuBruxo.nome, startX: m.startX, startY: m.startY });
+            // 🔥 CORREÇÃO: A linha 'this.construirMundo()' foi removida daqui!
 
-            clearInterval(syncMovementInterval);
-            syncMovementInterval = setInterval(() => {
-                socket.emit('mmo_mover', { x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
-            }, 100);
-
-            if(this.loop) cancelAnimationFrame(this.loop);
+            if(mapLoop) cancelAnimationFrame(mapLoop);
             this.tick();
         },
 

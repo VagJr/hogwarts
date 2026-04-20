@@ -1577,38 +1577,36 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         atualizarPresencaZona(socket.zonaAtual); // Re-renderiza as cores verdes na tela
     });
 
-	function atualizarPresencaZona(zona) {
-        const clientsInZone = io.sockets.adapter.rooms.get(`zona_${zona}`);
-        let jogadoresNaZona = [];
-        if (clientsInZone) {
-            for (const clientId of clientsInZone) {
-                const clientSocket = io.sockets.sockets.get(clientId);
-                if (clientSocket && clientSocket.alunoId && core.playersOnlineMmo[clientSocket.alunoId]) {
-                    jogadoresNaZona.push(core.playersOnlineMmo[clientSocket.alunoId]);
-                }
-            }
-        }
-        // Envia todos os jogadores e as suas posições exatas
-        io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
-    }
+	
 
 
 	socket.on('pedir_presenca', (dados) => {
         atualizarPresencaZona(dados.zona);
     });
-	function atualizarPresencaZona(zona) {
-        const clientsInZone = io.sockets.adapter.rooms.get(`zona_${zona}`);
+	// 🔥 VERSÃO ÚNICA E DEFINITIVA PARA TODO O SERVIDOR
+    function atualizarPresencaZona(zona) {
+        if (!zona) return;
+        const clientsInZone = global.io.sockets.adapter.rooms.get(`zona_${zona}`);
         let jogadoresNaZona = [];
         if (clientsInZone) {
             for (const clientId of clientsInZone) {
-                const clientSocket = io.sockets.sockets.get(clientId);
+                const clientSocket = global.io.sockets.sockets.get(clientId);
                 if (clientSocket && clientSocket.alunoId) {
                     const a = core.alunos[clientSocket.alunoId];
-                    if(a) jogadoresNaZona.push({ id: a.id, nome: a.nome, nivel: a.nivel, casa: a.casa });
+                    if (a) {
+                        jogadoresNaZona.push({
+                            id: a.id,
+                            nome: a.nome,
+                            nivel: a.nivel,
+                            casa: a.casa,
+                            partyId: a.partyId,
+                            equipamentos: a.equipamentos
+                        });
+                    }
                 }
             }
         }
-        io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
+        global.io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
     }
 
     socket.on('disconnect', () => {
