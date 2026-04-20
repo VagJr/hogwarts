@@ -2476,62 +2476,30 @@ a.siclos += 5; // Bonus pro Last Hit
         // 🔥 3. MATEMÁTICA DE DANO E SINERGIAS (COM PROFILING TÁTICO)
         // ====================================================================
         if (!mob.efeitos) mob.efeitos = [];
-        let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
+         let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
         let danoFinal = danoBaseCalculado;
         let multiplicador = 1.0;
         let defendeu = false;
+        let interrompeu = false; // 🔥 NOVA FLAG PARA AVISAR O CLIENTE
 
-        let isCríticoPassivo = Math.random() < (a.passivasCombate.crit_chance || 0.05);
-        if (isCríticoPassivo) { multiplicador += 1.0; relatoAcao += `⚡ CRÍTICO! `; }
-        
-        let danoDoT = 0;
-        // PVE Mob DoT - Limpeza dos que expiraram no tempo real
-        mob.efeitos = mob.efeitos.filter(e => {
-            if (e.expiresAt && e.expiresAt < agora) return false;
-            if (e.duracao !== undefined && e.duracao <= 0) return false; // Retrocompatibilidade
-            return true;
-        });
-
-        mob.efeitos.forEach(e => {
-            if (e.tipo === 'queimar') danoDoT += 45;
-            if (e.tipo === 'sangrar') danoDoT += 60;
-        });
-        if (danoDoT > 0) { mob.hpAtual -= danoDoT; relatoAcao += `[DoT: -${danoDoT}] `; prof.danoCausado += danoDoT; }
-
-        let alvoVeneno = mob.efeitos.find(e => e.tipo === 'envenenar');
-        let alvoMolhado = mob.efeitos.find(e => e.tipo === 'molhado');
-        let alvoCongelado = mob.efeitos.find(e => e.tipo === 'congelado');
-        let alvoVulneravel = mob.efeitos.find(e => e.tipo === 'vulneravel');
-        let alvoAntiCura = mob.efeitos.find(e => e.tipo === 'anti_cura');
-
-        if (alvoVulneravel) multiplicador += 1.0; 
-
-        if (mob.fracoContra && feitico.elemento === mob.fracoContra) {
-            multiplicador += 1.0; relatoAcao += `💥 SUPER EFICAZ! `; prof.explorouFraqueza++; 
-        }
-        if (mob.resisteContra && feitico.elemento === mob.resisteContra) {
-            multiplicador -= 0.8; relatoAcao += `🛡️ Resistiu... `; defendeu = true; prof.comboAtual = 0; 
-        }
-
-        if (feitico.elemento === 'fogo' && alvoVeneno) { multiplicador += 2.0; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'envenenar'); relatoAcao += "💥 DETONAÇÃO TÓXICA! "; prof.explorouFraqueza++; }
-        else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2, expiresAt: agora + 4000 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; prof.explorouFraqueza++; prof.ccAplicado++; } 
-        else if (feitico.elemento === 'cinetico' && alvoCongelado) { multiplicador += 2.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'congelado'); relatoAcao += "❄️ SHATTER! "; prof.explorouFraqueza++; }
-
-// Rastreio de Crowd Control e INTERRUPÇÕES (Action Combat Rápido)
-        // 🔥 FIX 3: Aplica efeitos ao Aluno no PvP ou Criatura no PvE
-        // 🔥 APLICAÇÃO DE STATUS AO ALVO (CRIATURA OU JOGADOR PVP)
+        // Quando aplicas os Efeitos Secundários (Expelliarmus, Glacius, etc)
         let entidadeAlvo = inst.isPvP ? alvo : mob; 
         
         if (feitico.efeitoSecundario && entidadeAlvo) {
+            
+            // 🔥 SE O FEITIÇO FOR DE CC (Desarmar, Atordoar, Congelar), INTERROMPE O ALVO!
+            if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) {
+                interrompeu = true;
+            }
+
             let nivelMagia = (a.maestriaFeiticos && a.maestriaFeiticos[feiticoId]) ? a.maestriaFeiticos[feiticoId].nivel : 1;
-            let duracaoCalculada = parseFloat((1.0 + (nivelMagia * 0.2)).toFixed(1)); // Escala com nível (Ex: 1.0s a 2.0s)
+            let duracaoCalculada = parseFloat((1.0 + (nivelMagia * 0.2)).toFixed(1)); 
 
             if (!entidadeAlvo.efeitos) entidadeAlvo.efeitos = [];
             let eExistente = entidadeAlvo.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
             if (eExistente) eExistente.duracao = duracaoCalculada;
             else entidadeAlvo.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: duracaoCalculada });
             
-            // Se for PvP, avisa a party/oponente imediatamente
             if (inst.isPvP && global.io) {
                 global.io.to(inst.id).emit('sync_imediato', { aluno: entidadeAlvo, servidor: this._obterDadosServidor() });
             }
@@ -2721,11 +2689,11 @@ a.siclos += 5; // Bonus pro Last Hit
         
         this._salvarBancoDeDados();
         
-        return { 
+         return { 
             bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, 
             danoAplicado: danoFinal, defendeu, relatoAcao, hpJogador: a.hpAtual, 
             buffsJogador: a.buffs, 
-            interrompeu 
+            interrompeu: interrompeu // 🔥 INJETA O SINAL DE INTERRUPÇÃO AQUI
         };
     }
 	// ==========================================

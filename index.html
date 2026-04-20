@@ -2569,7 +2569,16 @@ safeSet('ui-galeoes', meuBruxo.galeoes);
     socket.on('sync_imediato', (dados) => { 
     meuBruxo = dados.aluno; 
     servidorGlobal = dados.servidor; 
-    atualizarInterfaceMagica(); // Desenha a interface diretamente, sem fazer mais pedidos à net!
+    
+    // 🔥 FORÇA O DESBLOQUEIO GLOBAL DE TODOS OS BOTÕES AO RECEBER O NOVO ESTADO
+    document.querySelectorAll('button').forEach(btn => {
+        // Ignora botões que devem estar naturalmente bloqueados
+        if (!btn.id.includes('btn-wand') && !btn.innerText.includes('Aguardando')) {
+            btn.disabled = false;
+        }
+    });
+
+    atualizarInterfaceMagica(); // Desenha a interface sem fazer pedidos HTTP extra
 });
 let arenaAliados = []; // Guarda os jogadores a lutar contigo
 let arenaInimigoPvP = null; // Guarda o jogador oponente no PvP
@@ -3887,49 +3896,93 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
 	
    window.runTickArenaMatematica_E_Desenhar = function() {
         if(!combatEngineAtivo) return;
-// 🔥 CONTAGEM REGRESSIVA DOS EFEITOS (PVP/PVE)
-    if (meuBruxo.efeitos && meuBruxo.efeitos.length > 0) {
-        meuBruxo.efeitos.forEach((ef, idx) => {
-            ef.duracao = parseFloat((ef.duracao - 0.016).toFixed(3)); // Reduz em cada frame
-            if (ef.duracao <= 0) meuBruxo.efeitos.splice(idx, 1);
-        });
-        atualizarHPUIVisual(); // Força a atualização dos ícones com o tempo novo
-    }
-        // Regeneração Rápida de Mana
+
+        let agora = Date.now();
+
+        // 🔥 1. CONTAGEM REGRESSIVA DOS EFEITOS E SINCRONIZAÇÃO ABSOLUTA
+        if (meuBruxo.efeitos && meuBruxo.efeitos.length > 0) {
+            meuBruxo.efeitos.forEach((ef, idx) => {
+                // Suporta a matemática do PvP (expiresAt em ms reais) e PvE (turnos simulados)
+                if (ef.expiresAt) {
+                    ef.duracao = (ef.expiresAt - agora) / 1000;
+                } else {
+                    ef.duracao = parseFloat((ef.duracao - 0.016).toFixed(3)); // 16ms tick
+                }
+                if (ef.duracao <= 0) meuBruxo.efeitos.splice(idx, 1);
+            });
+            atualizarHPUIVisual(); // Mantém os ícones atualizados
+        }
+
+        // 🔥 2. VERIFICA SE O JOGADOR ESTÁ SOB EFEITO DE CROWD CONTROL (CC)
+        let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
+        let ccAtivo = statusArray.find(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+
+        const hotbar = document.getElementById('ca-hotbar');
+        const infoBar = document.getElementById('ca-dungeon-info');
+
+        if (ccAtivo) {
+            // TRAVA TUDO! Interface vermelha e contagem regressiva
+            let tempoRestante = Math.max(0, ccAtivo.duracao).toFixed(1);
+            
+            infoBar.classList.remove('oculto');
+            infoBar.style.color = "#e74c3c";
+            infoBar.style.textShadow = "0 0 10px #e74c3c";
+            infoBar.innerText = `⚠️ INCAPACITADO: ${ccAtivo.tipo.toUpperCase()} (${tempoRestante}s) ⚠️`;
+            
+            // Bloqueio físico dos cliques para impedir a animação!
+            if(hotbar) {
+                hotbar.style.pointerEvents = "none";
+                hotbar.style.filter = "grayscale(100%) brightness(0.5) sepia(1) hue-rotate(-50deg) saturate(5)";
+            }
+        } else {
+            // RESTAURA A INTERFACE AO NORMAL
+            if(hotbar) {
+                hotbar.style.pointerEvents = "auto";
+                hotbar.style.filter = "none";
+            }
+            
+            // Restaura o texto original do Info Bar
+            infoBar.style.color = "var(--hp-gold-glow)";
+            infoBar.style.textShadow = "1px 1px 3px #000, 0 0 10px rgba(229,184,46,0.5)";
+            if(isPvP) infoBar.innerText = `Duelo Mágico: ${arenaInimigoPvP ? arenaInimigoPvP.nome : 'Adversário'}`;
+            else infoBar.innerText = `Nível de Ameaça: Fase ${faseAtualArena}`;
+        }
+
+        // Regeneração de Mana
         if(arenaMana < arenaMaxMana) arenaMana += 0.055; 
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`; 
         safeSet('ca-mana-text', `${Math.floor(arenaMana)} M`); 
         
-        // Atualiza a barra de escudo visual em tempo real (para os segundos descerem)
-        if (playerHitbox.mode === 'protego') atualizarHPUIVisual();
+        // Atualização visual dos botões de magia (Cooldown/Mana normal)
+        if (!ccAtivo) {
+            maoCombate.forEach((fId, slotIndex) => { 
+                const slotEl = document.getElementById(`slot_${slotIndex}`); 
+                if(slotEl && fId) { 
+                    const feiticoObj = servidorGlobal.livroDeFeiticos[fId];
+                    if (!feiticoObj) return; 
+                    let csX = Number(feiticoObj.custoMana) || Number(feiticoObj.custoFocoBase) || 3; 
+                    
+                    if(arenaMana >= csX) {
+                        slotEl.style.filter = "none"; 
+                        slotEl.style.opacity = "1";
+                    } else {
+                        slotEl.style.filter = "grayscale(100%) opacity(0.5)"; 
+                    }
+                } 
+            });
+        }
 
-        // 🔥 VERIFICA SE O JOGADOR ESTÁ INCAPACITADO (DESARMADO / CONGELADO / ATORDOADO)
-        let statusArray = meuBruxo.buffs || meuBruxo.efeitos || [];
-        let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
-        
-        // Atualização visual das cartas na mão (Deck System)
-        maoCombate.forEach((fId, slotIndex) => { 
-            const slotEl = document.getElementById(`slot_${slotIndex}`); 
-            if(slotEl && fId) { 
-                const feiticoObj = servidorGlobal.livroDeFeiticos[fId];
-                if (!feiticoObj) return; 
-                let csX = Number(feiticoObj.custoMana) || Number(feiticoObj.custoFocoBase) || 3; 
-                
-                // Se tem mana E não está Stunned, o botão fica normal
-                if(arenaMana >= csX && !isStunned) {
-                    slotEl.style.filter = "none"; 
-                    slotEl.style.borderColor = "#333";
-                    slotEl.style.opacity = "1";
-                } else {
-                    slotEl.style.filter = "grayscale(100%)"; 
-                    slotEl.style.opacity = "0.5";
-                    if (isStunned) slotEl.style.borderColor = "#e74c3c"; // Borda Vermelha (Bloqueado por CC!)
-                    else slotEl.style.borderColor = "#333"; // Borda normal (Sem mana)
-                }
-            } 
-        });
+        const canvas = document.getElementById('engine-combate');
+        if (!canvas) return; 
+        const ctx = canvas.getContext('2d');
+        const timestamp = performance.now();
 
-        drawCombatScene(ctxCombat, performance.now(), false); // Atualize se precisar dos argumentos exatos da sua versão
+        if (typeof window.ultimoTempoAtaque === 'undefined') window.ultimoTempoAtaque = 0;
+        const tempoDesdeAtaque = Date.now() - window.ultimoTempoAtaque;
+        const isAtk = tempoDesdeAtaque < 400; 
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawCombatScene(ctx, timestamp, isAtk); 
     };
 function lançarFeiticoFloresta(feiticoId) {
     // 1. Gatilho visual imediato! O braço mexe na hora.
@@ -4583,20 +4636,23 @@ let arenaOndasEspeciais = []; // Fila leve de efeitos
 // 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO)
 // ==============================================================================
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
-        if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
-        
-        // 🔥 BLOQUEIO ABSOLUTO: Impede mecânicamente de lançar se estiver desarmado/atordoado
-        let statusArray = meuBruxo.buffs || meuBruxo.efeitos || [];
-        let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
-        if (isStunned) {
-            playSFX('error');
-            mostrarNotificacao("Estás incapacitado e não podes lançar feitiços!", "erro");
-            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-            return; // 🛑 Cancela a função aqui!
-        }
-        
-        const feitico = servidorGlobal.livroDeFeiticos[sid];
-        if (!feitico) return;
+    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
+    
+    // 🔥 DUPLA BLINDAGEM: Se de alguma forma conseguir clicar, bloqueia a animação!
+    let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
+    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+    
+    if (isStunned) {
+        playSFX('error');
+        document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
+        return; // 🛑 CORTA AQUI. NENHUMA ANIMAÇÃO É GERADA.
+    }
+    
+    window.ultimoTempoAtaque = Date.now(); // Regista o ataque para a animação do braço
+    const feitico = servidorGlobal.livroDeFeiticos[sid];
+    if (!feitico) return;
+
+
 
         // Calcula a Maestria deste feitiço em específico
         let maestria = (meuBruxo.maestriaFeiticos && meuBruxo.maestriaFeiticos[sid]) ? meuBruxo.maestriaFeiticos[sid].nivel : 1;
