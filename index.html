@@ -2905,6 +2905,51 @@ let maoCombate = []; // IDs dos feitiços na mão (tamanho 3)
         gerirTelasPorEstado(); // Invoca a tela nativamente (garantindo o motor vivo)
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
+	// Função auxiliar para aplicar texturas e padrões via Canvas
+function aplicarEstiloBruxo(ctx, visual, x, y, w, h) {
+    const { corBase, corDetalhe, textura, padrao, aura } = visual;
+
+    // 1. Aplicar Brilho/Aura se existir
+    if (aura) {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = aura;
+    }
+
+    // 2. Criar a Base
+    ctx.fillStyle = corBase;
+    ctx.fill();
+
+    // 3. Aplicar Texturas Procedurais
+    ctx.globalAlpha = 0.2; // Camada suave de textura
+    if (textura === "veludo") {
+        let grad = ctx.createRadialGradient(x+w/2, y, 5, x+w/2, y+h, w);
+        grad.addColorStop(0, "rgba(255,255,255,0.3)");
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, w, h);
+    } else if (textura === "escamas") {
+        ctx.strokeStyle = "rgba(0,0,0,0.4)";
+        for(let i=0; i<w; i+=5) {
+            ctx.beginPath();
+            ctx.arc(x+i, y+(i%10), 3, 0, Math.PI);
+            ctx.stroke();
+        }
+    }
+
+    // 4. Aplicar Padrões (Patterns)
+    ctx.globalAlpha = 0.5;
+    if (padrao === "runas_brilhantes") {
+        ctx.fillStyle = corDetalhe;
+        ctx.font = "8px serif";
+        ctx.fillText("ᚱ ᚦ ᚠ ᛘ", x + 5, y + 10);
+    } else if (padrao === "listras_casa") {
+        ctx.fillStyle = corDetalhe;
+        for(let i=0; i<w; i+=8) ctx.fillRect(x+i, y, 3, h);
+    }
+
+    ctx.globalAlpha = 1.0;
+    ctx.shadowBlur = 0; // Reset
+}
    function gerirTelasPorEstado() {
         if (!meuBruxo) { document.getElementById('ui-registo').classList.remove('oculto'); return; }
         

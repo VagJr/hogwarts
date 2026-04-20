@@ -577,31 +577,40 @@ async gerarMobiliaMagica() {
     }
 	
 	// 🔥 PATCH 3.0: GERAÇÃO PROCEDURAL INFINITA DE EQUIPAMENTOS
-    async gerarEquipamentoRPG(tipoPeca, nivelJogador) {
-        if (!this.podeUsarIA()) return this._fallbackEquipamento(tipoPeca, nivelJogador);
+    // 🔥 VERSÃO EXPANDIDA: DNA VISUAL INFINITO
+async gerarEquipamentoRPG(tipoPeca, nivelJogador) {
+    if (!this.podeUsarIA()) return this._fallbackEquipamento(tipoPeca, nivelJogador);
 
-        const prompt = `Cria um equipamento mágico épico do tipo "${tipoPeca}" para um bruxo de nível ${nivelJogador}.
-        O tipo DEVE SER: "cabeca" (Chapéus/Capuzes), "corpo" (Vestes/Armaduras) ou "pescoco" (Cachecóis/Amuletos).
-        Gera atributos bónus (intelecto, destreza, vigor, percepcao) somando no máximo ${nivelJogador * 2} pontos no total.
-        RETORNE APENAS JSON ESTRITO:
-        {
-            "nome": "Capa do Corvo da Noite",
-            "tipo": "corpo",
-            "lore": "Tecida com penas caídas na Floresta Proibida.",
-            "atributos": { "intelecto": 2, "vigor": 1, "destreza": 0, "percepcao": 0 },
-            "visual": { "cor1": "#1a1c23", "cor2": "#34495e", "estilo": "rasgado" }
-        }`;
+    const prompt = `Cria um equipamento mágico ÉPICO do tipo "${tipoPeca}" para um bruxo nível ${nivelJogador}.
+    Gera atributos (intelecto, destreza, vigor, percepcao) somando ${nivelJogador * 3} pontos.
+    
+    PARA O VISUAL (DNA PROCEDURAL):
+    - corBase: Hex de cor principal.
+    - corDetalhe: Hex de cor secundária/bordas.
+    - textura: "veludo", "couro_dragao", "seda_astral", "linho_antigo" ou "escamas".
+    - padrao: "liso", "listras_casa", "runas_brilhantes", "constelacoes", "degrade" ou "bordado_ouro".
+    - formatoSeed: Um número de 1 a 100 para variar a silhueta no desenho.
+    - aura: Se for Épico/Lendário, defina uma cor de brilho Hex.
 
-        try {
-            const res = await this.groq.chat.completions.create({
-                messages: [{ role: "user", content: prompt }],
-                model: "llama-3.1-8b-instant",
-                response_format: { type: "json_object" },
-                max_tokens: 800
-            });
-            return this._extrairJSONBlindado(res.choices[0].message.content) || this._fallbackEquipamento(tipoPeca, nivelJogador);
-        } catch(e) { return this._fallbackEquipamento(tipoPeca, nivelJogador); }
-    }
+    RETORNE APENAS JSON ESTRITO:
+    {
+        "nome": "Nome Épico",
+        "tipo": "${tipoPeca}",
+        "lore": "Uma frase de história.",
+        "atributos": { "intelecto": X, "vigor": Y, "destreza": Z, "percepcao": W },
+        "visual": { "corBase": "#hex", "corDetalhe": "#hex", "textura": "...", "padrao": "...", "formatoSeed": X, "aura": "#hex" }
+    }`;
+
+    try {
+        const res = await this.groq.chat.completions.create({
+            messages: [{ role: "user", content: prompt }],
+            model: "llama-3.1-8b-instant",
+            response_format: { type: "json_object" },
+            max_tokens: 800
+        });
+        return this._extrairJSONBlindado(res.choices[0].message.content) || this._fallbackEquipamento(tipoPeca, nivelJogador);
+    } catch(e) { return this._fallbackEquipamento(tipoPeca, nivelJogador); }
+}
 
     _fallbackEquipamento(tipo, nivel) {
         return { 
