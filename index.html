@@ -5688,17 +5688,23 @@ function pararDragMovel() {
         socket.emit('entrar_zona_castelo', { zona: zonaAtual, nome: meuBruxo.nome, startX, startY }); 
     };
 
-    window.viajarPara = function(zona) {
+window.viajarPara = function(zona) {
         fecharMapaSalteador(null, true);
         mostrarNotificacao(`Viajaste para: ${zona}`, 'info');
         
-        let m = HogwartsMMOEngine.mapas[zona] || {startX: 400, startY: 400};
+        // 🔥 BLINDAGEM: Verifica se o motor e os mapas já existem antes de tentar ler as coordenadas
+        let m = {startX: 400, startY: 400}; // Coordenadas padrão de segurança
+        if (typeof HogwartsMMOEngine !== 'undefined' && HogwartsMMOEngine.mapas && HogwartsMMOEngine.mapas[zona]) {
+            m = HogwartsMMOEngine.mapas[zona];
+        }
         
         // Se o mapa 2D estiver aberto, força a transição (Lore + Teleporte)
         if (modoMmoAtivo) {
             zonaAtual = zona; 
             safeSet('ui-zona-nome', zonaAtual);
-            HogwartsMMOEngine.init(true); // forcarRespawn = true para disparar a IA
+            if (typeof HogwartsMMOEngine !== 'undefined') {
+                HogwartsMMOEngine.init(true); // forcarRespawn = true para disparar a IA e o teleporte
+            }
         } else {
             // Se estiver em menus, apenas avisa o servidor que mudou de sala
             window.entrarZonaCastelo(zona, m.startX, m.startY); 
@@ -5706,7 +5712,6 @@ function pararDragMovel() {
         
         mudarCategoria('explorar');
     };
-
 
     window.enviarChatAula = function() { 
         playSFX('click'); 
