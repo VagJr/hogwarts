@@ -8523,6 +8523,16 @@ const ForestMMOEngine = {
 		}
 };
 
+socket.on('mmo_raid_status', (d) => {
+    const label = document.getElementById(`wait_${d.id}`);
+    const btn = document.querySelector(`#card_${d.id} button`);
+    if(label) label.innerText = d.texto;
+    if(btn) {
+        btn.innerText = `JUNTAR-SE (${d.count})`;
+        btn.style.background = "#e67e22";
+    }
+});
+
 // =====================================
 // LIGAÇÕES DOS SOCKETS DE TRANSIÇÃO (MAPA <-> COMBATE)
 // =====================================

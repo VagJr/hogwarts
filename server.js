@@ -1233,88 +1233,103 @@ socket.on('mmo_interagir_objeto', async (dados) => {
     // =====================================
     
 	
-socket.on('mmo_action', async (dados) => {
-    const a = core.alunos[socket.alunoId];
-    const sala = core.zonasVivas[dados.zona];
-    if(!a || !sala) return;
+// =====================================
+    // AÇÃO DE CLIQUE MUNDO ABERTO (Mmo_Action Limpo e Fechado)
+    // =====================================
+    socket.on('mmo_action', async (dados) => {
+        const a = core.alunos[socket.alunoId];
+        const sala = core.zonasVivas[dados.zona];
+        if(!a || !sala) return;
 
-    // --- LÓGICA DE COLETA BLINDADA (Vai para a Mochila) ---
-    if (dados.tipo === 'coleta') {
-        const itemIdx = sala.itens.findIndex(i => i.id === dados.idAlvo);
-        if (itemIdx !== -1) {
-            const itemBase = sala.itens[itemIdx];
-            
-            if (!itemBase.statusDinamico) {
-                if (typeof core.cerebroIA.gerarItemMundoIA === 'function') {
-                    itemBase.statusDinamico = await core.cerebroIA.gerarItemMundoIA(itemBase.nome);
-                } else {
-                    itemBase.statusDinamico = { nome: itemBase.nome, tipo: 'reliquia', descricao: 'Relíquia encontrada no castelo.' };
+        // --- LÓGICA DE COLETA BLINDADA ---
+        if (dados.tipo === 'coleta') {
+            const itemIdx = sala.itens.findIndex(i => i.id === dados.idAlvo);
+            if (itemIdx !== -1) {
+                const itemBase = sala.itens[itemIdx];
+                if (!itemBase.statusDinamico) {
+                    if (typeof core.cerebroIA.gerarItemMundoIA === 'function') {
+                        itemBase.statusDinamico = await core.cerebroIA.gerarItemMundoIA(itemBase.nome);
+                    } else {
+                        itemBase.statusDinamico = { nome: itemBase.nome, tipo: 'reliquia', descricao: 'Relíquia encontrada no castelo.' };
+                    }
                 }
+                sala.itens.splice(itemIdx, 1);
+                
+                const novoItem = { 
+                    id: 'itm_' + crypto.randomBytes(4).toString('hex'), 
+                    nome: itemBase.statusDinamico.nome || itemBase.nome,
+                    tipo: 'reliquia',
+                    lore: itemBase.statusDinamico.descricao 
+                };
+                
+                a.mochilaEscolar.push(novoItem);
+                io.to(`zona_${dados.zona}`).emit('mmo_item_coletado', { id: dados.idAlvo, texto: `🖐️ [${novoItem.nome}] foi recolhido por ${a.nome}!` });
+                io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala); 
+                core._salvarUrgente();
+                forcarSyncAluno(a.id);
             }
-
-            sala.itens.splice(itemIdx, 1);
-            
-            const novoItem = { 
-                id: 'itm_' + crypto.randomBytes(4).toString('hex'), 
-                nome: itemBase.statusDinamico.nome || itemBase.nome,
-                tipo: 'reliquia',
-                lore: itemBase.statusDinamico.descricao 
-            };
-            
-            a.mochilaEscolar.push(novoItem);
-            
-            io.to(`zona_${dados.zona}`).emit('mmo_item_coletado', { 
-                id: dados.idAlvo, 
-                texto: `🖐️ [${novoItem.nome}] foi recolhido por ${a.nome}!` 
-            });
-            
-            io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala); 
-            core._salvarUrgente();
-            forcarSyncAluno(a.id);
         }
-    }
-    // --- LÓGICA DE COMBATE COOPERATIVO (MUNDO ABERTO) ---
-    // --- LÓGICA DE COMBATE COOPERATIVO (MUNDO ABERTO) ---
-    else if (dados.tipo === 'combate') {
-        const mob = sala.entidades.find(m => m.id === dados.idAlvo);
-        if (!mob) return;
+        // --- LÓGICA DE COMBATE COOPERATIVO (MUNDO ABERTO & RAIDS) ---
+        else if (dados.tipo === 'combate') {
+            const mob = sala.entidades.find(m => m.id === dados.idAlvo);
+            if (!mob) return;
 
-        const idInst = `raid_${Date.now()}`;
-        
-        // Puxa a Party inteira ou cria uma array só com ele
-        let membrosGrupo = a.partyId && core.grupos[a.partyId] ? core.grupos[a.partyId].membros : [a.id];
+            let membrosParaAdicionar = a.partyId && core.grupos[a.partyId] ? core.grupos[a.partyId].membros : [a.id];
 
-        core.dungeonInstancias[idInst] = {
-            id: idInst, local: dados.zona,
-            entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
-            status: 'combate', multiplayer: true, membros: membrosGrupo,
-            faseAtual: 1, maxFases: 1, mult: 1 // Garante compatibilidade
-        };
-
-        core.iniciarIACombate(idInst);
-
-        let aliadosData = membrosGrupo.map(pid => {
-            let al = core.alunos[pid];
-            return { id: al.id, nome: al.nome, equipamentos: al.equipamentos || {}, casa: al.casa };
-        });
-
-        // Puxa toda a gente do grupo para a mesma tela de combate
-        membrosGrupo.forEach(pid => {
-            let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === pid);
-            if(s) s.join(idInst);
-
-            global.io.to(`priv_${pid}`).emit('puxado_para_dungeon', { 
-                idInstancia: idInst, 
-                estado: { entidades: core.dungeonInstancias[idInst].entidades },
-                aliados: aliadosData 
+            let adicionouAlguem = false;
+            membrosParaAdicionar.forEach(mId => {
+                if (!mob.jogadoresConfirmados.includes(mId)) {
+                    mob.jogadoresConfirmados.push(mId);
+                    adicionouAlguem = true;
+                }
             });
-        });
 
-        // Remove do Mundo Aberto
-        sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
-        io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
-    }
-}); 
+            if (!adicionouAlguem) return; 
+
+            if (!mob.timerIniciado) {
+                mob.timerIniciado = true;
+                let tempoRestante = 6;
+
+                const intervalId = setInterval(() => {
+                    tempoRestante--;
+                    io.to(`zona_${dados.zona}`).emit('mmo_raid_status', { 
+                        id: mob.id, count: mob.jogadoresConfirmados.length, tempo: tempoRestante,
+                        texto: `🔥 PREPARANDO: ${mob.categoria || 'Combate'} em ${tempoRestante}s...`
+                    });
+
+                    if (tempoRestante <= 0) {
+                        clearInterval(intervalId);
+                        const idInst = `raid_${Date.now()}`;
+                        
+                        const aliadosData = mob.jogadoresConfirmados.map(pid => {
+                            let al = core.alunos[pid];
+                            return al ? { id: al.id, nome: al.nome, equipamentos: al.equipamentos || {}, casa: al.casa } : null;
+                        }).filter(Boolean);
+
+                        core.dungeonInstancias[idInst] = {
+                            id: idInst, local: dados.zona, 
+                            entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
+                            status: 'combate', multiplayer: true, membros: mob.jogadoresConfirmados,
+                            faseAtual: 1, maxFases: mob.waves || 1, mult: 1, recompensaMult: mob.recompensaMult || 1
+                        };
+
+                        core.iniciarIACombate(idInst);
+
+                        mob.jogadoresConfirmados.forEach(pid => {
+                            let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === pid);
+                            if(s) s.join(idInst);
+                            io.to(`priv_${pid}`).emit('puxado_para_dungeon', { idInstancia: idInst, estado: { entidades: core.dungeonInstancias[idInst].entidades }, aliados: aliadosData });
+                        });
+
+                        sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
+                        io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
+                    }
+                }, 1000);
+            } else {
+                io.to(`zona_${dados.zona}`).emit('mmo_raid_status', { id: mob.id, count: mob.jogadoresConfirmados.length, texto: `⚔️ ${a.nome} e o seu grupo juntaram-se à batalha!` });
+            }
+        }
+    }); // <-- AQUI ESTÁ A CHAVETA DE FECHO QUE RESOLVE O TEU SYNTAX ERROR!
 // FECHA O SOCKET CORRETAMENTE AQUI // <-- ESTA LINHA FECHA O SOCKET E EVITA O ERRO!
     socket.on('multiplayer_spell', (dados) => {
         // Transmite a renderização visual da magia para os aliados na Masmorra

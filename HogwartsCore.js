@@ -1253,18 +1253,42 @@ class HogwartsCore {
         const zonaSorteada = this.listaZonas[Math.floor(Math.random() * this.listaZonas.length)];
         const sala = this.zonasVivas[zonaSorteada];
 
-        // 25% de chance de spawnar algo na zona a cada "tick"
         if (Math.random() < 0.25) {
-            // Posicionamento aleatório inteligente dentro dos limites do mapa 2D
             let rx = 400 + Math.random() * 1200; 
             let ry = 400 + Math.random() * 1200;
             
             if (Math.random() < 0.40 && sala.entidades.length < 3) {
-                const mob = this._gerarMonstroRapido(400, zonaSorteada, false);
+                // DETERMINA A CATEGORIA DO EVENTO
+                let r = Math.random();
+                let categoria = "Normal";
+                let hpMult = 1;
+                let waves = 1;
+                let recompensaMult = 1;
+
+                if (r < 0.03) { categoria = "World Boss"; hpMult = 80; recompensaMult = 15; } // Super Colossal
+                else if (r < 0.10) { categoria = "Boss"; hpMult = 6; recompensaMult = 5; }
+                else if (r < 0.25) { categoria = "Horda"; hpMult = 1.5; waves = 3; recompensaMult = 3.5; } // 3 Ondas
+                else if (r < 0.45) { categoria = "Mini-Boss"; hpMult = 3; recompensaMult = 2.5; }
+
+                const mob = this._gerarMonstroRapido(400 * hpMult, zonaSorteada, categoria.includes("Boss"));
                 const idEv = `mob_${Date.now()}`;
-                sala.entidades.push({ id: idEv, ...mob, tipo: 'combate', x: rx, y: ry });
+                
+                sala.entidades.push({ 
+                    id: idEv, 
+                    ...mob, 
+                    nome: categoria !== "Normal" ? `[${categoria}] ${mob.nome}` : mob.nome,
+                    tipo: 'combate', 
+                    x: rx, y: ry,
+                    categoria, 
+                    waves, 
+                    recompensaMult,
+                    jogadoresConfirmados: [],
+                    timerIniciado: false 
+                });
+
                 if (global.io) global.io.to(`zona_${zonaSorteada}`).emit('mmo_world_update', sala);
             } else if (sala.itens.length < 5) {
+                // ... lógica de itens mantida ...
                 const itens = ["Saco de Galeões", "Baú Escondido", "Erva Mágica Rara", "Relíquia Brilhante"];
                 const item = { id: `itm_${Date.now()}`, nome: itens[Math.floor(Math.random()*itens.length)], tipo: 'coleta', x: rx, y: ry };
                 sala.itens.push(item);
@@ -2472,9 +2496,11 @@ async folhearLivro(alunoId) {
                 let recebedores = inst.membros && inst.membros.length > 0 ? inst.membros : [a.id];
                 let divisao = recebedores.length;
 
-                let xpFase = Math.floor((isBoss ? 1500 : 400 * inst.entidades.length) / divisao);
-                let galeoesFase = Math.floor((isBoss ? 800 : 100 * inst.entidades.length) / divisao);
+                // Aplica o Multiplicador da Categoria do Evento (World Boss, Horda, etc)
+                let multEvento = inst.recompensaMult || 1.0;
 
+                let xpFase = Math.floor(((isBoss ? 1500 : 400 * inst.entidades.length) * multEvento) / divisao);
+                let galeoesFase = Math.floor(((isBoss ? 800 : 100 * inst.entidades.length) * multEvento) / divisao);
                 // --- 🧠 O ALGORITMO DE AVALIAÇÃO DE DESEMPENHO (DEVIL MAY CRY STYLE) ---
                 let p = inst.profiler[atacanteId];
                 let score = 0;
