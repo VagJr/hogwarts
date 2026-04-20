@@ -613,7 +613,15 @@
         justify-content: center; border-top: 2px solid var(--hp-gold-dark); position: relative; z-index: 2;
         box-shadow: 0 -5px 20px #000; flex-wrap: wrap; /* Permite wrap se tiver muitas cartas */
     }
-    
+    /* Ajuste do botão da Floresta */
+.btn-voltar-floresta {
+    position: absolute; top: 10px; right: 10px; width: auto; z-index: 20;
+    background: #c0392b; color: #fff; border: 2px solid #e74c3c;
+    padding: 10px 20px; font-size: 1rem; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+@media (max-width: 600px) {
+    .btn-voltar-floresta { padding: 6px 12px; font-size: 0.75rem; top: 5px; right: 5px; }
+}
     .spell-card { 
         width: 75px; height: 100px; background: #0a0a0a; border: 1px solid #333; 
         text-align: center; cursor: pointer; position: relative; 
@@ -844,8 +852,10 @@
 
 <div class="world-ticker">
     <span>⏳ <span id="relogio-dia">--</span> | <span id="relogio-hora">--:--</span></span>
-    <span>🏆 Taça: <span id="taca-lider" style="color:var(--ouro); font-weight:bold;">--</span></span>
-    <span>💧 Foco: <span id="hdr-foco" style="color:#40a0ff; font-weight:bold;">0/0</span></span>
+    <span onclick="abrirPlacarCasas()" style="cursor:pointer; background:rgba(255,255,255,0.1); padding:2px 8px; border-radius:10px; border:1px solid var(--hp-gold);">
+        🏆 Taça: <span id="taca-lider" style="color:var(--hp-gold); font-weight:bold;">--</span>
+    </span>
+	<span>💧 Foco: <span id="hdr-foco" style="color:#40a0ff; font-weight:bold;">0/0</span></span>
     <span style="color: var(--ouro); font-weight:bold;">Aula Atual: <span id="relogio-aula">Sincronizando...</span></span>
 </div>
 
@@ -925,6 +935,19 @@
                 <div id="map-joystick-knob" style="position: absolute; top: 30px; left: 30px; width: 60px; height: 60px; background: rgba(255,255,255,0.4); border-radius: 50%; box-shadow: 0 0 15px #000; pointer-events: none; transition: transform 0.05s;"></div>
             </div>
         </div>
+
+<div id="modal-taca-casas" class="oculto" style="position:fixed; top:10%; left:50%; transform:translateX(-50%); width:95%; max-width:500px; background:rgba(10,12,15,0.98); border:2px solid var(--hp-gold); border-radius:8px; z-index:100000; padding:25px; box-shadow: 0 0 60px rgba(229,184,46,0.4); backdrop-filter: blur(10px);">
+    <button onclick="document.getElementById('modal-taca-casas').classList.add('oculto')" style="position:absolute; top:10px; right:10px; width:40px; background:#c0392b; color:#fff; border:none; border-radius:4px;">X</button>
+    <h2 style="color:var(--hp-gold); text-align:center; margin-top:0; border-bottom:1px dashed var(--hp-gold-muted); padding-bottom:10px;">🏆 Guerra das Casas</h2>
+    
+    <div style="text-align:center; color:#ccc; font-size:0.9em; margin-bottom:20px;">
+        As ações dos bruxos alimentam a glória da sua casa. Vence duelos, responde corretamente nas aulas, ganha no Quadribol e purifica masmorras.
+        <br><b style="color:#2ecc71; display:block; margin-top:10px;">⏳ Fim do Ciclo: <span id="taca-timer">Calculando...</span></b>
+    </div>
+
+    <div id="placar-casas-barras" style="display:flex; flex-direction:column; gap:15px;">
+        </div>
+</div>
 
         <!-- MODAL DAS LOJAS NORMAIS -->
         <div id="modal-loja-beco" class="card oculto" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95%; max-width:500px; max-height: 85%; overflow-y: auto; z-index: 100; background: rgba(10,12,15,0.98); border: 2px solid var(--hp-gold); box-shadow: 0 0 60px rgba(0,0,0,0.9); backdrop-filter: blur(10px);">
@@ -1034,9 +1057,14 @@
             <button class="main-nav-btn" id="btn-cat-academico" onclick="mudarCategoria('academico')">🏰 Academia</button>
             <button class="main-nav-btn" id="btn-cat-aposentos" onclick="mudarCategoria('aposentos')">🛏️ Aposentos</button>
             
-            <!-- 🔥 O BOTÃO MÁGICO QUE ALTERNA ENTRE 2D E MENUS -->
-            <button onclick="alternarModoHogwarts()" id="btn-toggle-mmo" style="background: linear-gradient(to bottom, #d4af37, #8c6b32); color:#000; border-left: 2px solid #555; width: 60px; flex: none; font-size:1.5em; padding:0; box-shadow: inset 0 0 10px #fff;">
+            <!-- NOVO LUGAR DO MAPA DO SALTEADOR -->
+            <button onclick="abrirMapaSalteador()" style="background: linear-gradient(to bottom, #8e44ad, #4b0082); color:#fff; border-left: 2px solid #555; width: auto; flex: none; font-size:1.3em; padding:0 15px; box-shadow: inset 0 0 10px #fff;">
                 🗺️
+            </button>
+
+            <!-- O BOTÃO MÁGICO QUE ALTERNA ENTRE 2D E MENUS -->
+            <button onclick="alternarModoHogwarts()" id="btn-toggle-mmo" style="background: linear-gradient(to bottom, #d4af37, #8c6b32); color:#000; border-left: 2px solid #555; width: auto; flex: none; font-size:1.3em; padding:0 15px; box-shadow: inset 0 0 10px #fff;">
+                🚶‍♂️
             </button>
         </div>
 		
@@ -1059,7 +1087,7 @@
 		
 		<!-- 🔥 TELA DO MOTOR ROGUELIKE DA FLORESTA (PVE/PVP OPEN WORLD) -->
 <div id="forest-map-container" class="oculto" style="position:relative; width:100%; height: calc(100vh - 120px); border: 3px solid #27ae60; border-radius:4px; overflow:hidden; background:#020502; box-shadow: inset 0 0 50px rgba(0,0,0,0.9);">
-    
+    <button class="btn-voltar-floresta" onclick="fugirDaFlorestaParaOCastelo()">🏃 Voltar (Salvar Loot)</button>
     <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.8); border:1px solid #2ecc71; color:#2ecc71; padding:5px 15px; border-radius:4px; z-index:20; font-family:'Cinzel'; text-shadow:0 0 5px #000;">
         🌲 Floresta Proibida - Andar <span id="forest-ui-andar">1</span>
     </div>
@@ -1090,7 +1118,6 @@
             <button onclick="nav('estufa', this)" style="color:#2ecc71;">🌿 Estufas</button>
             <button onclick="nav('quadribol', this)" style="color:#f1c40f;">🧹 Quadribol</button>
             <button onclick="nav('mercado', this)" style="color:#e67e22;">🦉 Correio Coruja</button>
-            <button onclick="abrirMapaSalteador()" style="border-color:#fff; color:#fff;"><i class="fa fa-map"></i> 🗺️ Mapa</button>
         </div>
 
         <!-- 🔥 AQUI ESTAVA O ERRO! SUB-MENU 2: ACADEMIA RECUPERADO -->
@@ -8377,7 +8404,6 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
         },
 
         init: function(forcarRespawn = false) {
-            // 🔥 CORREÇÃO: Lê a canvas correta do Mundo Aberto e não a do Beco Diagonal
             this.cvs = document.getElementById('mmo-world-canvas');
             if(!this.cvs) return;
             this.ctx = this.cvs.getContext('2d');
@@ -8396,7 +8422,6 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
                 this.inicializado = true;
             }
             
-            // 🔥 PREVENÇÃO: Se a zona do jogador for bugada, puxa para o Pátio
             if (!this.mapas[zonaAtual]) {
                 zonaAtual = "Pátio";
                 safeSet('ui-zona-nome', zonaAtual);
@@ -8404,10 +8429,17 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
 
             let mapConfig = this.mapas[zonaAtual];
 
-            // Respawn no local da porta de onde o jogador veio (ou centro)
             if (forcarRespawn || this.player.x === 0) {
                 this.player.x = mapConfig.startX || 500;
                 this.player.y = mapConfig.startY || 500;
+                
+                // 🔥 ANTI-SPAWN GLITCH: Move o jogador até estar livre de colisões
+                let safeChecks = 30;
+                while (this.verificarColisoes(this.player.x, this.player.y, mapConfig) && safeChecks > 0) {
+                    this.player.x += 25;
+                    this.player.y += 25;
+                    safeChecks--;
+                }
             }
 
             if(this.loop) cancelAnimationFrame(this.loop);
@@ -8926,7 +8958,7 @@ const ForestMMOEngine = {
     loop: null, mapData: null,
     camera: { x: 0, y: 0 },
     keys: { w:0, a:0, s:0, d:0 },
-    player: { x: 0, y: 0, vx: 0, vy: 0, speed: 0.8, dir: 1, isMoving: false },
+    player: { x: 0, y: 0, vx: 0, vy: 0, speed: 1.2, dir: 1, isMoving: false },
 
     init: function() {
         this.cvs = document.getElementById('forest-map-canvas');
@@ -8962,13 +8994,15 @@ const ForestMMOEngine = {
         this.keys.a = dx < -10 ? 1 : 0; this.keys.d = dx > 10 ? 1 : 0;
     },
 
+   // Adiciona esta variável no início do ForestMMOEngine para guardar o progresso do clique
+    actionTarget: null,
+
     tick: function() {
         if(!currentForestInstId || !this.mapData) {
             this.loop = requestAnimationFrame(this.tick.bind(this));
             return;
         }
 
-        // 🔥 FIX CRÍTICO: Se a tela da arena ainda estiver à mostra, corta os inputs do joystick!
         let nVx = 0; let nVy = 0;
         const arenaFisica = document.getElementById('arena-acao');
         
@@ -8980,46 +9014,47 @@ const ForestMMOEngine = {
         this.player.isMoving = (nVx !== 0 || nVy !== 0);
         if(nVx !== 0) this.player.dir = nVx > 0 ? 1 : -1;
 
+        // Se o jogador se mover, cancela a ação pendente (Barra de Carregamento)
+        if (this.player.isMoving && this.actionTarget) {
+            this.actionTarget = null;
+        }
+
         let px = this.player.x + nVx; let py = this.player.y + nVy;
         
-        // 🔥 CORREÇÃO: Bloqueio das Árvores com Deslizamento e Anti-Stuck Absoluto!
         let bateuX = false; let bateuY = false;
         this.mapData.arvores.forEach(a => { 
-            // Verifica os eixos X e Y separadamente para permitir deslizar pela árvore
             if(Math.hypot(px - a.x, this.player.y - a.y) < a.r) bateuX = true; 
             if(Math.hypot(this.player.x - a.x, py - a.y) < a.r) bateuY = true; 
             
-            // ANTI-STUCK: Se o jogo fizer spawn do jogador DENTRO de uma árvore, empurra-o para fora!
             let distCentral = Math.hypot(this.player.x - a.x, this.player.y - a.y);
             if(distCentral < a.r) {
                 let ang = Math.atan2(this.player.y - a.y, this.player.x - a.x);
-                let overlap = a.r - distCentral + 2; // Força extra para o libertar
+                let overlap = a.r - distCentral + 2; 
                 this.player.x += Math.cos(ang) * overlap;
                 this.player.y += Math.sin(ang) * overlap;
             }
         });
 
-        // Aplica o movimento apenas nos eixos livres
         if (!bateuX) this.player.x = Math.max(0, Math.min(this.mapData.w, px));
         if (!bateuY) this.player.y = Math.max(0, Math.min(this.mapData.h, py));
 
-        // 🔥 CORREÇÃO DA COLISÃO: Sincroniza sempre que o jogador se move OU no frame imediato em que acabou de parar. 
-        // Isto avisa o servidor que ele parou numa coordenada exata para as colisões não falharem.
         if (this.player.isMoving || this.wasMoving) {
             socket.emit('forest_mover', { instId: currentForestInstId, x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
             this.wasMoving = this.player.isMoving;
         }
 
-        // CÂMARA
         this.camera.x += (this.player.x - this.vw/2 - this.camera.x) * 0.1;
         this.camera.y += (this.player.y - this.vh/2 - this.camera.y) * 0.1;
-// ... continua o desenho normal da floresta ...
+
         let ctx = this.ctx;
         ctx.clearRect(0,0,this.vw, this.vh);
         ctx.save(); ctx.translate(-this.camera.x, -this.camera.y);
 
-        // Fundo Verde Escuro
-        ctx.fillStyle = "#030a05"; ctx.fillRect(0, 0, this.mapData.w, this.mapData.h);
+        // 🔥 NOVO VISUAL FLORESTA: Verde-azulado sombrio, mas menos escuro!
+        let gr = ctx.createRadialGradient(this.player.x, this.player.y, 100, this.player.x, this.player.y, 800);
+        gr.addColorStop(0, "#0b1c14"); // Centro iluminado em torno do jogador
+        gr.addColorStop(1, "#020805"); // Escuridão nas bordas
+        ctx.fillStyle = gr; ctx.fillRect(0, 0, this.mapData.w, this.mapData.h);
 
         // Portal
         if(this.mapData.portal.ativo) {
@@ -9028,11 +9063,12 @@ const ForestMMOEngine = {
             ctx.shadowBlur = 0;
         }
 
-        // Baús
-        this.mapData.baus.forEach(b => {
+        // Baús (Com Interatividade de Clique)
+        this.mapData.baus.forEach((b, idx) => {
             if(!b.looted) {
                 ctx.fillStyle = '#f1c40f'; ctx.fillRect(b.x - 15, b.y - 10, 30, 20);
                 ctx.fillStyle = '#8b5a2b'; ctx.fillRect(b.x - 13, b.y - 8, 26, 16);
+                ctx.fillStyle = '#fff'; ctx.font = "10px Arial"; ctx.fillText("Baú Mágico", b.x, b.y - 15);
             }
         });
 
@@ -9042,50 +9078,111 @@ const ForestMMOEngine = {
             ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
         });
 
-        // Mobs
+        // 🔥 MINI-MOBS ESTILIZADOS
         this.mapData.mobs.forEach(m => {
-            ctx.fillStyle = m.isBoss ? '#8e44ad' : '#e74c3c';
-            ctx.shadowColor = m.isBoss ? '#8e44ad' : '#e74c3c'; ctx.shadowBlur = 20;
-            let sz = m.isBoss ? 30 : 15;
-            ctx.beginPath(); ctx.arc(m.x, m.y, sz, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-            ctx.fillStyle = '#fff'; ctx.font = "10px Arial"; ctx.fillText(m.nome, m.x - 20, m.y - sz - 10);
+            ctx.save();
+            ctx.translate(m.x, m.y);
+            let bN = m.nome.toLowerCase();
+            let sz = m.isBoss ? 20 : 12;
+            
+            ctx.shadowColor = m.isBoss ? '#8e44ad' : '#e74c3c'; ctx.shadowBlur = 15;
+            
+            if (bN.includes('aranha') || bN.includes('acromântula')) {
+                ctx.fillStyle = '#1a110c'; ctx.beginPath(); ctx.arc(0,0,sz*0.6,0,Math.PI*2); ctx.fill();
+                ctx.strokeStyle = '#000'; ctx.lineWidth=2;
+                ctx.beginPath(); ctx.moveTo(-sz, -sz); ctx.lineTo(sz, sz); ctx.moveTo(sz, -sz); ctx.lineTo(-sz, sz); ctx.stroke();
+            } else if (bN.includes('cobra') || bN.includes('basilisco')) {
+                ctx.fillStyle = '#0a2e15'; ctx.beginPath(); ctx.ellipse(0, 0, sz, sz*0.4, Math.sin(Date.now()*0.005), 0, Math.PI*2); ctx.fill();
+            } else if (bN.includes('trevas') || bN.includes('dementador')) {
+                ctx.fillStyle = 'rgba(20,20,20,0.8)'; ctx.beginPath(); ctx.arc(0, Math.sin(Date.now()*0.003)*5, sz, 0, Math.PI*2); ctx.fill();
+            } else if (bN.includes('trasgo') || bN.includes('gigante')) {
+                ctx.fillStyle = '#3a3a30'; ctx.fillRect(-sz, -sz, sz*2, sz*2);
+            } else {
+                ctx.fillStyle = '#8a0303'; ctx.beginPath(); ctx.arc(0,0,sz,0,Math.PI*2); ctx.fill();
+            }
+            
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#fff'; ctx.font = "10px Arial"; ctx.textAlign="center"; ctx.fillText(m.nome, 0, -sz - 5);
+            ctx.restore();
         });
 
-  // Jogadores (Multiplayer e Local Blindado)
+        // Jogadores Multiplayer
         Object.values(this.mapData.jogadores).forEach(p => {
-            
-            // 🛡️ BLINDAGEM 1: Se for outro jogador e ele estiver a lutar, esconde-o.
             if (p.id !== meuBruxo.id && p.emCombate) return;
-            
-            // 🛡️ BLINDAGEM 2: Se for o SEU jogador, só esconde se a tela de luta estiver literalmente aberta na sua cara!
             if (p.id === meuBruxo.id && combatEngineAtivo) return;
             
-            // 🚀 ULTRA SMOOTH: O jogador local usa a sua própria física em tempo real para evitar lag do servidor
             let drawX = (p.id === meuBruxo.id) ? this.player.x : p.x;
             let drawY = (p.id === meuBruxo.id) ? this.player.y : p.y;
             let drawDir = (p.id === meuBruxo.id) ? this.player.dir : p.dir;
             let isMov = (p.id === meuBruxo.id) ? this.player.isMoving : p.isMoving;
 
             let rBob = isMov ? Math.sin(Date.now() * 0.01) * 3 : 0;
-            ctx.save();
-            ctx.translate(drawX, drawY + rBob);
-            ctx.scale(drawDir, 1); 
-
-            // Garante que puxa os equipamentos atualizados
-            let roupasParaDesenhar = (p.id === meuBruxo.id) ? (meuBruxo.equipamentos || {}) : (p.equipamentos || {});
-            
-            drawAnimeWizard(ctx, 0, 0, 0.30, Date.now()*0.001, 0, null, false, roupasParaDesenhar, p.casa);
+            ctx.save(); ctx.translate(drawX, drawY + rBob); ctx.scale(drawDir, 1); 
+            drawAnimeWizard(ctx, 0, 0, 0.30, Date.now()*0.001, 0, null, false, (p.id === meuBruxo.id) ? (meuBruxo.equipamentos || {}) : (p.equipamentos || {}), p.casa);
             ctx.restore();
 
-            let cColor = p.partyId === meuBruxo.partyId ? '#2ecc71' : '#e74c3c'; // Verde aliado, vermelho inimigo
-            if (p.id === meuBruxo.id) cColor = '#f1c40f'; // Tu és dourado
+            let cColor = p.partyId === meuBruxo.partyId ? '#2ecc71' : '#e74c3c'; 
+            if (p.id === meuBruxo.id) cColor = '#f1c40f'; 
             
             ctx.fillStyle = cColor; ctx.font = "bold 12px Arial"; ctx.textAlign = "center";
             ctx.fillText(p.nome, drawX, drawY - 30);
         });
+
+        // 🔥 BARRA DE CARREGAMENTO CIRCULAR DA AÇÃO
+        if (this.actionTarget) {
+            this.actionTarget.progress += 2; // Velocidade do loading (2% por frame)
+            
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "rgba(0,0,0,0.5)";
+            ctx.beginPath(); ctx.arc(this.actionTarget.x, this.actionTarget.y, 25, 0, Math.PI*2); ctx.stroke();
+            
+            ctx.strokeStyle = this.actionTarget.color || "#f1c40f";
+            ctx.beginPath(); ctx.arc(this.actionTarget.x, this.actionTarget.y, 25, -Math.PI/2, (-Math.PI/2) + (Math.PI * 2 * (this.actionTarget.progress / 100))); ctx.stroke();
+
+            // Dispara a acção!
+            if (this.actionTarget.progress >= 100) {
+                if(this.actionTarget.type === 'bau') {
+                    socket.emit('forest_open_chest', { instId: currentForestInstId, bauIdx: this.actionTarget.idx });
+                } else if (this.actionTarget.type === 'mob') {
+                    socket.emit('forest_attack_mob', { instId: currentForestInstId, mobId: this.actionTarget.id });
+                }
+                this.actionTarget = null;
+            }
+        }
+
         ctx.restore();
+
+        // 🖱️ Evento de Clique para Interagir (Atribuído apenas 1 vez)
+        if (!this.interatividadeCriada) {
+            this.cvs.addEventListener('click', (e) => {
+                if(combatEngineAtivo || !currentForestInstId) return;
+                const rect = this.cvs.getBoundingClientRect();
+                const clickX = (e.clientX - rect.left) * (this.cvs.width / rect.width) + this.camera.x;
+                const clickY = (e.clientY - rect.top) * (this.cvs.height / rect.height) + this.camera.y;
+
+                // Baús
+                this.mapData.baus.forEach((b, idx) => {
+                    if(!b.looted && Math.hypot(clickX - b.x, clickY - b.y) < 40) {
+                        if(Math.hypot(this.player.x - b.x, this.player.y - b.y) < 100) {
+                            ForestMMOEngine.actionTarget = { type: 'bau', idx: idx, x: b.x, y: b.y, progress: 0, color: '#f1c40f' };
+                        } else mostrarNotificacao("Estás muito longe do baú!", "info");
+                    }
+                });
+
+                // Mobs
+                this.mapData.mobs.forEach(m => {
+                    if(Math.hypot(clickX - m.x, clickY - m.y) < 40) {
+                        if(Math.hypot(this.player.x - m.x, this.player.y - m.y) < 150) {
+                            ForestMMOEngine.actionTarget = { type: 'mob', id: m.id, x: m.x, y: m.y, progress: 0, color: '#e74c3c' };
+                        } else mostrarNotificacao("Aproxima-te para lançar o feitiço!", "info");
+                    }
+                });
+            });
+            this.interatividadeCriada = true;
+        }
+
         this.loop = requestAnimationFrame(this.tick.bind(this));
-		}
+    }
 };
 
 socket.on('mmo_raid_status', (d) => {
@@ -9245,6 +9342,52 @@ window.enviarComandoDeus = function(acao) {
         }
         syncRequest();
     };
+	// ==============================================================================
+// 🏆 PLACAR DA GUERRA DAS CASAS
+// ==============================================================================
+window.abrirPlacarCasas = function() {
+    playSFX('magic');
+    document.getElementById('modal-taca-casas').classList.remove('oculto');
+    
+    if(!servidorGlobal || !servidorGlobal.pontuacaoCasas) return;
+    
+    let pc = servidorGlobal.pontuacaoCasas;
+    let maxPts = Math.max(pc.Gryffindor, pc.Slytherin, pc.Ravenclaw, pc.Hufflepuff, 1); // Evita divisão por zero
+    
+    const cores = {
+        'Gryffindor': { c: '#e74c3c', n: 'Gryffindor', v: pc.Gryffindor || 0 },
+        'Slytherin': { c: '#2ecc71', n: 'Slytherin', v: pc.Slytherin || 0 },
+        'Ravenclaw': { c: '#3498db', n: 'Ravenclaw', v: pc.Ravenclaw || 0 },
+        'Hufflepuff': { c: '#f1c40f', n: 'Hufflepuff', v: pc.Hufflepuff || 0 }
+    };
+
+    // Ordena para mostrar o 1º lugar no topo
+    let ordenado = Object.values(cores).sort((a, b) => b.v - a.v);
+    
+    let html = '';
+    ordenado.forEach((casa, idx) => {
+        let pct = (casa.v / maxPts) * 100;
+        let icone = idx === 0 ? '👑' : '';
+        html += `
+        <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-weight:bold; color:${casa.c}; text-shadow:0 0 5px ${casa.c};">
+                <span>${icone} ${casa.n}</span>
+                <span>${casa.v} Pts</span>
+            </div>
+            <div style="width:100%; height:18px; background:#111; border:1px solid #333; border-radius:10px; overflow:hidden; box-shadow:inset 0 0 10px #000;">
+                <div style="width:${pct}%; height:100%; background:${casa.c}; box-shadow:0 0 15px ${casa.c}; transition:width 1s ease-out;"></div>
+            </div>
+        </div>`;
+    });
+    
+    document.getElementById('placar-casas-barras').innerHTML = html;
+    
+    // Atualiza o Timer
+    if (pc.fimCiclo) {
+        let horasRestantes = Math.max(0, (pc.fimCiclo - Date.now()) / (1000 * 60 * 60));
+        document.getElementById('taca-timer').innerText = `${Math.floor(horasRestantes / 24)} dias e ${Math.floor(horasRestantes % 24)} horas`;
+    }
+};
 </script>
 </body>
 </html>

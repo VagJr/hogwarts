@@ -345,7 +345,9 @@ class MotorQuadribol {
                         let a = global.coreInstance.alunos[j.id];
                         global.coreInstance._progressoQuest(a, 'quadribol', 'vitoria', 1);
                         a.elos.quadribol = (a.elos.quadribol || 1000) + 20;
-                        global.coreInstance.ganharXp(a, 400); // Dá bastante XP por vencer Quadribol
+                        global.coreInstance.ganharXp(a, 400);
+// 🔥 QUADRIBOL DÁ MUITOS PONTOS PARA A CASA
+                        global.coreInstance.adicionarPontosCasa(a.casa, 50);						// Dá bastante XP por vencer Quadribol
                     }
                 }
             }
@@ -1181,7 +1183,12 @@ class HogwartsCore {
         this.grupos = {};
 		
 		this.florestaEngine = new MotorFlorestaProcedural(this);
-        this.pontuacaoCasas = { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
+// 🔥 GUERRA DAS CASAS: Inicia o timer do ciclo se não existir
+        this.pontuacaoCasas = { 
+            Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, 
+            lider: 'Empate', 
+            fimCiclo: Date.now() + (7 * 24 * 60 * 60 * 1000) // Ciclo de 7 dias
+        };
 		this.configGlobal = { offsetCapitulo: 0 }; // Permite manipular o capítulo atual
         
        this.lojasBeco = {
@@ -1255,7 +1262,51 @@ class HogwartsCore {
 
         this._salvarBancoDeDados = () => {}; 
     }
-  
+  // 🔥 ENCERRAMENTO ÉPICO DA TAÇA DAS CASAS
+    encerrarTacaDasCasas() {
+        let sort = [ 
+            {c:'Gryffindor', v:this.pontuacaoCasas.Gryffindor || 0}, 
+            {c:'Slytherin', v:this.pontuacaoCasas.Slytherin || 0}, 
+            {c:'Ravenclaw', v:this.pontuacaoCasas.Ravenclaw || 0}, 
+            {c:'Hufflepuff', v:this.pontuacaoCasas.Hufflepuff || 0} 
+        ].sort((a,b)=>b.v-a.v);
+        
+        let casaVencedora = sort[0].c;
+        let pontosVencedor = sort[0].v;
+
+        if (pontosVencedor > 0) {
+            // Recompensar TODOS os alunos da casa vencedora (mesmo offline)
+            for (let id in this.alunos) {
+                let a = this.alunos[id];
+                if (a.casa === casaVencedora) {
+                    a.galeoes += 1500;
+                    this._addXp(a, 3000);
+                    // Baú Épico de Campeão
+                    a.mochilaEscolar.push({ 
+                        id: `taca_${Date.now()}_${a.id}`, 
+                        nome: "Baú dos Campeões (Taça das Casas)", 
+                        tipo: 'reliquia' 
+                    });
+                }
+            }
+
+            if (global.io) {
+                global.io.emit('nova_mensagem', { 
+                    canal: 'salaoPrincipal', 
+                    autor: '🏆 Dumbledore', 
+                    texto: `O ano letivo terminou! A casa ${casaVencedora.toUpperCase()} venceu a Taça das Casas com ${pontosVencedor} pontos! Os seus membros receberam riquezas inimagináveis no baú.` 
+                });
+            }
+        }
+
+        // Reseta a pontuação para o novo ciclo de 7 dias
+        this.pontuacaoCasas = { 
+            Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, 
+            lider: casaVencedora, 
+            fimCiclo: Date.now() + (7 * 24 * 60 * 60 * 1000) 
+        };
+        this._salvarUrgente();
+    }
     // 🔥 O SEGREDO DO MUNDO ABERTO (Adicione este método na mesma classe HogwartsCore)
     processarCicloMundoVivo() {
         const zonaSorteada = this.listaZonas[Math.floor(Math.random() * this.listaZonas.length)];
@@ -1988,10 +2039,8 @@ a.siclos += 5;
 
         if(item.tipo === 'pocao_feita') {
             a.hpAtual = a.hpMax; 
-            // Se for elixir de foco, dá FOCO EXTRA!
             if(item.nome.includes('Foco')) a.focoAtual = Math.min(a.maxFoco, a.focoAtual + 15);
             else a.focoAtual = a.maxFoco;
-            
             this._salvarBancoDeDados(); return { sucesso: true, msg: `Bebeste a ${item.nome}. Sentes-te totalmente renovado!` };
         }
         else if(item.tipo === 'comida') {
@@ -2003,38 +2052,51 @@ a.siclos += 5;
         }
 
         // ========================================================
-        // 📚 LÓGICA DE APRENDIZADO DE FEITIÇOS NAS AULAS
+        // 📚 NOVO SISTEMA DE ESTUDO (NERFADO E RANDOMIZADO)
         // ========================================================
-        await this._addXp(a, 150);
-        let msgExtra = `Estudaste [${item.nome}] (150 EXP).`;
+        let xpGanha = 80 + Math.floor(Math.random() * 100);
+        await this._addXp(a, xpGanha);
         
-        // 1. Pega todos os feitiços do jogo que NÃO foram criados por jogadores (os canônicos)
-        let feiticosBase = Object.keys(this.livroDeFeiticos).filter(k => !this.livroDeFeiticos[k].custom);
-        
-        // 2. Filtra apenas os feitiços que o aluno ainda NÃO TEM
-        if (!a.maestriaFeiticos) a.maestriaFeiticos = {};
-        let feiticosNaoAprendidos = feiticosBase.filter(k => !a.maestriaFeiticos[k]);
+        let sorte = Math.random();
+        let msgExtra = `Estudaste o fragmento arcano de [${item.nome}] (+${xpGanha} EXP). `;
 
-        // 3. Sorteia se o aluno vai aprender um feitiço novo ou melhorar um que já tem
-        // (70% de chance de aprender um novo, se ainda houver feitiços para aprender)
-        if (feiticosNaoAprendidos.length > 0 && Math.random() < 0.7) { 
-            let novoFeitico = feiticosNaoAprendidos[Math.floor(Math.random() * feiticosNaoAprendidos.length)];
-            
-            // Adiciona o feitiço ao grimório do aluno
-            a.maestriaFeiticos[novoFeitico] = { nivel: 1, exp: 0, expProx: 100 };
-            
-            let nomeF = this.livroDeFeiticos[novoFeitico].nome;
-            msgExtra += ` 🎇 EUREKA! Acabaste de aprender o feitiço: [${nomeF}]! Vai ao teu Grimório para o equipar.`;
+        if (sorte < 0.15) { 
+            // 15% de chance de aprender Feitiço Novo
+            let feiticosBase = Object.keys(this.livroDeFeiticos).filter(k => !this.livroDeFeiticos[k].custom);
+            if (!a.maestriaFeiticos) a.maestriaFeiticos = {};
+            let feiticosNaoAprendidos = feiticosBase.filter(k => !a.maestriaFeiticos[k]);
+
+            if (feiticosNaoAprendidos.length > 0) { 
+                let novoFeitico = feiticosNaoAprendidos[Math.floor(Math.random() * feiticosNaoAprendidos.length)];
+                a.maestriaFeiticos[novoFeitico] = { nivel: 1, exp: 0, expProx: 100 };
+                let nomeF = this.livroDeFeiticos[novoFeitico].nome;
+                msgExtra += ` 🎇 EUREKA! A magia deste objeto desbloqueou a compreensão de: [${nomeF}]!`;
+            } else {
+                a.focoAtual = Math.min(a.maxFoco, a.focoAtual + 5);
+                msgExtra += ` A tua mente expande-se com a leitura (+5 Foco).`;
+            }
         } 
-        else {
-            // Se já sabe todos ou caiu nos 30%, aumenta a maestria (Aptidão) de um feitiço que já possui
-            let magias = Object.keys(a.maestriaFeiticos);
-            if (magias.length > 0) {
+        else if (sorte < 0.40) {
+            // 25% de chance de dar Maestria num feitiço que já tem
+            if(a.maestriaFeiticos && Object.keys(a.maestriaFeiticos).length > 0) {
+                let magias = Object.keys(a.maestriaFeiticos);
                 let magiaSorteada = magias[Math.floor(Math.random() * magias.length)];
                 a.maestriaFeiticos[magiaSorteada].exp += 80;
                 let nomeM = this.livroDeFeiticos[magiaSorteada] ? this.livroDeFeiticos[magiaSorteada].nome : magiaSorteada;
-                msgExtra += ` A tua aptidão com [${nomeM}] aumentou!`;
+                msgExtra += ` 📈 A tua aptidão com o feitiço [${nomeM}] aumentou!`;
             }
+        } 
+        else if (sorte < 0.60) {
+            // 20% de chance de Aumentar um Atributo Base permanentemente!
+            let attrs = ['feiticos', 'defesa', 'pocoes', 'furtividade'];
+            let attrSorteado = attrs[Math.floor(Math.random() * attrs.length)];
+            a.atributos[attrSorteado] = (a.atributos[attrSorteado] || 5) + 1;
+            msgExtra += ` 🧠 O objeto continha sabedoria ancestral! (+1 ${attrSorteado.toUpperCase()})`;
+        }
+        else {
+            // 40% de chance de ser apenas Lore/Lixo
+            a.galeoes += 15;
+            msgExtra += ` Havia uma nota de 15 Galeões escondida entre as páginas.`;
         }
 
         this._salvarBancoDeDados(); 
@@ -3068,6 +3130,10 @@ a.siclos += 5; // Bonus pro Last Hit
             aVenc.elos.duelos += 25; aVenc.estatisticas.duelosVencidos++;
             aPerd.elos.duelos = Math.max(0, aPerd.elos.duelos - 15);
             aVenc.galeoes += 50; this.ganharXp(aVenc, 500); 
+			
+			// 🔥 GANHA PONTOS PARA A CASA NO DUELO
+            this.adicionarPontosCasa(aVenc.casa, 10);
+            if (global.io) global.io.emit('pontuacao_atualizada', this.pontuacaoCasas);
             
             ioGlobal.to(`priv_${vencedor.id}`).emit('pvp_fim', { msg: "🏆 Venceste o Duelo Mágico! (+25 ELO, +50G)" });
             ioGlobal.to(`priv_${perdedor.id}`).emit('pvp_fim', { msg: "💀 Foste derrotado no duelo! (-15 ELO)" });
@@ -3082,7 +3148,10 @@ a.siclos += 5; // Bonus pro Last Hit
         const relogio = RelogioHogwarts.obterHorarioAtual();
         global.io.emit('relogio_hogwarts', relogio);
         Lexicon.PulsarEternidade(); 
-
+// 🔥 VERIFICA SE A TAÇA DAS CASAS CHEGOU AO FIM
+        if (this.pontuacaoCasas.fimCiclo && Date.now() > this.pontuacaoCasas.fimCiclo) {
+            this.encerrarTacaDasCasas();
+        }
         if (this.quadribol) this.quadribol.processarTick(global.io);
         this.processarCicloMundoVivo();
         
@@ -3292,6 +3361,18 @@ class MotorFlorestaProcedural {
                 vx: Math.random()*2-1, vy: Math.random()*2-1, isBoss: false
             });
         }
+
+        // 🔥 Geração de Baús Escondidos!
+        let qtdBaus = Math.floor(Math.random() * 3) + 1 + Math.floor(areaNivel / 2);
+        for(let i=0; i<qtdBaus; i++) {
+            inst.baus.push({
+                x: Math.random() * size, 
+                y: Math.random() * size,
+                looted: false
+            });
+			return inst;
+        }
+
 
         let bossData = this.core._gerarMonstroRapido(1500 * areaNivel, "Floresta", true);
         bossData.fracoContra = biomaSorteado.fraco;

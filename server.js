@@ -656,15 +656,20 @@ app.post('/api/biblioteca/publicar', (req, res) => {
 });
 
 // ATUALIZAR: Quiz ELO
+// ATUALIZAR: Quiz ELO
 app.post('/api/quiz/responder', (req, res) => {
     const { id, acertou } = req.body;
     const a = core.alunos[id];
     if(!a) return res.json({erro: "Erro"});
     let diff = acertou ? 15 : -10;
     a.elos.quiz = Math.max(0, (a.elos.quiz || 1000) + diff);
-    if(acertou) { core.ganharXp(a, 50); a.galeoes += 5; }
+    if(acertou) { 
+        core.ganharXp(a, 50); a.galeoes += 5; 
+        core.adicionarPontosCasa(a.casa, 2); // 🔥 QUIZ DÁ 2 PONTOS PARA A CASA
+        io.emit('pontuacao_atualizada', core.pontuacaoCasas);
+    }
     core._salvarUrgente();
-    res.json({ msg: acertou ? "Correto! (+15 ELO, +50XP)" : "Errado! (-10 ELO)", elo: a.elos.quiz });
+    res.json({ msg: acertou ? "Correto! (+15 ELO, +50XP, +2 Pontos)" : "Errado! (-10 ELO)", elo: a.elos.quiz });
 });
 
 // =========================================================
@@ -1169,7 +1174,49 @@ io.on('connection', (socket) => {
 	// PROCURA ESTA LINHA:
 
 
+// 🔥 Lidar com ataques iniciados via clique no mapa da Floresta
+    socket.on('forest_attack_mob', (dados) => {
+        let inst = core.florestaEngine.instancias[dados.instId];
+        let a = core.alunos[socket.alunoId];
+        if(!inst || !a) return;
+        
+        let mob = inst.mobs.find(m => m.id === dados.mobId);
+        if(mob) core.florestaEngine.iniciarCombate(inst, mob, inst.jogadores[a.id], io, false);
+    });
 
+    // 🔥 Lidar com os baús procedurais da Floresta
+    socket.on('forest_open_chest', async (dados) => {
+        let inst = core.florestaEngine.instancias[dados.instId];
+        let a = core.alunos[socket.alunoId];
+        if(!inst || !a) return;
+        
+        let bau = inst.baus[dados.bauIdx];
+        if(!bau || bau.looted) return;
+
+        bau.looted = true;
+        let goldDrop = Math.floor(Math.random() * 100) + (inst.area * 50);
+        a.lootTemporario.galeoes += goldDrop;
+
+        // 30% de chance da IA gerar um item mágico raro no baú
+        if (Math.random() > 0.70 && core.cerebroIA) {
+            const itemIA = await core.cerebroIA.gerarItemMundoIA("Artefato da Floresta");
+            if (itemIA) {
+                const novoItem = { 
+                    id: 'itm_' + crypto.randomBytes(4).toString('hex'), 
+                    nome: itemIA.nome, tipo: 'reliquia', lore: itemIA.descricao 
+                };
+                a.lootTemporario.itens.push(novoItem);
+                io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G e obteve [${novoItem.nome}]!` });
+            } else {
+                io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G.` });
+            }
+        } else {
+            io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G.` });
+        }
+
+        // Atualiza a tela de todo o mundo na instância para eles verem o baú a sumir
+        io.to(`forest_${inst.id}`).emit('forest_sync', inst);
+    });
 
     // =====================================
     // CORREÇÃO AAA: CRIAÇÃO E SYNC DE GRUPOS
