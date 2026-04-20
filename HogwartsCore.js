@@ -1546,7 +1546,7 @@ class HogwartsCore {
             estadoJogo: "BECO_DIAGONAL", casa: "Nenhuma", nivel: 1, xp: 0, xpProx: 100, 
             galeoes: 10, siclos: 50, nuques: 100, // Começa com trocos, mas o suficiente para o Beco
         hpAtual: 1000, hpMax: 1000, focoAtual: 10, maxFoco: 10,
-        cofreGringotes: { galeoes: 500, siclos: 0, nuques: 0 }, // O grosso do dinheiro está no cofre
+        cofreGringotes: { galeoes: 0, siclos: 0, nuques: 0 }, // O grosso do dinheiro está no cofre
             atributos: { feiticos: 5, defesa: 5, pocoes: 5, transfiguracao: 5, furtividade: 5, artes_trevas: 1 }, 
             // 🔥 NOVO: Atributos de RPG para Progressão Vertical
             atributosRPG: { intelecto: 5, destreza: 5, vigor: 5, percepcao: 5, pontosLivres: 0 },
@@ -1745,31 +1745,35 @@ async folhearLivro(alunoId) {
         }
     }
 
-    acaoGringotes(alunoId, acao, valor, moeda = 'galeoes') {
-        const a = this.alunos[alunoId]; 
-        if (!a) return { erro: "Erro" };
-        let v = parseInt(valor); 
-        if(isNaN(v) || v <= 0) return { erro: "Valor inválido." };
 
-        if (!a.cofreGringotes || typeof a.cofreGringotes === 'number') {
-            let antigo = a.cofreGringotes || 0;
-            a.cofreGringotes = { galeoes: antigo, siclos: 0, nuques: 0 };
-        }
 
-        if(acao === 'depositar') {
-            if(a[moeda] < v) return { erro: `Não tens ${moeda} suficientes na bolsa.` };
-            a[moeda] -= v; 
-            a.cofreGringotes[moeda] += v; 
-            this._salvarUrgente(); 
-            return { sucesso: true, msg: `Depositaste ${v} ${moeda}.` };
-        } else {
-            if(a.cofreGringotes[moeda] < v) return { erro: `Não tens essa quantia de ${moeda} no cofre.` };
-            a.cofreGringotes[moeda] -= v; 
-            a[moeda] += v; 
-            this._salvarUrgente(); 
-            return { sucesso: true, msg: `Levantaste ${v} ${moeda}.` };
-        }
+// Substitui o método acaoGringotes por este:
+acaoGringotes(alunoId, acao, valor, moeda = 'galeoes') {
+    const a = this.alunos[alunoId]; 
+    if (!a) return { erro: "Erro" };
+    let v = parseInt(valor); 
+    if(isNaN(v) || v <= 0) return { erro: "Valor inválido." };
+
+    // Migração de segurança se o cofre ainda for um número
+    if (typeof a.cofreGringotes === 'number') {
+        let antigo = a.cofreGringotes || 0;
+        a.cofreGringotes = { galeoes: antigo, siclos: 0, nuques: 0 };
     }
+
+    if(acao === 'depositar') {
+        if((a[moeda] || 0) < v) return { erro: `Não tens ${moeda} suficientes na bolsa.` };
+        a[moeda] -= v; 
+        a.cofreGringotes[moeda] += v; 
+        this._salvarUrgente(); 
+        return { sucesso: true, msg: `Depositaste ${v} ${moeda}.` };
+    } else {
+        if((a.cofreGringotes[moeda] || 0) < v) return { erro: `Não tens essa quantia de ${moeda} no cofre.` };
+        a.cofreGringotes[moeda] -= v; 
+        a[moeda] += v; 
+        this._salvarUrgente(); 
+        return { sucesso: true, msg: `Levantaste ${v} ${moeda}.` };
+    }
+}
 
     async gerarVarinhaOllivanders(alunoId, tracoPersonalidade) {
         const a = this.alunos[alunoId]; if (!a) return { erro: "Fantasma." };

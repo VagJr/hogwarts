@@ -2348,9 +2348,11 @@ if(sel && meuBruxo) {
             safeSet('ui-titulo', meuBruxo.titulo); 
             safeSet('ui-casa', meuBruxo.casa); 
             safeSet('ui-nivel', meuBruxo.nivel);
-            safeSet('ui-galeoes', meuBruxo.galeoes); 
-            safeSet('beco-galeoes', meuBruxo.galeoes); 
-            safeSet('cofre-galeoes', meuBruxo.cofreGringotes); 
+            // Procura estas linhas e altera para:
+safeSet('ui-galeoes', meuBruxo.galeoes); 
+safeSet('beco-galeoes', meuBruxo.galeoes); 
+// Aqui estava o erro [object Object]:
+safeSet('cofre-galeoes', meuBruxo.cofreGringotes.galeoes);
             safeSet('ui-elo-q', meuBruxo.estatisticas?.eloQuadribol || 1000);
             
             document.getElementById('bar-hp').style.width = `${(meuBruxo.hpAtual / meuBruxo.hpMax) * 100}%`; 
@@ -2999,22 +3001,8 @@ let arenaInimigos = []; // Array de inimigos
     // ==============================================================================
     // AÇÕES DE JOGO GERAIS
     // ==============================================================================
-    window.acaoGringotes = async function(acao) { 
-        playSFX('click'); 
-        const v = document.getElementById('in-gringotes-val').value; 
-        if(!v) return; 
-        try { 
-            const res = await fetch('/api/gringotes/acao', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, acao, valor: v }) }); 
-            const d = await res.json(); 
-            if(d.erro) mostrarNotificacao(d.erro, 'erro'); 
-            else { 
-                mostrarNotificacao(d.msg, 'sucesso'); 
-                document.getElementById('in-gringotes-val').value=''; 
-                // 🔥 CORREÇÃO: Força o navegador a recalcular o HUD imediatamente
-                syncRequest(); 
-            } 
-        } catch(e){ console.error(e); } 
-    }
+
+
 
     window.comprarItemBeco = async function(loja, itemId) { 
         playSFX('click'); 
@@ -7167,34 +7155,45 @@ const VaultEngine = {
     };
 
     function atualizarSaldosGringotes() {
-        if(!meuBruxo) return;
-        // Se as moedas não existirem, cria-as agora para o sistema ser compatível
-        if(meuBruxo.siclos === undefined) meuBruxo.siclos = 0;
-        if(meuBruxo.nuques === undefined) meuBruxo.nuques = 0;
+    if(!meuBruxo || !meuBruxo.cofreGringotes) return;
+    
+    // Mostra cada moeda individualmente no modal
+    safeSet('ui-gringotes-galeoes', meuBruxo.cofreGringotes.galeoes || 0);
+    safeSet('ui-gringotes-siclos', meuBruxo.cofreGringotes.siclos || 0);
+    safeSet('ui-gringotes-nuques', meuBruxo.cofreGringotes.nuques || 0);
 
-        safeSet('ui-gringotes-galeoes', meuBruxo.cofreGringotes || 0);
-        safeSet('ui-gringotes-siclos', meuBruxo.siclos);
-        safeSet('ui-gringotes-nuques', meuBruxo.nuques);
     }
 
     // Adaptamos a acaoGringotes para suportar os drops visuais (já chamava o server)
-    window.acaoGringotes = async function(acao) { 
-        playSFX('click'); 
-        const v = document.getElementById('in-gringotes-val').value; 
-        if(!v) return; 
-        try { 
-            const res = await fetch('/api/gringotes/acao', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: meuBruxo.id, acao, valor: v }) }); 
-            const d = await res.json(); 
-            if(d.erro) mostrarNotificacao(d.erro, 'erro'); 
-            else { 
-                mostrarNotificacao(d.msg, 'sucesso'); 
-                document.getElementById('in-gringotes-val').value=''; 
-                await syncRequest(); 
-                atualizarSaldosGringotes();
-                if(acao === 'depositar') VaultEngine.init(meuBruxo.cofreGringotes); // Faz chover moedas novas
-            } 
-        } catch(e){ console.error(e); } 
-    };
+    window.acaoGringotes = async function(acao, moeda = 'galeoes') {
+    playSFX('click');
+    const v = document.getElementById('in-gringotes-val').value;
+    if(!v) return;
+    
+    try {
+        const res = await fetch('/api/gringotes/acao', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ id: meuBruxo.id, acao, valor: v, moeda: moeda }) 
+        });
+        const d = await res.json();
+        
+        if(d.erro) mostrarNotificacao(d.erro, 'erro');
+        else {
+            mostrarNotificacao(d.msg, 'sucesso');
+            document.getElementById('in-gringotes-val').value = '';
+            
+            // O SEGREDO: Atualizamos os dados sem fechar o modal
+            await syncRequest(); 
+            atualizarSaldosGringotes();
+            
+            // Mantém a loja ativa para o motor não fechar a tela
+            lojaAbertaAtualmente = 'gringotes'; 
+            
+            if(acao === 'depositar') VaultEngine.init(meuBruxo.cofreGringotes);
+        }
+    } catch(e){ console.error(e); }
+};
 
     // Lógica do Câmbio Oficial (Apenas Cliente/Sync)
     window.cambioGringotes = function(tipo) {
