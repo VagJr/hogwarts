@@ -2756,11 +2756,14 @@ async folhearLivro(alunoId) {
             inimigo.hpAtual -= dano;
             if(inimigo.hpAtual < 0) inimigo.hpAtual = 0;
             
-            // Avisa o ecrã do inimigo que ele perdeu vida (Atualiza o BossBar dele)
+            // Avisa o ecrã do inimigo que ele perdeu vida
             ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_update', { meuHp: inimigo.hpAtual, inimigoHp: eu.hpAtual });
-            // Atualiza o teu próprio ecrã (O BossBar é o teu inimigo)
+            // Atualiza o teu próprio ecrã
             ioGlobal.to(`priv_${eu.id}`).emit('pvp_update', { meuHp: eu.hpAtual, inimigoHp: inimigo.hpAtual });
         }
+
+
+        return { sucesso: true, danoAplicado: dano, hpJogador: eu.hpAtual }; // <-- ESTE RETORNO ATUALIZA A TUA TELA LOCAL
 
         // Verifica se alguém morreu
          if (inimigo.hpAtual <= 0) {
@@ -3083,15 +3086,27 @@ class MotorFlorestaProcedural {
             };
 
             // Inicia a Inteligência Artificial Dinâmica de Combate
+            // ONDE CRIA A DUNGEON DE PVE NA FLORESTA, SUBSTITUI ESTE BLOCO:
             this.core.iniciarIACombate(idInst);
+
+            // PREPARA OS DADOS DOS ALIADOS (Para renderizar as roupas e posições no Frontend)
+            let aliadosData = alunosParty.map(p => {
+                let al = this.core.alunos[p.id];
+                return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
+            });
 
             alunosParty.forEach(p => {
                 let s = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${p.id}`));
                 if(s) s.join(idInst);
-                ioGlobal.to(`priv_${p.id}`).emit('puxado_para_dungeon', { idInstancia: idInst, estado: { entidades: [entidadeMob] } });
+                ioGlobal.to(`priv_${p.id}`).emit('puxado_para_dungeon', { 
+                    idInstancia: idInst, 
+                    estado: { entidades: [entidadeMob] },
+                    aliados: aliadosData // <-- ENVIAMOS AGORA OS ALIADOS!
+                });
             });
             this.core._salvarBancoDeDados();
         } else {
+            // ONDE CRIA O PVP, GARANTE QUE ENVIA O OBJETO INIMIGO INTEIRO E NÃO SÓ O NOME:
             alvo.emCombate = true;
             const instIdPvP = `pvp_${crypto.randomBytes(4).toString('hex')}`;
             const a1 = this.core.alunos[atacante.id];
@@ -3105,10 +3120,10 @@ class MotorFlorestaProcedural {
                 isForestInvade: true, forestInstId: inst.id
             };
 
-            ioGlobal.to(`priv_${a1.id}`).emit('pvp_start', { instId: instIdPvP, inimigoNome: a2.nome, maxHpInimigo: a2.hpMax, isInvade: true });
-            ioGlobal.to(`priv_${a2.id}`).emit('pvp_start', { instId: instIdPvP, inimigoNome: a1.nome, maxHpInimigo: a1.hpMax, isInvade: true });
+            ioGlobal.to(`priv_${a1.id}`).emit('pvp_start', { instId: instIdPvP, inimigo: { id: a2.id, nome: a2.nome, hpMax: a2.hpMax, equipamentos: a2.equipamentos, casa: a2.casa }, isInvade: true });
+            ioGlobal.to(`priv_${a2.id}`).emit('pvp_start', { instId: instIdPvP, inimigo: { id: a1.id, nome: a1.nome, hpMax: a1.hpMax, equipamentos: a1.equipamentos, casa: a1.casa }, isInvade: true });
         }
-    }
+	}
 
     retornarDaBatalha(alunoId, win, isPvP, isForestNode, forestInstId, ioGlobal) {
         if (!isForestNode || !this.instancias) return;

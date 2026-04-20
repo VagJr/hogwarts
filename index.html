@@ -4425,12 +4425,21 @@ let bY = mob.y || (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos
         // ===============================================
         // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS)
         // ===============================================
+        // ===============================================
+        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS)
+        // ===============================================
         else {
-            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle); 
-            
+            // 🔥 ADICIONADO PARA SINCRONIZAR OS TIROS COM OS ALIADOS!
+            socket.emit('multiplayer_spell', { 
+                instId: combatInstId, isDefensive: false, cor: cfg.color, 
+                nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid 
+            });
+
+            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
             let qt = cfg.quantity || 1;
             let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
-
+            
+            // ... (resto do loop for de animação dos tiros permanece igual)
             for(let i = 0; i < qt; i++) {
                 setTimeout(() => {
                     let sX = corePlayerOffs.x;
@@ -4911,19 +4920,7 @@ socket.on('mmo_item_coletado', (d) => {
         mostrarNotificacao(`Formação de batalha estabelecida!`, "info");
     });
 
-    socket.on('pvp_start', (dados) => {
-        isPvP = true;
-        combatInstId = dados.instId;
-        
-        document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
-        document.querySelector('.main-nav-container').classList.add('oculto');
-        document.getElementById('arena-acao').classList.remove('oculto');
-        
-        // Chama a arena e passa os dados complexos do inimigo PVP
-        iniciarArenaLocal(dados.inimigo, dados.inimigo.hpMax, null, true);
-        mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
-        playSFX('error');
-    });
+    
 
    
 	window.pedirNovaQuestIA = async function() {
@@ -5507,20 +5504,37 @@ function pararDragMovel() {
     // =====================================
     // SOCKETS DE PVP E GRUPO (FIX AAA)
     // =====================================
-    socket.on('pvp_start', (dados) => {
-        isPvP = true;
-        combatInstId = dados.instId;
-        
-        // Esconde Interface Principal e Abre a Arena
-        document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto')); 
-        document.querySelector('.main-nav-container').classList.add('oculto');
-        document.getElementById('arena-acao').classList.remove('oculto');
-        
-        // O isDuel a 'true' vai forçar a formação a empurrar os jogadores para lados opostos
-        iniciarArenaLocal(dados.inimigoNome, dados.maxHpInimigo, null, true);
-        mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
-        playSFX('error');
-    });
+    // SUBSTITUI TODAS AS CÓPIAS E USA APENAS ESTES SOCKETS DE PVP
+socket.on('pvp_start', (dados) => {
+    isPvP = true;
+    combatInstId = dados.instId;
+    document.querySelectorAll('.aba').forEach(el => el.classList.add('oculto'));
+    document.querySelector('.main-nav-container').classList.add('oculto');
+    document.getElementById('arena-acao').classList.remove('oculto');
+    
+    // Chama a arena e passa os dados complexos do inimigo PVP
+    iniciarArenaLocal(dados.inimigo, dados.inimigo.hpMax, null, true);
+    mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
+    playSFX('error');
+});
+
+// ESTE SOCKET GARANTE QUE A TUA TELA E A DO INIMIGO ATUALIZAM A VIDA SIMULTANEAMENTE!
+socket.on('pvp_update', (dados) => {
+    if(!combatEngineAtivo) return;
+    playerCurrentHp = dados.meuHp;
+    bossCurrentHp = dados.inimigoHp;
+    atualizarHPUIVisual();
+    
+    if (arenaInimigoPvP) {
+        arenaInimigoPvP.atkColor = '#ff0000'; 
+        setTimeout(() => { if(arenaInimigoPvP) arenaInimigoPvP.atkColor = '#fff'; }, 300);
+    }
+});
+
+socket.on('pvp_fim', (dados) => {
+    mostrarNotificacao(dados.msg, "info");
+    finalizarArena(true); // Termina as animações e expulsa da tela
+});
 
     socket.on('convite_instancia', (dados) => {
         playSFX('magic');

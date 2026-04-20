@@ -1160,30 +1160,8 @@ io.on('connection', (socket) => {
     socket.emit('pontuacao_atualizada', core.pontuacaoCasas);
 	// PROCURA ESTA LINHA:
 
-    
-    // --- COLA O SISTEMA DE GRUPO AQUI DENTRO ---
-    socket.on('grupo_convidar', (dados) => {
-        if(!core.alunos[dados.alvoId] || dados.alvoId === socket.alunoId) return;
-        io.to(`priv_${dados.alvoId}`).emit('grupo_receber_convite', { 
-            deId: socket.alunoId, 
-            deNome: core.alunos[socket.alunoId].nome 
-        });
-    });
 
-    socket.on('conteudo_puxar_grupo', (dados) => {
-        let grupo = core.grupos[dados.liderId];
-        if(grupo) {
-            grupo.membros.forEach(mId => {
-                // Envia convite in-game para todos, menos para quem clicou
-                if(mId !== socket.alunoId) {
-                    io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo });
-                } else {
-                    // O líder entra imediatamente
-                    io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo, autoAccept: true });
-                }
-            });
-        }
-    });
+
 
     // =====================================
     // CORREÇÃO AAA: CRIAÇÃO E SYNC DE GRUPOS
@@ -1421,6 +1399,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
      // ==============================================================================
     // 🤝 SISTEMA DE GRUPOS E COOP INSTANCIADO
     // ==============================================================================
+    // --- LÓGICA DE GRUPOS CORRIGIDA ---
     socket.on('grupo_convidar', (dados) => {
         if(!core.alunos[dados.alvoId] || dados.alvoId === socket.alunoId) return;
         io.to(`priv_${dados.alvoId}`).emit('grupo_receber_convite', { 
@@ -1429,7 +1408,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         });
     });
 
-    socket.on('grupo_aceitar', (dados) => {
+    socket.on('aceitar_convite_grupo', (dados) => { // MUDANÇA DO NOME AQUI
         let liderId = dados.liderId;
         if (!core.grupos[liderId]) core.grupos[liderId] = { lider: liderId, membros: [liderId] };
         
@@ -1452,6 +1431,20 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         };
         
         core.grupos[liderId].membros.forEach(mId => io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo));
+    });
+
+    socket.on('conteudo_puxar_grupo', (dados) => {
+        let grupo = core.grupos[dados.liderId];
+        if(grupo) {
+            grupo.membros.forEach(mId => {
+                // Envia o convite COM O ID DA INSTÂNCIA
+                if(mId !== socket.alunoId) {
+                    io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo, instId: dados.instId });
+                } else {
+                    io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo, instId: dados.instId, autoAccept: true });
+                }
+            });
+        }
     });
 
     socket.on('disconnect', () => {
