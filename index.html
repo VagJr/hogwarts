@@ -3674,14 +3674,16 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
 
     // 🔥 1. O SEGREDO DO MULTIPLAYER AAA: Enviar a mecânica e o visual INTEIRO!
     // Assim, se for um feitiço criado na biblioteca, os outros jogadores vêem perfeitamente.
-    socket.emit('multiplayer_spell', { 
-        instId: combatInstId, 
-        mecanica: mecanica, 
-        feiticoId: sid,
-        shooterId: meuBruxo.id,
-        nome: meuBruxo.nome,
-        visualConfig: cfg 
-    });
+// 🔥 ENVIAR PARA TODOS A MECÂNICA E O DESENHO EXATO DO FEITIÇO
+        socket.emit('multiplayer_spell', { 
+            instId: combatInstId, 
+            mecanica: mecanica, 
+            cfg: cfg, // 🔥 A CHAVE DO SINCRONISMO VISUAL (Formato, quantidade, estilo)
+            cor: cfg.color, 
+            nome: meuBruxo.nome, 
+            shooterId: meuBruxo.id, 
+            feiticoId: sid 
+        });
 
     // 🔥 2. SE FOR ESCUDO / DEFESA (Protego)
     if (mecanica === 'escudo' || mecanica === 'defesa') {
@@ -5130,9 +5132,10 @@ socket.on('mmo_item_coletado', (d) => {
     // =====================================
     socket.on('render_multiplayer_spell', (d) => {
         if(!combatEngineAtivo) return;
-        if(d.shooterId === meuBruxo.id) return; // Ignora os teus próprios feitiços
+        if(d.shooterId === meuBruxo.id) return; // Ignora os próprios feitiços
 
-        // Descobre quem atirou (Aliado no PvE ou Inimigo no PvP)
+        const feitico = servidorGlobal.livroDeFeiticos[d.feiticoId] || {};
+        
         let shooter = arenaAliados ? arenaAliados.find(a => a.id === d.shooterId) : null;
         if(!shooter && arenaInimigoPvP && arenaInimigoPvP.id === d.shooterId) { shooter = arenaInimigoPvP; }
         if(!shooter) return;
@@ -5141,15 +5144,11 @@ socket.on('mmo_item_coletado', (d) => {
         let sX = isShootingAtMe ? (shooter.combatX - 40) : (shooter.combatX + 40); 
         let sY = shooter.combatY - 40;
 
-        // 🔥 A MÁGICA DA SINCRONIA: Lê os dados do PACOTE (d), não da memória local!
-        let mecanica = d.mecanica || 'ataque';
-        const cfg = d.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
+        let mecanica = d.mecanica || feitico.tipoMecanica || 'ataque';
+        
+        // 🔥 PUXA O DESENHO EXATO ENVIADO PELO OPONENTE (Meteoros, Ondas, Lasers, etc)
+        const cfg = d.cfg || feitico.visualConfig || { shape: 'sphere', color: d.cor || '#fff', glow: d.cor || '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
 
-        // Faz o boneco do inimigo/aliado mover a varinha
-        shooter.atkProgress = 1.0;
-        shooter.atkColor = cfg.color;
-
-        // 1. REPRODUZ ESCUDOS
         if (mecanica === 'escudo' || mecanica === 'defesa') {
             gerarSparksEmCombate(sX, sY, cfg.color, 40);
             criarOndaDeChoqueVisual(sX, sY, cfg.glow || cfg.color);
