@@ -776,6 +776,11 @@ app.post('/api/mercado/vender', (req, res) => {
     else if (typeof core._salvarUrgente === 'function') core._salvarUrgente();
     
     res.json({sucesso: true, msg: "Oferta anunciada no Correio Coruja!"});
+	if (r.sucesso) {
+        // 🔥 AVISA TODOS OS JOGADORES EM TEMPO REAL
+        io.emit('mercado_atualizado', core.mercadoJogadores);
+    }
+    res.json(r);
 });
 
 // =========================================================
@@ -866,7 +871,8 @@ app.post('/api/mercado/comprar', (req, res) => {
                 forcarSyncAluno(r.vendedorId);
             }
         }
-        res.json(r); 
+        io.emit('mercado_atualizado', core.mercadoJogadores);
+    res.json(r);
     } catch(e) { 
         res.status(500).json({erro: "Erro no contrato."}); 
     } 

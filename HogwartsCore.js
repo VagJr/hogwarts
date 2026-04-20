@@ -1544,7 +1544,9 @@ class HogwartsCore {
             id: idBruxo, nome: nomeBruxo, tgId: "WEB", tgUsername: `@Jogador`, titulo: "O Aprendiz",
             senhaHash: senhaHash,
             estadoJogo: "BECO_DIAGONAL", casa: "Nenhuma", nivel: 1, xp: 0, xpProx: 100, 
-            galeoes: 755, hpAtual: 1000, hpMax: 1000, focoAtual: 10, maxFoco: 10, energia: 100, fome: 100, cofreGringotes: 0,
+            galeoes: 10, siclos: 50, nuques: 100, // Começa com trocos, mas o suficiente para o Beco
+        hpAtual: 1000, hpMax: 1000, focoAtual: 10, maxFoco: 10,
+        cofreGringotes: { galeoes: 500, siclos: 0, nuques: 0 }, // O grosso do dinheiro está no cofre
             atributos: { feiticos: 5, defesa: 5, pocoes: 5, transfiguracao: 5, furtividade: 5, artes_trevas: 1 }, 
             // 🔥 NOVO: Atributos de RPG para Progressão Vertical
             atributosRPG: { intelecto: 5, destreza: 5, vigor: 5, percepcao: 5, pontosLivres: 0 },
@@ -1743,27 +1745,42 @@ async folhearLivro(alunoId) {
         }
     }
 
-    acaoGringotes(alunoId, acao, valor) {
-        const a = this.alunos[alunoId]; if (!a) return { erro: "Erro" };
-        let v = parseInt(valor); if(isNaN(v) || v <= 0) return { erro: "Valor inválido." };
+    acaoGringotes(alunoId, acao, valor, moeda = 'galeoes') {
+        const a = this.alunos[alunoId]; 
+        if (!a) return { erro: "Erro" };
+        let v = parseInt(valor); 
+        if(isNaN(v) || v <= 0) return { erro: "Valor inválido." };
+
+        if (!a.cofreGringotes || typeof a.cofreGringotes === 'number') {
+            let antigo = a.cofreGringotes || 0;
+            a.cofreGringotes = { galeoes: antigo, siclos: 0, nuques: 0 };
+        }
+
         if(acao === 'depositar') {
-            if(a.galeoes < v) return { erro: "Não tens galeões suficientes." };
-            a.galeoes -= v; a.cofreGringotes += v; this._salvarBancoDeDados(); return { sucesso: true, msg: `Depositaste ${v} G.` };
+            if(a[moeda] < v) return { erro: `Não tens ${moeda} suficientes na bolsa.` };
+            a[moeda] -= v; 
+            a.cofreGringotes[moeda] += v; 
+            this._salvarUrgente(); 
+            return { sucesso: true, msg: `Depositaste ${v} ${moeda}.` };
         } else {
-            if(a.cofreGringotes < v) return { erro: "Não tens isso no cofre." };
-            a.cofreGringotes -= v; a.galeoes += v; this._salvarBancoDeDados(); return { sucesso: true, msg: `Levantaste ${v} G.` };
+            if(a.cofreGringotes[moeda] < v) return { erro: `Não tens essa quantia de ${moeda} no cofre.` };
+            a.cofreGringotes[moeda] -= v; 
+            a[moeda] += v; 
+            this._salvarUrgente(); 
+            return { sucesso: true, msg: `Levantaste ${v} ${moeda}.` };
         }
     }
 
     async gerarVarinhaOllivanders(alunoId, tracoPersonalidade) {
         const a = this.alunos[alunoId]; if (!a) return { erro: "Fantasma." };
-        if (a.galeoes < 7) return { erro: "A varinha custa 7 Galeões." }; 
+        if (a.nuques <47) return { erro: "A varinha custa 7 Galeões." }; 
         if (a.equipamentos.varinha) return { erro: "Já tens varinha." };
         
         let varinhaUnica = await this.cerebroIA.forjarVarinhaUnica(a.nome, tracoPersonalidade);
         if (!varinhaUnica || !varinhaUnica.nome) { varinhaUnica = Ollivanders.forjarVarinhaDestinada(a.nome); }
 
-        a.galeoes -= 7;
+        a.nuques += 50; 
+a.siclos += 5;
         a.equipamentos.varinha = { 
             id: 'var_ia', nome: varinhaUnica.nome, 
             madeira_nucleo: `${varinhaUnica.comprimento || '11 pol'} | ${varinhaUnica.nucleo || 'Misterioso'}`, 
@@ -2024,7 +2041,8 @@ async folhearLivro(alunoId) {
             const result = await this.cerebroIA.avaliarProva(resposta, a.provaAtual.respostaCerta);
             a.provaAtual = null;
             if(result.nota >= 70) {
-                this.adicionarPontosCasa(a.casa, 10); await this._addXp(a, 300); a.galeoes += 10;
+                this.adicionarPontosCasa(a.casa, 10); await this._addXp(a, 300); a.nuques += 50; 
+a.siclos += 5;;
                 this._salvarBancoDeDados(); return { sucesso: true, modo: 'resultado', msg: `Nota: ${result.nota}/100. ${result.feedback} (+10 Pontos p/ Casa, +300 EXP, +10 G)` };
             } else {
                 return { sucesso: true, modo: 'resultado', msg: `Nota: ${result.nota}/100. ${result.feedback} (Chumbaste na Prova.)` };
@@ -2140,7 +2158,8 @@ async folhearLivro(alunoId) {
 
         if(this.worldBoss.hpAtual <= 0) {
             this.worldBoss.ativo = false;
-            a.galeoes += 500; // Bonus pro Last Hit
+            aa.nuques += 50; 
+a.siclos += 5; // Bonus pro Last Hit
             global.io.emit('nova_mensagem', { canal: 'salaoPrincipal', autor: '🏆 VITÓRIA GLOBAL', texto: `O ${this.worldBoss.nome} foi derrotado na ${this.worldBoss.zona}! O golpe final foi de ${a.nome}. A paz regressa.` });
         }
         this._salvarBancoDeDados();

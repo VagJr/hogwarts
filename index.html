@@ -937,12 +937,15 @@
                 </div>
                 
                 <div style="background:rgba(0,0,0,0.6); padding:15px; border:1px solid #d4af37; border-radius:6px; text-align:center;">
-                    <h4 style="color:#d4af37; margin-top:0;">Câmbio Oficial</h4>
-                    <p style="font-size:0.7em; color:#888;">1 Galeão = 17 Sicles<br>1 Sicle = 29 Nuques</p>
-                    <button onclick="cambioGringotes('galeao_para_sicle')" style="background:#333; margin-bottom:5px; font-size:0.8em;">1 Galeão ➔ 17 Sicles</button>
-                    <button onclick="cambioGringotes('sicle_para_nuque')" style="background:#333; margin-bottom:5px; font-size:0.8em;">1 Sicle ➔ 29 Nuques</button>
-                    <button onclick="cambioGringotes('nuque_para_sicle')" style="background:#333; font-size:0.8em;">29 Nuques ➔ 1 Sicle</button>
-                </div>
+    <h4 style="color:#d4af37; margin-top:0;">Balcão de Câmbio Unificado</h4>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
+        <button onclick="cambioGringotes('nuque_para_sicle')" style="font-size:0.7em;">29 Nuques ➔ 1 Sicle</button>
+        <button onclick="cambioGringotes('sicle_para_galeao')" style="font-size:0.7em;">17 Sicles ➔ 1 Galeão</button>
+        <button onclick="cambioGringotes('galeao_para_sicle')" style="font-size:0.7em; background:#3d2314;">1 Galeão ➔ 17 Sicles</button>
+        <button onclick="cambioGringotes('sicle_para_nuque')" style="font-size:0.7em; background:#3d2314;">1 Sicle ➔ 29 Nuques</button>
+    </div>
+    <p style="font-size:0.6em; color:#888; margin-top:10px;">Taxas oficiais do Ministério da Magia aplicadas.</p>
+</div>
             </div>
         </div>
 
@@ -7064,116 +7067,89 @@ window.equiparItemMistico = async function(itemId) {
     let vaultLoop;
     let moedasFisicas = [];
     
-    const VaultEngine = {
-        ctx: null, cvs: null,
-        init: function(galeoes) {
-            this.cvs = document.getElementById('vault-canvas');
-            if(!this.cvs) return;
-            this.ctx = this.cvs.getContext('2d');
-            this.cvs.width = this.cvs.parentElement.clientWidth;
-            this.cvs.height = this.cvs.parentElement.clientHeight;
-
-            moedasFisicas = [];
-            // Limita a renderização a 150 moedas para não queimar telemóveis, mesmo se tiveres 1 milhão.
-            let qtdDraw = Math.min(150, Math.max(5, Math.floor(galeoes / 10))); 
-            
-            for(let i=0; i<qtdDraw; i++) {
-                moedasFisicas.push({
-                    x: Math.random() * (this.cvs.width - 40) + 20,
-                    y: (Math.random() * -600) - 50, // Caem do teto progressivamente
-                    vx: (Math.random() - 0.5) * 4,
-                    vy: 0,
-                    r: 12 + Math.random()*3, // Tamanhos ligeiramente diferentes
-                    cor: Math.random() > 0.2 ? '#d4af37' : '#f1c40f'
-                });
-            }
-
-            if(vaultLoop) cancelAnimationFrame(vaultLoop);
-            this.tick();
-        },
-        tick: function() {
-            if(document.getElementById('modal-gringotes').classList.contains('oculto')) return;
-
-            this.ctx.clearRect(0, 0, this.cvs.width, this.cvs.height);
-            const gravidade = 0.5;
-            const atrito = 0.6;
-            const h = this.cvs.height;
-            const w = this.cvs.width;
-
-            for(let i=0; i<moedasFisicas.length; i++) {
-                let m = moedasFisicas[i];
-                
-                m.vy += gravidade;
-                m.x += m.vx;
-                m.y += m.vy;
-				// No teu Engine 2D, quando o vx ou vy forem diferentes de 0:
-if (this.player.isMoving) {
-    // Só envia pacote a cada 100ms para não explodir o servidor
-    if(!this.lastMoveSync || Date.now() - this.lastMoveSync > 100) {
-        socket.emit('mmo_mover', { 
-            zona: zonaAtual, // ex: 'Salão Principal', 'Floresta_Instancia_X'
-            x: this.player.x, 
-            y: this.player.y, 
-            dir: this.player.dir 
-        });
-        this.lastMoveSync = Date.now();
-    }
-}
-
-// Renderiza o movimento dos inimigos
-socket.on('mmo_jogador_moveu', (dados) => {
-    if(this.remotes[dados.id]) {
-        this.remotes[dados.id].alvoX = dados.x;
-        this.remotes[dados.id].alvoY = dados.y;
-        this.remotes[dados.id].dir = dados.dir;
-        this.remotes[dados.id].isMoving = true;
-    }
+    // No final do script, adiciona o ouvinte do mercado
+socket.on('mercado_atualizado', (novaLista) => {
+    renderizarMercadoUI(novaLista);
+    mostrarNotificacao("🦉 O Correio Coruja trouxe novas ofertas de mercado!", "info");
 });
 
-                // Colisão com o Chão
-                if(m.y + m.r > h) {
-                    m.y = h - m.r;
-                    m.vy *= -atrito;
-                    m.vx *= 0.9; // Atrito no chão
-                }
-                // Colisão com as paredes laterais
-                if(m.x - m.r < 0) { m.x = m.r; m.vx *= -atrito; }
-                if(m.x + m.r > w) { m.x = w - m.r; m.vx *= -atrito; }
+// Atualiza o VaultEngine para desenhar moedas de 3 cores e pilhas infinitas
+const VaultEngine = {
+    ctx: null, cvs: null,
+    init: function(dataCofre) {
+        this.cvs = document.getElementById('vault-canvas');
+        if(!this.cvs) return;
+        this.ctx = this.cvs.getContext('2d');
+        this.cvs.width = this.cvs.parentElement.clientWidth;
+        this.cvs.height = this.cvs.parentElement.clientHeight;
 
-                // Colisão Círculo vs Círculo (Impulso Básico)
-                for(let j=i+1; j<moedasFisicas.length; j++) {
-                    let m2 = moedasFisicas[j];
-                    let dx = m2.x - m.x;
-                    let dy = m2.y - m.y;
-                    let dist = Math.hypot(dx, dy);
-                    let minD = m.r + m2.r;
-                    
-                    if(dist < minD) {
-                        let ang = Math.atan2(dy, dx);
-                        let overlap = minD - dist;
-                        // Empurra-os para fora um do outro
-                        let ax = Math.cos(ang) * overlap * 0.5;
-                        let ay = Math.sin(ang) * overlap * 0.5;
-                        m.x -= ax; m.y -= ay;
-                        m2.x += ax; m2.y += ay;
-                        
-                        // Troca de velocidades simples
-                        let vTempX = m.vx; let vTempY = m.vy;
-                        m.vx = m2.vx * atrito; m.vy = m2.vy * atrito;
-                        m2.vx = vTempX * atrito; m2.vy = vTempY * atrito;
-                    }
-                }
+        moedasFisicas = [];
+        
+        // Configuração de cores e quantidades
+        const moedas = [
+            { qtd: dataCofre.galeoes || 0, cor: '#d4af37', label: 'G' },
+            { qtd: dataCofre.siclos || 0, cor: '#bdc3c7', label: 'S' },
+            { qtd: dataCofre.nuques || 0, cor: '#cd7f32', label: 'N' }
+        ];
 
-                // Desenho da Moeda
-                this.ctx.fillStyle = m.cor;
-                this.ctx.beginPath(); this.ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); this.ctx.fill();
-                this.ctx.strokeStyle = "#8c6b32"; this.ctx.lineWidth = 1;
-                this.ctx.beginPath(); this.ctx.arc(m.x, m.y, m.r - 2, 0, Math.PI*2); this.ctx.stroke();
+        moedas.forEach(m => {
+            // Desenha no máximo 100 de cada para performance, mas escala o tamanho baseado na fortuna
+            let visualQtd = Math.min(100, Math.ceil(m.qtd / 5));
+            for(let i=0; i<visualQtd; i++) {
+                moedasFisicas.push({
+                    x: Math.random() * (this.cvs.width - 40) + 20,
+                    y: (Math.random() * -800) - 50,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: 0,
+                    r: 10 + Math.random()*4,
+                    cor: m.cor,
+                    valorReal: m.qtd // Usado para calcular o "nível" de preenchimento
+                });
+            }
+        });
+
+        if(vaultLoop) cancelAnimationFrame(vaultLoop);
+        this.tick();
+    },
+    tick: function() {
+        if(document.getElementById('modal-gringotes').classList.contains('oculto')) return;
+        const ctx = this.ctx;
+        const cvs = this.cvs;
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        
+        // Simula o fundo sendo preenchido baseado no total de moedas
+        let totalMoedas = meuBruxo.cofreGringotes.galeoes + (meuBruxo.cofreGringotes.siclos / 17);
+        let preenchimentoY = Math.max(0, cvs.height - (totalMoedas * 0.2));
+        
+        ctx.fillStyle = 'rgba(212, 175, 55, 0.1)';
+        ctx.fillRect(0, preenchimentoY, cvs.width, cvs.height);
+
+        moedasFisicas.forEach((m, i) => {
+            m.vy += 0.5; // Gravidade
+            m.x += m.vx;
+            m.y += m.vy;
+
+            // Colisão com "chão dinâmico" (a pilha de moedas subindo)
+            let floor = cvs.height - (m.r);
+            if(m.y > floor) {
+                m.y = floor;
+                m.vy *= -0.4; // Quica menos
+                m.vx *= 0.8;
             }
 
-            vaultLoop = requestAnimationFrame(this.tick.bind(this));
-        }
-    };
+            // Paredes
+            if(m.x < m.r || m.x > cvs.width - m.r) m.vx *= -0.8;
+
+            ctx.fillStyle = m.cor;
+            ctx.shadowBlur = 5; ctx.shadowColor = m.cor;
+            ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.stroke();
+        });
+        
+        ctx.shadowBlur = 0;
+        vaultLoop = requestAnimationFrame(this.tick.bind(this));
+    }
+};
 
     // --- FUNÇÕES DE INTERFACE PARA GRINGOTES E LOJAS ---
 
@@ -7439,7 +7415,7 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
             conteudo.innerHTML = `
                 <p style="color:#ccc; font-size:0.9em;">A varinha escolhe o bruxo. Descreve a tua personalidade:</p>
                 <textarea id="in-ollivander-ia" rows="3" placeholder="Ex: Sou corajoso, mas impaciente..."></textarea>
-                <button onclick="gerarVarinhaIA()" id="btn-wand" style="background:#d4af37; color:#000;">Testar Varinhas (7 G)</button>
+                <button onclick="gerarVarinhaIA()" id="btn-wand" style="background:#d4af37; color:#000;">Testar Varinhas (47 Sicles)</button>
                 <canvas id="wand-canvas" class="oculto" width="350" height="100" style="margin: 10px auto; display:block;"></canvas>
                 <div id="wand-result" style="color:#0f5; font-weight:bold; text-align:center;"></div>
             `;
