@@ -2568,21 +2568,22 @@ async folhearLivro(alunoId) {
                     let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
                     let novasEntidades = [];
                     
-                    this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel).then(mData => {
-                        for(let i=0; i<proxMobs; i++) {
-                            novasEntidades.push({ 
-                                idx: i, 
-                                nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), 
-                                hpMax: mData.hp, hpAtual: mData.hp, vivo: true, 
-                                padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)], 
-                                efeitos: [] 
-                            });
-                        }
-                        inst.entidades = novasEntidades; this._salvarBancoDeDados();
-                        global.io.to(inst.id).emit('alerta_nova_fase', { entidades: novasEntidades }); // Sincroniza Mobs Novos
-                    });
+                    let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
+                    for(let i=0; i<proxMobs; i++) {
+                        novasEntidades.push({ 
+                            idx: i, 
+                            nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), 
+                            hpMax: mData.hp, hpAtual: mData.hp, vivo: true, 
+                            padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)], 
+                            efeitos: [] 
+                        });
+                    }
+                    inst.entidades = novasEntidades; this._salvarBancoDeDados();
                     
-                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual };
+                    let pDataFase = { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, entidades: novasEntidades, atiradorId: atacanteId };
+                    if(global.io) global.io.to(inst.id).emit('mmo_fase_update', pDataFase); // 🔥 AVISA A PARTY
+
+                    return pDataFase;
                 } else {
                     inst.status = 'finalizado'; 
                     if (inst.timerBossAtaque) clearInterval(inst.timerBossAtaque);
@@ -2597,12 +2598,16 @@ async folhearLivro(alunoId) {
                         });
                     }
 
-                    // 🔥 ENVIA A AVALIAÇÃO S/A/B/C PARA O ECRÃ FINAL!
-                    return { bossMorto: true, relatoAcao: `Área Purificada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, avaliacao: avaliacaoData };
+                    let pDataBoss = { bossMorto: true, relatoAcao: `Área Purificada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, avaliacao: avaliacaoData, atiradorId: atacanteId };
+                    if(global.io) global.io.to(inst.id).emit('mmo_boss_morto_coop', pDataBoss); // 🔥 AVISA A PARTY
+
+                    return pDataBoss;
                 }
             } else {
                 this._salvarBancoDeDados();
-                return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual };
+                let pDataMob = { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, atiradorId: atacanteId };
+                if(global.io) global.io.to(inst.id).emit('mmo_mob_morto_coop', pDataMob); // 🔥 AVISA A PARTY
+                return pDataMob;
             }
         }
         this._salvarBancoDeDados();

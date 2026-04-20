@@ -2649,7 +2649,14 @@ let arenaInimigos = []; // Array de inimigos
                  // Aplica o dano e Lifesteal à UI imediatamente
                  bossCurrentHp = Math.max(0, bossCurrentHp - dataBackend.danoAplicado);
                  if (dataBackend.hpJogador) playerCurrentHp = dataBackend.hpJogador;
+                 
+                 if (dataBackend.buffsJogador) meuBruxo.buffs = dataBackend.buffsJogador; 
                  atualizarHPUIVisual();
+
+                 // 🔥 DESBLOQUEIO DO PVP: Aplica a vida a zeros e deixa o Socket pvp_fim fechar a tela
+                 if (dataBackend.pvpFim) {
+                     return; // Para aqui para não abrir a tela de Avaliação de Masmorra PVE
+                 }
              }
 
              safeSet('ca-dungeon-info', dataBackend.relatoAcao); 
@@ -4614,6 +4621,68 @@ let bY = mob.y || (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos
             pomo.style.display = 'none'; 
         }
     });
+	
+	// =====================================
+// REAÇÕES COOPERATIVAS (ALIADOS ASSISTEM ÀS MORTES)
+// =====================================
+socket.on('mmo_boss_morto_coop', (dataBackend) => {
+    if (dataBackend.atiradorId === meuBruxo.id) return; // O atacante já fez a tela via resposta HTTP
+    
+    gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#f1c40f", 200, "stars");
+    document.getElementById('ca-boss-hp').style.width = `0%`; safeSet('ca-boss-hp-txt', "0");
+    
+    if (dataBackend.avaliacao) {
+        const aval = dataBackend.avaliacao;
+        document.getElementById('modal-recompensa').classList.remove('oculto');
+        document.getElementById('recompensa-conteudo').innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center;">
+            <h3 style="color:#2ecc71; margin-top:0;">Fenda Selada!</h3>
+            <div style="background:rgba(0,0,0,0.8); border:2px solid ${aval.cor}; padding:20px; border-radius:10px; width:100%; text-align:center; box-shadow:0 0 40px ${aval.cor}55;">
+                <div style="font-size:1.2em; color:#ccc; letter-spacing:2px;">RANK DE COMBATE</div>
+                <div style="font-size:5em; font-family:'Cinzel'; font-weight:900; color:${aval.cor}; text-shadow:0 0 20px ${aval.cor}, 2px 2px 0px #000; line-height:1; margin:10px 0;">
+                    ${aval.rank}
+                </div>
+                <div style="font-size:1.4em; color:${aval.cor}; font-weight:bold; text-transform:uppercase;">
+                    <span style="font-size:0.8em; color:#fff;">ESTILO:</span> ${aval.titulo}
+                </div>
+            </div>
+            <div style="margin-top:15px; font-size:0.8em; color:#aaa; font-family:monospace; background:rgba(255,255,255,0.05); padding:10px; border-radius:4px; width:100%;">
+                <div style="color:#f1c40f;">Pontuação Tática Coletiva: ${aval.score}</div>
+            </div>
+            <div style="margin-top:15px; color:#3498db;">${dataBackend.relatoAcao}</div>
+        </div>`;
+    }
+    playSFX('magic'); finalizarArena(true);
+});
+
+socket.on('mmo_fase_update', (dataBackend) => {
+    if (dataBackend.atiradorId === meuBruxo.id) return;
+    playSFX('magic'); 
+    gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#fff", 150, "stars");
+    spawnFloatingText(cvs.width/2, cvs.height/2, `FASE ${dataBackend.faseAtual}!`, "#f1c40f", "60px");
+    faseAtualArena = dataBackend.faseAtual; 
+    setTimeout(() => {
+        if(dataBackend.entidades) renderizarAlvos(dataBackend.entidades);
+        safeSet('ca-boss-name', `Fase ${dataBackend.faseAtual}`);
+        safeSet('ca-dungeon-info', `Nível de Ameaça: Fase ${dataBackend.faseAtual}`);
+        const flash = document.getElementById('arena-flash');
+        if(flash) { flash.classList.remove('flash-phase'); void flash.offsetWidth; flash.classList.add('flash-phase'); }
+    }, 800);
+});
+
+socket.on('mmo_mob_morto_coop', (dataBackend) => {
+    if (dataBackend.atiradorId === meuBruxo.id) return;
+    playSFX('click'); 
+    gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#e74c3c", 100, "smoke");
+    spawnFloatingText(stateBossHitbox.x, stateBossHitbox.y - 50, "ELIMINADO!", "#e74c3c", "35px");
+    setTimeout(() => {
+        if(dataBackend.entidades) {
+            renderizarAlvos(dataBackend.entidades);
+            let proximo = dataBackend.entidades.find(m => m.vivo);
+            if(proximo) alvoAtualIdx = proximo.idx;
+        }
+    }, 300);
+});
 	
 	// 🔥 CORREÇÃO: Evita que os monstros do "Rumores" fiquem piscando ao atualizar o DOM
 // 🔥 ATUALIZA O MUNDO ABERTO (RUMORES E EVENTOS GLOBAIS)
