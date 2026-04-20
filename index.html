@@ -4791,13 +4791,16 @@ socket.on('receber_convite_grupo', (dados) => {
     socket.on('mmo_combat_update', (dados) => {
         if(!combatEngineAtivo) return;
         
-        // Sincroniza a vida do Boss para toda a gente na sala
-        bossCurrentHp = dados.hpBoss;
-        document.getElementById('ca-boss-hp').style.width = `${Math.max(0, (bossCurrentHp / bossMaxHp) * 100)}%`; 
-        safeSet('ca-boss-hp-txt', `${Math.floor(bossCurrentHp)} / ${bossMaxHp}`);
+        // 🔥 Sincroniza a vida dos inimigos para toda a gente na sala!
+        if (dados.entidades) {
+            renderizarAlvos(dados.entidades); // Atualiza os botões e a vida do alvo focado
+        } else if (dados.hpBoss !== undefined) {
+            bossCurrentHp = dados.hpBoss;
+            atualizarHPUIVisual();
+        }
         
         // Se foi um aliado a bater, diz na tela e treme um bocadinho
-        if(dados.atacanteNome !== meuBruxo.nome) {
+        if(dados.atacanteNome && dados.atacanteNome !== meuBruxo.nome) {
             document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 100);
             safeSet('ca-dungeon-info', `⚔️ Aliado ${dados.atacanteNome} atacou!`);
         }

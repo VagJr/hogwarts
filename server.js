@@ -855,8 +855,22 @@ app.post('/api/historia/avancar_expresso', (req, res) => { try { const a = core.
 app.post('/api/aventura/nova', async (req, res) => { try { res.json(await core.pedirQuestIA(req.body.id)); forcarSyncAluno(req.body.id); } catch(e) { res.status(500).json({erro:"Erro no Oráculo."}); } });
 app.post('/api/aventura/concluir', async (req, res) => { try { res.json(await core.concluirQuest(req.body.id)); forcarSyncAluno(req.body.id); } catch(e) { res.status(500).json({erro:"Erro."}); } });
 
-app.post('/api/mercado/comprar', (req, res) => { try { const r = core.comprarItemMercado(req.body.id, req.body.ofertaId); if(r.sucesso) forcarSyncAluno(req.body.id); res.json(r); } catch(e) { res.status(500).json({erro: "Erro no contrato."}); } });
-
+app.post('/api/mercado/comprar', (req, res) => { 
+    try { 
+        const r = core.comprarItemMercado(req.body.id, req.body.ofertaId); 
+        if(r.sucesso) {
+            forcarSyncAluno(req.body.id); // Atualiza o ecrã do comprador
+            
+            // 🔥 CORREÇÃO: Atualiza também o ecrã do vendedor para ele ver o saldo subir em tempo real!
+            if (r.vendedorId) {
+                forcarSyncAluno(r.vendedorId);
+            }
+        }
+        res.json(r); 
+    } catch(e) { 
+        res.status(500).json({erro: "Erro no contrato."}); 
+    } 
+});
 // ==============================================================================
 // 5. AULAS E BIBLIOTECA
 // ==============================================================================

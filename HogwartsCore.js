@@ -1870,28 +1870,52 @@ async folhearLivro(alunoId) {
     }
 
     comprarItemMercado(alunoId, ofertaId) {
-        const a = this.alunos[alunoId]; if (!a) return {erro:"Fantasma."};
+        const a = this.alunos[alunoId]; 
+        if (!a) return {erro:"Fantasma."};
         if(!this.mercadoJogadores) this.mercadoJogadores = [];
+        
         const idx = this.mercadoJogadores.findIndex(o => o.id === ofertaId);
-        if(idx === -1) return {erro:"A oferta já foi comprada por outro bruxo."};
+        if(idx === -1) return {erro:"A oferta já foi comprada ou não existe."};
         
         const oferta = this.mercadoJogadores[idx];
         if(a.id === oferta.vendedorId) return {erro:"Não podes comprar a tua própria oferta."};
         if(a.galeoes < oferta.preco) return {erro:"Galeões insuficientes."};
         
-        // Efetua a transação
+        // 1. Cobra ao Comprador
         a.galeoes -= oferta.preco;
-        a.mochilaEscolar.push({ id: crypto.randomBytes(4).toString('hex'), nome: oferta.item.nome, tipo: oferta.item.tipo });
         
-        // Paga ao vendedor diretamente no Banco Gringotes
-        if(this.alunos[oferta.vendedorId]) {
-            this.alunos[oferta.vendedorId].cofreGringotes += oferta.preco; 
-            global.io.to(`priv_${oferta.vendedorId}`).emit('nova_mensagem', { canal: 'zona', autor: '🦉 [Correio Coruja]', texto: `Venda bem sucedida! Alguém comprou o teu [${oferta.item.nome}]. Foram depositados ${oferta.preco} G no teu Cofre.` });
+        // 2. Entrega o Item ao Comprador (Suporta items normais ou Mobília)
+        if (oferta.tipo === 'mobilia') {
+            if (!a.inventario.mobilia) a.inventario.mobilia = [];
+            let movelComprado = { ...oferta.item, id: 'movel_' + crypto.randomBytes(4).toString('hex'), equipado: false };
+            a.inventario.mobilia.push(movelComprado);
+        } else {
+            a.mochilaEscolar.push({ id: crypto.randomBytes(4).toString('hex'), nome: oferta.item.nome, tipo: oferta.item.tipo });
         }
         
+        // 3. Paga ao Vendedor (Blindado contra NaN)
+        let vendedorIdRefresh = null;
+        if(this.alunos[oferta.vendedorId]) {
+            let vendedor = this.alunos[oferta.vendedorId];
+            
+            // 🔥 CORREÇÃO: Garante que o valor é um número real! Vai para o Banco Gringotes!
+            vendedor.cofreGringotes = (parseInt(vendedor.cofreGringotes) || 0) + parseInt(oferta.preco);
+            vendedorIdRefresh = vendedor.id; // Guarda o ID para dar Sync ao ecrã dele
+            
+            if (global.io) {
+                global.io.to(`priv_${vendedor.id}`).emit('nova_mensagem', { 
+                    canal: 'zona', 
+                    autor: '🦉 [Correio Coruja]', 
+                    texto: `Venda bem sucedida! Alguém comprou o teu [${oferta.item.nome}]. Foram depositados ${oferta.preco} G no teu Cofre de Gringotes.` 
+                });
+            }
+        }
+        
+        // Remove a oferta do mercado
         this.mercadoJogadores.splice(idx, 1);
         this._salvarBancoDeDados();
-        return {sucesso: true, msg: `Compraste [${oferta.item.nome}] por ${oferta.preco} G!`};
+        
+        return {sucesso: true, msg: `Compraste [${oferta.item.nome}] por ${oferta.preco} G!`, vendedorId: vendedorIdRefresh };
     }
 
     async processarSelecao(alunoId, resposta) {
@@ -2629,14 +2653,24 @@ async folhearLivro(alunoId) {
 
                     return pDataBoss;
                 }
-            } else {
+           } else {
                 this._salvarBancoDeDados();
                 let pDataMob = { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, atiradorId: atacanteId };
-                if(global.io) global.io.to(inst.id).emit('mmo_mob_morto_coop', pDataMob); // 🔥 AVISA A PARTY
+                if(global.io) global.io.to(inst.id).emit('mmo_mob_morto_coop', pDataMob);
                 return pDataMob;
             }
         }
         this._salvarBancoDeDados();
+        
+        // 🔥 NOVO: AVISA A PARTY DO DANO RECEBIDO E SINCRONIZA HP (SEM DELAY)
+        if(global.io) {
+            global.io.to(inst.id).emit('mmo_combat_update', {
+                hpBoss: mob.hpAtual,
+                entidades: inst.entidades, // Envia o array de mobs atualizado
+                atacanteNome: a.nome
+            });
+        }
+        
         return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: danoFinal, defendeu, relatoAcao, hpJogador: a.hpAtual, buffsJogador: a.buffs };
     }
 	// ==========================================
