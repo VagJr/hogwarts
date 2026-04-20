@@ -1468,14 +1468,23 @@ socket.on('mmo_action', async (dados) => {
             };
         }
 
+        // Avisa toda a gente na zona que chegaste
         io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '🏰 [SISTEMA]', texto: `${a.nome} chegou a ${dados.zona}.` });
         
         if (core.zonasVivas[dados.zona]) {
             socket.emit('mmo_world_update', core.zonasVivas[dados.zona]);
         }
         
-        // 🔥 ACORDA A PRESENÇA (O que faz a lista de jogadores aparecer na lateral)
+        // ACORDA A PRESENÇA (O que faz a lista de jogadores aparecer na lateral)
         atualizarPresencaZona(dados.zona);
+
+        // 🔥 RECUPERAÇÃO DA IA DE AMBIENTE: Gera e envia a lore imersiva só para o jogador que entrou!
+        core.cerebroIA.gerarAtmosferaLocal(dados.zona).then(atmosfera => {
+            if (atmosfera) {
+                // Usa apenas `socket.emit` para enviar a narração apenas para quem acabou de entrar, sem spammar o chat global
+                socket.emit('nova_mensagem', { canal: 'zona', autor: '✨ [AMBIENTE]', texto: atmosfera });
+            }
+        }).catch(err => console.log("Erro na atmosfera:", err));
     });
 
     socket.on('pedir_presenca', (dados) => {
