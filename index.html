@@ -2680,9 +2680,11 @@ let arenaInimigos = []; // Array de inimigos
                  let alvoFocado = arenaInimigos.find(m => m.idx === alvoAtualIdx);
                  if (alvoFocado) alvoFocado.vivo = false; 
 
-                 // 🔥 RECUPERAÇÃO DO MODAL DE VITÓRIA (PROFILING) 🔥
-                 if(dataBackend.bossMorto && dataBackend.avaliacao) {
-                    const aval = dataBackend.avaliacao;
+                 // 🔥 RECUPERAÇÃO DO MODAL DE VITÓRIA (PROFILING INDIVIDUAL) 🔥
+             if(dataBackend.bossMorto && dataBackend.avaliacoes) {
+                // Apanha apenas a avaliação que corresponde ao ID deste jogador!
+                const aval = dataBackend.avaliacoes[meuBruxo.id];
+                if (aval) {
                     document.getElementById('modal-recompensa').classList.remove('oculto');
                     document.getElementById('recompensa-conteudo').innerHTML = `
                         <div style="display:flex; flex-direction:column; align-items:center;">
@@ -2699,11 +2701,13 @@ let arenaInimigos = []; // Array de inimigos
                             <div style="margin-top:15px; font-size:0.8em; color:#aaa; font-family:monospace; background:rgba(255,255,255,0.05); padding:10px; border-radius:4px; width:100%;">
                                 <div style="color:#f1c40f;">Pontuação Tática: ${aval.score}</div>
                                 <div style="margin-top:5px;">${aval.detalhes}</div>
+                                <div style="margin-top:10px; color:#3498db; font-weight:bold;">+${aval.xp} XP | +${aval.gold} Galeões</div>
                             </div>
                         </div>
                     `;
-                 }
+                }
              }
+			 }
 
              // Atualiza os ícones de status (Fogo, Gelo, etc) em cima da cabeça
              if (dataBackend.entidades) renderizarAlvos(dataBackend.entidades);
@@ -3700,7 +3704,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
             playerHitbox.mode = 'protego'; 
             playerHitbox.timer = 1200; 
             criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: false, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
+            socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
             processarImpactoNoServidor("protego_block_reflex", true); 
         } 
         // 2. SE FOR CURA
@@ -3711,7 +3715,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         } 
         // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS E FEITIÇOS FÍSICOS)
         else {
-            socket.emit('multiplayer_spell', { instId: combatInstId, isDefensive: false, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
+            socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
 
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
             let qt = cfg.quantity || 1;
@@ -5065,45 +5069,67 @@ socket.on('mmo_item_coletado', (d) => {
    // =====================================
     // SYNC DE FEITIÇOS MULTIPLAYER E PVP
     // =====================================
-    socket.on('render_multiplayer_spell', (dados) => {
-        if(!combatEngineAtivo || dados.shooterId === meuBruxo.id) return;
-        
-        // 1. Descobre de onde deve sair a magia
-        let shooter = arenaAliados.find(a => a.id === dados.shooterId);
-        let sX = shooter ? shooter.combatX + 40 : 650; 
-        let sY = shooter ? shooter.combatY - 30 : 300; 
-        let dirMulti = shooter ? 1 : -1; // Se não for do grupo, atira da direita para a esquerda
-        
-        if (arenaInimigoPvP && arenaInimigoPvP.id === dados.shooterId) {
-            shooter = arenaInimigoPvP;
-            sX = shooter.combatX - 40; sY = shooter.combatY - 30;
-            dirMulti = -1;
-        }
+    socket.on('render_multiplayer_spell', (d) => {
+        if(!combatEngineAtivo) return;
+        if(d.shooterId === meuBruxo.id) return; // Ignora os próprios feitiços
 
-        if(dados.isDefensive) {
-            gerarSparksEmCombate(sX, sY, "#0ff", 30);
-        } else {
-            // Anima o braço da pessoa que atirou!
-            if (shooter) {
-                shooter.atkProgress = 1.0;
-                shooter.atkColor = dados.cor;
+        const feitico = servidorGlobal.livroDeFeiticos[d.feiticoId];
+        if(!feitico) return;
+
+        let shooter = arenaAliados ? arenaAliados.find(a => a.id === d.shooterId) : null;
+        if(!shooter && arenaInimigoPvP && arenaInimigoPvP.id === d.shooterId) { shooter = arenaInimigoPvP; }
+        if(!shooter) return;
+
+        let isShootingAtMe = (arenaInimigoPvP && shooter.id === arenaInimigoPvP.id);
+        let sX = isShootingAtMe ? (shooter.combatX - 40) : (shooter.combatX + 40); 
+        let sY = shooter.combatY - 40;
+
+        // 🔥 LÊ A MECÂNICA ORIGINAL ENVIADA PELO JOGADOR
+        let mecanica = d.mecanica || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+        const cfg = feitico.visualConfig || { shape: 'sphere', color: d.cor || '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
+
+        if (mecanica === 'escudo' || mecanica === 'defesa') {
+            gerarSparksEmCombate(sX, sY, cfg.color, 40);
+            criarOndaDeChoqueVisual(sX, sY, cfg.glow || cfg.color);
+        } 
+        else if (mecanica === 'cura') {
+            gerarSparksEmCombate(sX, sY, cfg.color, 60, 'stars');
+            criarImpactoEspecial(sX, sY, cfg.color, 'implosion');
+        } 
+        else {
+            gerarSparksEmCombate(sX, sY, cfg.color, 20, cfg.particleStyle);
+            let qt = cfg.quantity || 1;
+            let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
+            
+            for(let i = 0; i < qt; i++) {
+                setTimeout(() => {
+                    let stX = sX;
+                    let stY = sY + (Math.random()*40-20);
+                    // O alvo do tiro do aliado (se for inimigo atira para nós, se for aliado atira para o boss)
+                    let tY = isShootingAtMe ? (playerHitbox.y - 20) : (stateBossHitbox.y - 20);
+                    let spX = isShootingAtMe ? -(cfg.speed || 25) : (cfg.speed || 25);
+                    let spY = 0;
+
+                    if (isMeteor) {
+                        stX = isShootingAtMe ? (100 + Math.random()*200) : (400 + Math.random()*400); 
+                        stY = -100 - (Math.random() * 150); 
+                        tY = isShootingAtMe ? (playerHitbox.y) : (stateBossHitbox.y); 
+                        spX = isShootingAtMe ? -(10 + Math.random()*10) : (10 + Math.random()*10); 
+                        spY = (cfg.speed || 20) + (Math.random() * 5); 
+                    }
+                    else if (cfg.shape === 'slash') { spX = isShootingAtMe ? -(cfg.speed || 30) : (cfg.speed || 30); }
+                    else if (cfg.shape === 'wave') { spX = isShootingAtMe ? -(cfg.speed || 15) : (cfg.speed || 15); }
+
+                    projeteis.push({ 
+                        x: stX, y: stY, ty: tY, speed: spX, vy: spY, pBoss: isShootingAtMe, 
+                        scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
+                        cor: cfg.color, shape: cfg.shape, glow: cfg.glow, trailLen: cfg.trailSize || 15,
+                        mov: cfg.movement || 'linear', pStyle: cfg.particleStyle || 'sparks', 
+                        impact: cfg.impactEffect || 'explosion', faseM: Math.random() * Math.PI * 2, 
+                        idFeiticoSalvo: d.feiticoId 
+                    });
+                }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
             }
-
-            const feiticoObj = servidorGlobal.livroDeFeiticos[dados.feiticoId];
-            const cfg = feiticoObj ? feiticoObj.visualConfig : {};
-
-            projeteis.push({ 
-                x: sX, y: sY, ty: 300,
-                speed: (cfg ? cfg.speed || 25 : 25) * dirMulti, 
-                pBoss: !shooter || dirMulti === -1, 
-                scale: 15, cor: dados.cor, glow: dados.cor,
-                aliado: !!shooter && dirMulti === 1,
-                shape: cfg ? cfg.shape : 'sphere',
-                pStyle: cfg ? cfg.particleStyle : 'sparks',
-                mov: cfg ? cfg.movement : 'linear',
-                trailLen: cfg ? cfg.trailSize : 15
-            });
-            playSFX('magic');
         }
     });
 

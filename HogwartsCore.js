@@ -2543,6 +2543,9 @@ a.siclos += 5; // Bonus pro Last Hit
         // ====================================================================
         // 🔥 4. AVALIAÇÃO FINAL (RANKING, TÍTULOS E EXP BÓNUS)
         // ====================================================================
+        // ====================================================================
+        // 🔥 2. CÁLCULO FINAL E TÍTULOS (INDIVIDUAL PARA CADA JOGADOR)
+        // ====================================================================
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
             let todosMortos = inst.entidades.every(m => !m.vivo);
@@ -2551,73 +2554,87 @@ a.siclos += 5; // Bonus pro Last Hit
                 let isBoss = (inst.faseAtual === inst.maxFases);
                 let recebedores = inst.membros && inst.membros.length > 0 ? inst.membros : [a.id];
                 let divisao = recebedores.length;
-
-                // Aplica o Multiplicador da Categoria do Evento (World Boss, Horda, etc)
                 let multEvento = inst.recompensaMult || 1.0;
 
-                let xpFase = Math.floor(((isBoss ? 1500 : 400 * inst.entidades.length) * multEvento) / divisao);
-                let galeoesFase = Math.floor(((isBoss ? 800 : 100 * inst.entidades.length) * multEvento) / divisao);
-                // --- 🧠 O ALGORITMO DE AVALIAÇÃO DE DESEMPENHO (DEVIL MAY CRY STYLE) ---
-                let p = inst.profiler[atacanteId];
-                let score = 0;
-                score += Math.floor(p.danoCausado / 100);     // Fator Dano Bruto
-                score += (p.parriesPerfeitos * 30);           // Defesas no timing perfeito
-                score += (p.maiorCombo * 10);                 // Fluidez do combate
-                score += (p.explorouFraqueza * 25);           // Tática Elemental
-                score += (p.ccAplicado * 15);                 // Controlo de Feras
-                score += (p.magiasDiferentes.size * 15);      // Rotação não-repetitiva
-                
-                if (p.danoSofrido === 0) score += 150;        // Bónus Intocável "Flawless"
+                let xpFaseBase = Math.floor(((isBoss ? 1500 : 400 * inst.entidades.length) * multEvento) / divisao);
+                let galeoesFaseBase = Math.floor(((isBoss ? 800 : 100 * inst.entidades.length) * multEvento) / divisao);
 
-                // Descobrir o Arquétipo (Estilo de Jogo) do Bruxo
-                let wAgressivo = p.danoCausado + (p.maiorCombo * 100);
-                let wDefensivo = (p.parriesPerfeitos * 300) - p.danoSofrido;
-                let wTatico = (p.explorouFraqueza * 300) + (p.ccAplicado * 200) + (p.magiasDiferentes.size * 100);
-                let wSuporte = p.curaRealizada * 5;
-
-                let estiloMax = Math.max(wAgressivo, wDefensivo, wTatico, wSuporte);
-                let tituloCombate = 'Sobrevivente Esforçado';
-                
-                if (estiloMax === wAgressivo) tituloCombate = 'Executor Implacável';
-                if (estiloMax === wDefensivo && wDefensivo > 0) tituloCombate = 'Muralha Intransponível';
-                if (estiloMax === wTatico && wTatico > 0) tituloCombate = 'Mestre Tático';
-                if (estiloMax === wSuporte && wSuporte > 0) tituloCombate = 'Guardião da Luz';
-                if (p.danoSofrido === 0 && p.danoCausado > 0) tituloCombate = 'Fantasma Intocável';
-
-                // Cálculo do Rank (S, A, B, C, D)
-                let grade = 'D';
-                let corRank = '#e74c3c';
-                if (score >= 350) { grade = 'S'; xpFase = Math.floor(xpFase * 1.8); galeoesFase = Math.floor(galeoesFase * 1.5); corRank = '#f1c40f'; }
-                else if (score >= 250) { grade = 'A'; xpFase = Math.floor(xpFase * 1.4); corRank = '#3498db'; }
-                else if (score >= 150) { grade = 'B'; xpFase = Math.floor(xpFase * 1.2); corRank = '#2ecc71'; }
-                else if (score >= 80) { grade = 'C'; corRank = '#f39c12'; }
-
-                let avaliacaoData = {
-                    rank: grade, cor: corRank, titulo: tituloCombate, score: score,
-                    detalhes: `Dano Infligido: ${p.danoCausado} | Dano Sofrido: ${p.danoSofrido} | Parry(s): ${p.parriesPerfeitos} | Max Combo: ${p.maiorCombo}x`
-                };
-                // -------------------------------------------------------------------------
+                // 🔥 CRIA UM OBJETO PARA GUARDAR AS AVALIAÇÕES SEPARADAS
+                let avaliacoesIndividuais = {};
 
                 for (let mId of recebedores) {
                     let membro = this.alunos[mId];
                     if (!membro) continue;
 
+                    // --- 🧠 O ALGORITMO MULTI-FATOR (Devil May Cry Style) INDIVIDUAL ---
+                    let p = inst.profiler[mId] || { danoCausado: 0, parriesPerfeitos: 0, maiorCombo: 0, explorouFraqueza: 0, ccAplicado: 0, magiasDiferentes: new Set(), elementosUsados: {}, tempoTotalReacao: 0, totalAcoes: 0, danoSofrido: 0, curaRealizada: 0 };
+                    
+                    let mediaReacao = p.totalAcoes > 0 ? (p.tempoTotalReacao / p.totalAcoes) : 2000;
+                    let bonusVelocidade = mediaReacao < 800 ? 50 : (mediaReacao < 1500 ? 20 : 0);
+
+                    let score = 0;
+                    score += Math.floor((p.danoCausado || 0) / 100);     
+                    score += ((p.parriesPerfeitos || 0) * 40);           
+                    score += ((p.maiorCombo || 0) * 15);                 
+                    score += ((p.explorouFraqueza || 0) * 35);           
+                    score += ((p.ccAplicado || 0) * 20);                 
+                    score += ((p.magiasDiferentes ? p.magiasDiferentes.size : 0) * 20);      
+                    score += bonusVelocidade;
+                    if (p.danoSofrido === 0 && p.danoCausado > 0) score += 200; 
+
+                    let elos = p.elementosUsados || {};
+                    let elementoMaisUsado = Object.keys(elos).reduce((x, y) => elos[x] > elos[y] ? x : y, "");
+
+                    let wAgressivo = (p.danoCausado || 0) + ((p.maiorCombo || 0) * 100) + bonusVelocidade;
+                    let wDefensivo = ((p.parriesPerfeitos || 0) * 300) - (p.danoSofrido || 0);
+                    let wTatico = ((p.explorouFraqueza || 0) * 400) + ((p.ccAplicado || 0) * 300);
+                    let wSuporte = (p.curaRealizada || 0) * 6;
+
+                    let estiloMax = Math.max(wAgressivo, wDefensivo, wTatico, wSuporte);
+                    let tituloCombate = 'Sobrevivente';
+                    
+                    if (estiloMax === wAgressivo && wAgressivo > 0) {
+                        if (elementoMaisUsado === 'fogo') tituloCombate = 'Piromante Furioso';
+                        else if (elementoMaisUsado === 'trevas') tituloCombate = 'Executor das Sombras';
+                        else tituloCombate = 'Agressor Implacável';
+                    } else if (estiloMax === wDefensivo && wDefensivo > 0) {
+                        tituloCombate = 'Muralha Intransponível';
+                    } else if (estiloMax === wTatico && wTatico > 0) {
+                        if (elementoMaisUsado === 'gelo') tituloCombate = 'Mago Glacial';
+                        else tituloCombate = 'Mestre Tático';
+                    } else if (estiloMax === wSuporte && wSuporte > 0) {
+                        tituloCombate = 'Guardião da Luz';
+                    }
+                    if (p.danoSofrido === 0 && p.danoCausado > 0) tituloCombate = 'Fantasma Intocável';
+
+                    let grade = 'D', corRank = '#e74c3c';
+                    let meuXp = xpFaseBase; let meuGold = galeoesFaseBase;
+                    
+                    if (score >= 350) { grade = 'S'; meuXp = Math.floor(meuXp * 1.8); meuGold = Math.floor(meuGold * 1.5); corRank = '#f1c40f'; }
+                    else if (score >= 250) { grade = 'A'; meuXp = Math.floor(meuXp * 1.4); corRank = '#3498db'; }
+                    else if (score >= 150) { grade = 'B'; meuXp = Math.floor(meuXp * 1.2); corRank = '#2ecc71'; }
+                    else if (score >= 80) { grade = 'C'; corRank = '#f39c12'; }
+
+                    // GUARDA A AVALIAÇÃO SÓ PARA ESTE JOGADOR
+                    avaliacoesIndividuais[mId] = {
+                        rank: grade, cor: corRank, titulo: tituloCombate, score: score,
+                        detalhes: `APM: ${mediaReacao.toFixed(0)}ms | Dano: ${p.danoCausado || 0} | Parry: ${p.parriesPerfeitos || 0} | Max Combo: ${p.maiorCombo || 0}x`,
+                        xp: meuXp, gold: meuGold
+                    };
+
+                    // Entrega o Loot e XP final calculado
                     if (inst.isForestNode) {
                         if (!membro.lootTemporario) membro.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
-                        membro.lootTemporario.galeoes += galeoesFase;
-                        membro.lootTemporario.xp += xpFase;
-                        if (!membro.inventario.ingredientes) membro.inventario.ingredientes = {};
-                        if (mob.nome.includes("Aranha")||mob.nome.includes("Acromântula")) membro.inventario.ingredientes['veneno_aranha'] = (membro.inventario.ingredientes['veneno_aranha']||0) + 1;
-                        if (mob.nome.includes("Lobo")||mob.nome.includes("Gigante")) membro.inventario.ingredientes['pelo_lobo'] = (membro.inventario.ingredientes['pelo_lobo']||0) + 1;
-                        if (mob.nome.includes("Basilisco")||mob.nome.includes("Trevas")) membro.inventario.ingredientes['bezoar'] = (membro.inventario.ingredientes['bezoar']||0) + 1;
+                        membro.lootTemporario.galeoes += meuGold;
+                        membro.lootTemporario.xp += meuXp;
                     } else {
-                        this._addXp(membro, xpFase); membro.galeoes += galeoesFase; 
+                        this._addXp(membro, meuXp); membro.galeoes += meuGold; 
                     }
-
+                    
                     if(!membro.estatisticas) membro.estatisticas = { monstrosMortos: 0 };
                     membro.estatisticas.monstrosMortos += inst.entidades.length;
 
-                    // DROP DE EQUIPAMENTOS PROCEDURAIS
+                    // Lógica de drops de equipamentos mantida aqui...
                     if (Math.random() < (isBoss ? 0.35 : 0.08)) { 
                         let tipoRnd = ['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)];
                         this.cerebroIA.gerarEquipamentoRPG(tipoRnd, membro.nivel).then(equipNovo => {
@@ -2640,58 +2657,41 @@ a.siclos += 5; // Bonus pro Last Hit
                             gold: membro.lootTemporario.galeoes, xp: membro.lootTemporario.xp, itens: membro.lootTemporario.itens ? membro.lootTemporario.itens.length : 0 
                         });
                     }
-                }
+                } // Fim do Loop dos Jogadores
 
-                relatoAcao += ` | Rank ${grade} (+${xpFase} XP | +${galeoesFase} G)`;
+                relatoAcao += ` | Onda Destruída!`;
 
                 if (inst.faseAtual < inst.maxFases) {
+                    // ... (Lógica de avançar fase igual ao que já tens)
                     inst.faseAtual++;
                     let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
                     let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
                     let novasEntidades = [];
                     
                     let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
-                    for(let i=0; i<proxMobs; i++) {
-                        novasEntidades.push({ 
-                            idx: i, 
-                            nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), 
-                            hpMax: mData.hp, hpAtual: mData.hp, vivo: true, 
-                            padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)], 
-                            efeitos: [] 
-                        });
-                    }
+                    for(let i=0; i<proxMobs; i++) { novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hp, hpAtual: mData.hp, vivo: true, padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)], efeitos: [] }); }
                     inst.entidades = novasEntidades; this._salvarBancoDeDados();
                     
-                    let pDataFase = { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, entidades: novasEntidades, atiradorId: atacanteId };
-                    if(global.io) global.io.to(inst.id).emit('mmo_fase_update', pDataFase); // 🔥 AVISA A PARTY
-
+                    let pDataFase = { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada!`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, entidades: novasEntidades, atiradorId: atacanteId };
+                    if(global.io) global.io.to(inst.id).emit('mmo_fase_update', pDataFase);
                     return pDataFase;
                 } else {
                     inst.status = 'finalizado'; 
                     if (inst.timerBossAtaque) clearInterval(inst.timerBossAtaque);
-                    
                     if(!a.pveProgresso) a.pveProgresso = { area: 1, nivel: 1 };
                     a.pveProgresso.area++; if (a.pveProgresso.area > 7) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; }
                     this._salvarBancoDeDados();
 
-                    if (this.florestaEngine && inst.isForestNode) {
-                        recebedores.forEach(mId => {
-                            this.florestaEngine.retornarDaBatalha(mId, true, false, inst.isForestNode, inst.forestInstId, global.io);
-                        });
-                    }
+                    if (this.florestaEngine && inst.isForestNode) { recebedores.forEach(mId => { this.florestaEngine.retornarDaBatalha(mId, true, false, inst.isForestNode, inst.forestInstId, global.io); }); }
 
-                    let pDataBoss = { bossMorto: true, relatoAcao: `Área Purificada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, avaliacao: avaliacaoData, atiradorId: atacanteId };
-                    if(global.io) global.io.to(inst.id).emit('mmo_boss_morto_coop', pDataBoss); // 🔥 AVISA A PARTY
-
+                    // 🔥 ENVIA AS AVALIAÇÕES INDIVIDUAIS
+                    let pDataBoss = { bossMorto: true, relatoAcao: `Área Purificada!`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, avaliacoes: avaliacoesIndividuais, atiradorId: atacanteId };
+                    if(global.io) global.io.to(inst.id).emit('mmo_boss_morto_coop', pDataBoss);
                     return pDataBoss;
-}
-            } else {
-                this._salvarBancoDeDados();
-                let pDataMob = { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, atiradorId: atacanteId };
-                if(global.io) global.io.to(inst.id).emit('mmo_mob_morto_coop', pDataMob);
-                return pDataMob;
+                }
             }
-        }
+}
+
 
         // 🔥 NOVO: AVISA A PARTY DO DANO RECEBIDO E SINCRONIZA HP (SEM DELAY)
         if(global.io) {
