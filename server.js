@@ -1485,10 +1485,11 @@ socket.on('mmo_interagir_objeto', async (dados) => {
     }
 
     socket.on('entrar_zona_castelo', (dados) => {
-        if (socket.zonaAtual) {
+        // Sai da zona antiga apenas se for diferente da nova
+        if (socket.zonaAtual && socket.zonaAtual !== dados.zona) {
             socket.leave(`zona_${socket.zonaAtual}`);
             io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
-            atualizarPresencaZona(socket.zonaAtual); // Atualiza os que ficaram
+            atualizarPresencaZona(socket.zonaAtual); 
         }
         
         socket.zonaAtual = dados.zona;
@@ -1499,28 +1500,29 @@ socket.on('mmo_interagir_objeto', async (dados) => {
             core.playersOnlineMmo[a.id] = {
                 id: a.id, nome: a.nome, casa: a.casa, nivel: a.nivel,
                 x: dados.startX || 400, y: dados.startY || 300, dir: 1, isMoving: false,
+                partyId: a.partyId, // Essencial para os grupos
                 equipamentos: a.equipamentos || {}, 
                 zona: dados.zona
             };
         }
 
-        // Avisa toda a gente na zona que chegaste
+        // Mensagem de sistema global
         io.to(`zona_${dados.zona}`).emit('nova_mensagem', { canal: 'zona', autor: '🏰 [SISTEMA]', texto: `${a.nome} chegou a ${dados.zona}.` });
         
         if (core.zonasVivas[dados.zona]) {
             socket.emit('mmo_world_update', core.zonasVivas[dados.zona]);
         }
         
-        // ACORDA A PRESENÇA (O que faz a lista de jogadores aparecer na lateral)
         atualizarPresencaZona(dados.zona);
 
-        // 🔥 RECUPERAÇÃO DA IA DE AMBIENTE: Gera e envia a lore imersiva só para o jogador que entrou!
-        core.cerebroIA.gerarAtmosferaLocal(dados.zona).then(atmosfera => {
-            if (atmosfera) {
-                // Usa apenas `socket.emit` para enviar a narração apenas para quem acabou de entrar, sem spammar o chat global
-                socket.emit('nova_mensagem', { canal: 'zona', autor: '✨ [AMBIENTE]', texto: atmosfera });
-            }
-        }).catch(err => console.log("Erro na atmosfera:", err));
+        // 🔥 RECUPERAÇÃO DA LORE DA IA AQUI!
+        if (core.cerebroIA && typeof core.cerebroIA.gerarAtmosferaLocal === 'function') {
+            core.cerebroIA.gerarAtmosferaLocal(dados.zona).then(atmosfera => {
+                if (atmosfera) {
+                    socket.emit('nova_mensagem', { canal: 'zona', autor: '✨ [AMBIENTE]', texto: atmosfera });
+                }
+            }).catch(err => console.log("Erro na atmosfera:", err));
+        }
     });
 
     socket.on('pedir_presenca', (dados) => {
