@@ -2850,11 +2850,17 @@ async folhearLivro(alunoId) {
             });
         }
 
-        // 🛑 CORREÇÃO MAXIMA: Fantasmas autónomos quase não gastam API agora (0.8% de chance)
-        if(Math.random() < 0.008 && Object.keys(this.alunos).length > 0) {
-            const zonas = ["Salão Principal", "Grande Escadaria", "Masmorras", "Torre de Astronomia", "Cabana do Hagrid", "Hogsmeade"];
+        // 🛑 CORREÇÃO MAXIMA: Fantasmas autónomos quase não gastam API agora (1.5% de chance)
+        if(Math.random() < 0.015 && Object.keys(this.alunos).length > 0) {
+            const zonas = ["Salão Principal", "Grande Escadaria", "Masmorras", "Torre de Astronomia", "Cabana do Hagrid", "Hogsmeade", "Pátio"];
             const z = zonas[Math.floor(Math.random() * zonas.length)];
-            const alunosAtivos = Object.values(this.alunos).filter(a => a.estadoJogo === 'CASTELO').map(a => a.nome).slice(0, 3).join(", ");
+            
+            // 🔥 CORREÇÃO: Pega nos alunos reais baseados na zona guardada na RAM
+            const alunosAtivos = Object.values(this.alunos)
+                .filter(a => a.estadoJogo === 'CASTELO' && a.zonaAtual === z)
+                .map(a => a.nome)
+                .slice(0, 3)
+                .join(", ");
             
             this.cerebroIA.gerarVidaAutonomaCastelo(z, alunosAtivos || "ninguém").then(evento => {
                 if(evento && evento.texto && evento.personagem !== "Nenhum") {

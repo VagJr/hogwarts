@@ -1272,25 +1272,31 @@ socket.on('mmo_action', async (dados) => {
         }
     }
     // --- LÓGICA DE COMBATE COOPERATIVO (MUNDO ABERTO) ---
+    // --- LÓGICA DE COMBATE COOPERATIVO (MUNDO ABERTO) ---
     else if (dados.tipo === 'combate') {
         const mob = sala.entidades.find(m => m.id === dados.idAlvo);
         if (!mob) return;
 
         const idInst = `raid_${Date.now()}`;
+        
+        // Puxa a Party inteira ou cria uma array só com ele
         let membrosGrupo = a.partyId && core.grupos[a.partyId] ? core.grupos[a.partyId].membros : [a.id];
 
         core.dungeonInstancias[idInst] = {
-            id: idInst, entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
-            status: 'combate', multiplayer: true, membros: membrosGrupo
+            id: idInst, local: dados.zona,
+            entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
+            status: 'combate', multiplayer: true, membros: membrosGrupo,
+            faseAtual: 1, maxFases: 1, mult: 1 // Garante compatibilidade
         };
 
         core.iniciarIACombate(idInst);
 
         let aliadosData = membrosGrupo.map(pid => {
             let al = core.alunos[pid];
-            return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
+            return { id: al.id, nome: al.nome, equipamentos: al.equipamentos || {}, casa: al.casa };
         });
 
+        // Puxa toda a gente do grupo para a mesma tela de combate
         membrosGrupo.forEach(pid => {
             let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === pid);
             if(s) s.join(idInst);
@@ -1302,6 +1308,7 @@ socket.on('mmo_action', async (dados) => {
             });
         });
 
+        // Remove do Mundo Aberto
         sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
         io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
     }
@@ -1378,8 +1385,8 @@ socket.on('mmo_action', async (dados) => {
     // 🤝 SISTEMA DE GRUPOS E COOP INSTANCIADO
     // ==============================================================================
     // --- LÓGICA DE GRUPOS CORRIGIDA ---
-  // =====================================
-    // SISTEMA MMO: CONVITES E GRUPOS (LÓGICA LIMPA)
+ // =====================================
+    // 🤝 SISTEMA MMO: CONVITES, GRUPOS E PRESENÇA
     // =====================================
     socket.on('enviar_convite_grupo', (dados) => {
         let alvo = Object.values(core.alunos).find(a => a.nome.toLowerCase() === dados.alvoNome.toLowerCase());
@@ -1387,7 +1394,7 @@ socket.on('mmo_action', async (dados) => {
             io.to(`priv_${alvo.id}`).emit('receber_convite_grupo', { liderId: dados.meuId, liderNome: dados.meuNome });
             io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Convite de Grupo enviado para ${alvo.nome}.` });
         } else {
-            io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Bruxo '${dados.alvoNome}' não está no Castelo.` });
+            io.to(`priv_${dados.meuId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `Bruxo '${dados.alvoNome}' não está online.` });
         }
     });
 
@@ -1399,6 +1406,7 @@ socket.on('mmo_action', async (dados) => {
         });
     });
 
+    // 🔥 CORREÇÃO: Padronização do nome do Socket
     socket.on('aceitar_convite_grupo', (dados) => {
         let liderId = dados.liderId;
         if (!core.grupos[liderId]) core.grupos[liderId] = { lider: liderId, membros: [liderId] };
@@ -1411,9 +1419,7 @@ socket.on('mmo_action', async (dados) => {
         if(core.alunos[socket.alunoId]) core.alunos[socket.alunoId].partyId = liderId;
         core._salvarUrgente();
         
-        forcarSyncAluno(liderId);
-        forcarSyncAluno(socket.alunoId);
-
+        // Coloca na mesma sala de Socket para chat de grupo
         socket.join(`party_${liderId}`);
         let sLider = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === liderId);
         if(sLider) sLider.join(`party_${liderId}`);
@@ -1422,27 +1428,46 @@ socket.on('mmo_action', async (dados) => {
             lider: liderId, 
             membrosNomes: core.grupos[liderId].membros.map(id => {
                 let a = core.alunos[id];
-                return { id: id, nome: a.nome, equipamentos: a.equipamentos, casa: a.casa };
+                return { id: id, nome: a.nome, equipamentos: a.equipamentos || {}, casa: a.casa };
             }) 
         };
         
         global.io.to(`party_${liderId}`).emit('grupo_atualizado', infoGrupo);
-        core.grupos[liderId].membros.forEach(mId => io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo));
+        atualizarPresencaZona(socket.zonaAtual); // Atualiza a lista da direita
     });
 
     socket.on('conteudo_puxar_grupo', (dados) => {
         let grupo = core.grupos[dados.liderId];
         if(grupo) {
             grupo.membros.forEach(mId => {
-                // Envia o convite COM O ID DA INSTÂNCIA
                 if(mId !== socket.alunoId) {
                     io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo, instId: dados.instId });
-                } else {
-                    io.to(`priv_${mId}`).emit('conteudo_convite_grupo', { tipo: dados.tipo, instId: dados.instId, autoAccept: true });
                 }
             });
         }
     });
+	
+	 function atualizarPresencaZona(zona) {
+        if (!zona) return;
+        const clientsInZone = io.sockets.adapter.rooms.get(`zona_${zona}`);
+        let jogadoresNaZona = [];
+        if (clientsInZone) {
+            for (const clientId of clientsInZone) {
+                const clientSocket = io.sockets.sockets.get(clientId);
+                if (clientSocket && clientSocket.alunoId) {
+                    const a = core.alunos[clientSocket.alunoId];
+                    if (a) {
+                        // Atualiza a zona atual do aluno na RAM para a IA ler!
+                        a.zonaAtual = zona;
+                        jogadoresNaZona.push({ id: a.id, nome: a.nome, nivel: a.nivel, casa: a.casa, partyId: a.partyId });
+                    }
+                }
+            }
+        }
+        io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
+    }
+
+    socket.on('pedir_presenca', (dados) => { atualizarPresencaZona(dados.zona); });
 
     socket.on('disconnect', () => {
         if (socket.alunoId && core.playersOnlineMmo[socket.alunoId]) {

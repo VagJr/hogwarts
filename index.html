@@ -3552,6 +3552,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
     };
 
     // 2. A Função que Inicia a Arena
+    // 2. A Função que Inicia a Arena (AGORA COM FORMAÇÃO DE BATALHA!)
     window.iniciarArenaLocal = function(nomeInimigo, maxHpInimigo, visualInimigo, isDuel, entidadesArray = null, aliadosArray = null) {
         document.getElementById('ui-main').classList.add('oculto'); 
         document.getElementById('arena-acao').classList.remove('oculto');
@@ -3561,15 +3562,17 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
         // 1. CARREGA E ORGANIZA OS ALIADOS EM FORMAÇÃO DE BATALHA
-        arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
+        arenaAliados = aliadosArray && aliadosArray.length > 0 ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
+        
+        // Posições fixas (Y) para não se sobreporem: Meio, Cima, Baixo, Mais Cima, Mais Baixo
+        const yPositions = [300, 180, 420, 100, 500]; 
         
         arenaAliados.forEach((aliado, index) => {
-            // Formação em "V" perfeita: O líder à frente, os outros atrás nas diagonais
-            let offsetX = index === 0 ? 0 : -50 * Math.ceil(index / 2);
-            let offsetY = index === 0 ? 0 : (index % 2 === 0 ? 90 : -90) * Math.ceil(index / 2);
+            // Recua no eixo X a cada aliado extra para parecerem uma "ponta de lança"
+            let offsetX = index === 0 ? 0 : 30 * Math.ceil(index / 2);
             
-            aliado.combatX = 180 + offsetX; 
-            aliado.combatY = 300 + offsetY; 
+            aliado.combatX = 150 - offsetX; 
+            aliado.combatY = yPositions[index % yPositions.length]; 
             aliado.atkProgress = 0;
             
             if(aliado.id === meuBruxo.id) {
@@ -3583,8 +3586,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
             arenaInimigos = []; 
             if(typeof nomeInimigo === 'object') {
                 arenaInimigoPvP = nomeInimigo;
-                // Coloca o Inimigo PvP do outro lado do ecrã
-                arenaInimigoPvP.combatX = 800; 
+                arenaInimigoPvP.combatX = 800; // Inimigo sempre do lado direito!
                 arenaInimigoPvP.combatY = 300;
                 arenaInimigoPvP.atkProgress = 0;
             }
@@ -5498,13 +5500,7 @@ function pararDragMovel() {
         document.getElementById('in-chat-aula').value = ''; 
     };
 
-    // ==============================================================================
-    // MMO LISTA DE PRESENÇA (QUEM ESTÁ NA ZONA)
-    // ==============================================================================
-    // =====================================
-    // SOCKETS DE PVP E GRUPO (FIX AAA)
-    // =====================================
-    // SUBSTITUI TODAS AS CÓPIAS E USA APENAS ESTES SOCKETS DE PVP
+// SUBSTITUI ESTE BLOCO NO INDEX.HTML
 socket.on('pvp_start', (dados) => {
     isPvP = true;
     combatInstId = dados.instId;
@@ -5512,10 +5508,10 @@ socket.on('pvp_start', (dados) => {
     document.querySelector('.main-nav-container').classList.add('oculto');
     document.getElementById('arena-acao').classList.remove('oculto');
     
-    // Descobre quem sou eu e quem é o inimigo para não te atacares a ti mesmo
     let oponente = dados.p1.id === meuBruxo.id ? dados.p2 : dados.p1;
     let euProps = dados.p1.id === meuBruxo.id ? dados.p1 : dados.p2;
 
+    // 🔥 CORREÇÃO: Passa o objeto do oponente inteiro!
     iniciarArenaLocal(oponente, oponente.hpMax, null, true, null, [euProps]);
     mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
     playSFX('error');
@@ -8433,11 +8429,13 @@ socket.on('forest_sync', (data) => {
 socket.on('forest_msg', (d) => { mostrarNotificacao(d.msg, "sucesso"); });
 
 window.finalizarArena = function(vitoria) { 
-        combatEngineAtivo = false; clearInterval(arenaLoop); 
-        setTimeout(()=>{ 
+        combatEngineAtivo = false; 
+        isPvP = false; // 🔥 CORREÇÃO: Liberta o estado PvP
+        clearInterval(arenaLoop); 
+        
+        setTimeout(() => { 
             document.getElementById('arena-acao').classList.add('oculto'); 
             
-            // 🔥 CORREÇÃO: Se estamos na Floresta, NÃO voltamos para os menus de exploração normais!
             if (currentForestInstId) {
                 document.getElementById('forest-map-container').classList.remove('oculto');
             } else {
@@ -8463,24 +8461,28 @@ socket.on('forest_dead', () => {
     fugirDaFlorestaParaOCastelo();
     mostrarNotificacao("Foste morto na floresta e perdeste o que tinhas no saco...", "erro");
 });
-let meuGrupo = null; // Armazena o grupo atual
+let meuGrupo = null; 
 
-socket.on('grupo_receber_convite', (dados) => {
-    if(confirm(`O bruxo ${dados.deNome} convidou-te para um Grupo! Aceitar?`)) {
-        socket.emit('grupo_aceitar', { liderId: dados.deId });
-    }
-});
-
-socket.on('grupo_atualizado', (dados) => {
-    meuGrupo = dados; // Atualiza a RAM do front-end
-    let html = '';
-    dados.membrosNomes.forEach(m => {
-        let iconeLider = m.id === dados.lider ? '👑 ' : '🧙‍♂️ ';
-        html += `<div class="mmo-player-item"><span style="color:#3498db;">${iconeLider}${m.nome}</span></div>`;
+    // Recebe convite de outro jogador
+    socket.on('receber_convite_grupo', (dados) => {
+        playSFX('magic');
+        if(confirm(`🤝 O bruxo ${dados.liderNome} convidou-te para um Grupo de Exploração!\n\nSe aceitares, farão combates em conjunto.\nAceitar?`)) {
+            // 🔥 CORREÇÃO: O NOME CORRETO DO SOCKET
+            socket.emit('aceitar_convite_grupo', { liderId: dados.liderId, meuId: meuBruxo.id, meuNome: meuBruxo.nome });
+        }
     });
-    document.getElementById('mmo-grupo-list').innerHTML = html;
-    mostrarNotificacao("Grupo atualizado!", "info");
-});
+
+    // Quando o grupo é formado/atualizado
+    socket.on('grupo_atualizado', (dados) => {
+        meuGrupo = dados; 
+        let html = '';
+        dados.membrosNomes.forEach(m => {
+            let iconeLider = m.id === dados.lider ? '👑 ' : '🧙‍♂️ ';
+            html += `<div class="mmo-player-item"><span style="color:#3498db;">${iconeLider}${m.nome}</span></div>`;
+        });
+        document.getElementById('mmo-grupo-list').innerHTML = html;
+        mostrarNotificacao("Grupo atualizado!", "info");
+    });
 
 // Atualiza a renderização da lista online para ter o botão de convidar
 socket.on('atualizar_jogadores_zona', (jogadores) => {
