@@ -2350,9 +2350,9 @@ if(sel && meuBruxo) {
             safeSet('ui-nivel', meuBruxo.nivel);
             // Procura estas linhas e altera para:
 safeSet('ui-galeoes', meuBruxo.galeoes); 
-safeSet('beco-galeoes', meuBruxo.galeoes); 
-// Aqui estava o erro [object Object]:
-safeSet('cofre-galeoes', meuBruxo.cofreGringotes.galeoes);
+            safeSet('beco-galeoes', meuBruxo.galeoes); 
+            // ACESSO CORRETO: Mostra apenas os Galeões do objeto no HUD superior
+            safeSet('cofre-galeoes', meuBruxo.cofreGringotes.galeoes || 0);
             safeSet('ui-elo-q', meuBruxo.estatisticas?.eloQuadribol || 1000);
             
             document.getElementById('bar-hp').style.width = `${(meuBruxo.hpAtual / meuBruxo.hpMax) * 100}%`; 
@@ -7063,42 +7063,40 @@ socket.on('mercado_atualizado', (novaLista) => {
 
 // Atualiza o VaultEngine para desenhar moedas de 3 cores e pilhas infinitas
 const VaultEngine = {
-    ctx: null, cvs: null,
-    init: function(dataCofre) {
-        this.cvs = document.getElementById('vault-canvas');
-        if(!this.cvs) return;
-        this.ctx = this.cvs.getContext('2d');
-        this.cvs.width = this.cvs.parentElement.clientWidth;
-        this.cvs.height = this.cvs.parentElement.clientHeight;
+        ctx: null, cvs: null,
+        init: function(dataCofre) {
+            this.cvs = document.getElementById('vault-canvas');
+            if(!this.cvs) return;
+            this.ctx = this.cvs.getContext('2d');
+            this.cvs.width = this.cvs.parentElement.clientWidth;
+            this.cvs.height = this.cvs.parentElement.clientHeight;
 
-        moedasFisicas = [];
-        
-        // Configuração de cores e quantidades
-        const moedas = [
-            { qtd: dataCofre.galeoes || 0, cor: '#d4af37', label: 'G' },
-            { qtd: dataCofre.siclos || 0, cor: '#bdc3c7', label: 'S' },
-            { qtd: dataCofre.nuques || 0, cor: '#cd7f32', label: 'N' }
-        ];
+            // Limpa as moedas antigas apenas se estiver muito cheio, senão acumula
+            if(moedasFisicas.length > 200) moedasFisicas = [];
+            
+            const moedasConfig = [
+                { qtd: dataCofre.galeoes, cor: '#d4af37', r: 12 },
+                { qtd: dataCofre.siclos, cor: '#bdc3c7', r: 10 },
+                { qtd: dataCofre.nuques, cor: '#cd7f32', r: 8 }
+            ];
 
-        moedas.forEach(m => {
-            // Desenha no máximo 100 de cada para performance, mas escala o tamanho baseado na fortuna
-            let visualQtd = Math.min(100, Math.ceil(m.qtd / 5));
-            for(let i=0; i<visualQtd; i++) {
-                moedasFisicas.push({
-                    x: Math.random() * (this.cvs.width - 40) + 20,
-                    y: (Math.random() * -800) - 50,
-                    vx: (Math.random() - 0.5) * 4,
-                    vy: 0,
-                    r: 10 + Math.random()*4,
-                    cor: m.cor,
-                    valorReal: m.qtd // Usado para calcular o "nível" de preenchimento
-                });
-            }
-        });
+            moedasConfig.forEach(conf => {
+                let dropQty = Math.min(20, Math.ceil(conf.qtd / 10)); // Drop visual
+                for(let i=0; i<dropQty; i++) {
+                    moedasFisicas.push({
+                        x: Math.random() * (this.cvs.width - 40) + 20,
+                        y: -50 - (Math.random() * 200),
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: 0,
+                        r: conf.r + Math.random()*2,
+                        cor: conf.cor
+                    });
+                }
+            });
 
-        if(vaultLoop) cancelAnimationFrame(vaultLoop);
-        this.tick();
-    },
+            if(vaultLoop) cancelAnimationFrame(vaultLoop);
+            this.tick();
+        },
     tick: function() {
         if(document.getElementById('modal-gringotes').classList.contains('oculto')) return;
         const ctx = this.ctx;
@@ -7166,34 +7164,32 @@ const VaultEngine = {
 
     // Adaptamos a acaoGringotes para suportar os drops visuais (já chamava o server)
     window.acaoGringotes = async function(acao, moeda = 'galeoes') {
-    playSFX('click');
-    const v = document.getElementById('in-gringotes-val').value;
-    if(!v) return;
-    
-    try {
-        const res = await fetch('/api/gringotes/acao', { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
-            body: JSON.stringify({ id: meuBruxo.id, acao, valor: v, moeda: moeda }) 
-        });
-        const d = await res.json();
-        
-        if(d.erro) mostrarNotificacao(d.erro, 'erro');
-        else {
-            mostrarNotificacao(d.msg, 'sucesso');
-            document.getElementById('in-gringotes-val').value = '';
-            
-            // O SEGREDO: Atualizamos os dados sem fechar o modal
-            await syncRequest(); 
-            atualizarSaldosGringotes();
-            
-            // Mantém a loja ativa para o motor não fechar a tela
-            lojaAbertaAtualmente = 'gringotes'; 
-            
-            if(acao === 'depositar') VaultEngine.init(meuBruxo.cofreGringotes);
-        }
-    } catch(e){ console.error(e); }
-};
+        playSFX('click'); 
+        const v = document.getElementById('in-gringotes-val').value; 
+        if(!v) return; 
+        try { 
+            const res = await fetch('/api/gringotes/acao', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify({ id: meuBruxo.id, acao, valor: v, moeda: moeda }) 
+            }); 
+            const d = await res.json(); 
+            if(d.erro) mostrarNotificacao(d.erro, 'erro'); 
+            else { 
+                mostrarNotificacao(d.msg, 'sucesso'); 
+                document.getElementById('in-gringotes-val').value=''; 
+                
+                // MANTÉM A LOJA ATIVA para o sistema de sincronização não fechar o modal
+                lojaAbertaAtualmente = 'gringotes'; 
+                
+                await syncRequest(); 
+                atualizarSaldosGringotes();
+                
+                // Gatilho visual: faz chover moedas no canvas
+                VaultEngine.init(meuBruxo.cofreGringotes);
+            } 
+        } catch(e){ console.error(e); } 
+    };
 
     // Lógica do Câmbio Oficial (Apenas Cliente/Sync)
     window.cambioGringotes = function(tipo) {
