@@ -5693,17 +5693,23 @@ function pararDragMovel() {
         fecharMapaSalteador(null, true);
         mostrarNotificacao(`Viajaste para: ${zona}`, 'info');
         
-        // Descobre o ponto de spawn do mapa destino
         let m = HogwartsMMOEngine.mapas[zona] || {startX: 400, startY: 400};
-        window.entrarZonaCastelo(zona, m.startX, m.startY); 
         
-        // Se a tela 2D estiver aberta, força-a a redesenhar para o local novo
+        // 🔥 CORREÇÃO: Evita enviar sinal duplicado para não cancelar a IA!
         if (modoMmoAtivo) {
+            zonaAtual = zona; 
+            safeSet('ui-zona-nome', zonaAtual);
+            // O init(true) já faz o trabalho de emitir o sinal e posicionar o boneco!
             HogwartsMMOEngine.init(true); 
+        } else {
+            // Se o mapa 2D não estiver aberto, usamos a função normal
+            window.entrarZonaCastelo(zona, m.startX, m.startY); 
         }
         
         mudarCategoria('explorar');
     };
+
+    
 
     window.enviarChatAula = function() { 
         playSFX('click'); 
