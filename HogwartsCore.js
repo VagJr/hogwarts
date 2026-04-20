@@ -1273,9 +1273,17 @@ class HogwartsCore {
                 let waves = 1;
                 let recompensaMult = 1;
 
-                if (r < 0.03) { categoria = "World Boss"; hpMult = 80; recompensaMult = 15; } // Super Colossal
-                else if (r < 0.10) { categoria = "Boss"; hpMult = 6; recompensaMult = 5; }
-                else if (r < 0.25) { categoria = "Horda"; hpMult = 1.5; waves = 3; recompensaMult = 3.5; } // 3 Ondas
+                // 🔥 SCALING GLOBAL DO WORLD BOSS
+                // Encontra a média de nível dos jogadores para que o Boss seja forte o suficiente para o server
+                let maxLvlGlobal = 1;
+                Object.values(this.alunos).forEach(al => { if (al.nivel > maxLvlGlobal) maxLvlGlobal = al.nivel; });
+                
+                // Aplica a média de nível ao multiplicador! Um server cheio de lv13 terá bosses GIGANTES!
+                if (r < 0.03) { categoria = "World Boss"; hpMult = 120 + (maxLvlGlobal * 10); recompensaMult = 20; } // Super Colossal Escalado
+                else if (r < 0.10) { categoria = "Boss"; hpMult = 10 + (maxLvlGlobal * 2); recompensaMult = 5; }
+                else if (r < 0.25) { categoria = "Horda"; hpMult = 2.0 + (maxLvlGlobal * 0.5); waves = 3; recompensaMult = 3.5; }
+                else if (r < 0.45) { categoria = "Mini-Boss"; hpMult = 4.0 + (maxLvlGlobal * 0.8); recompensaMult = 2.5; }
+				else if (r < 0.25) { categoria = "Horda"; hpMult = 1.5; waves = 3; recompensaMult = 3.5; } // 3 Ondas
                 else if (r < 0.45) { categoria = "Mini-Boss"; hpMult = 3; recompensaMult = 2.5; }
 
                 const mob = this._gerarMonstroRapido(400 * hpMult, zonaSorteada, categoria.includes("Boss"));
@@ -2213,14 +2221,20 @@ a.siclos += 5; // Bonus pro Last Hit
         let pool = isBoss ? bosses : bestiario;
         let mData = pool[Math.floor(Math.random() * pool.length)];
         
-        let prefixo = isElite ? "💀 Elite: " : "";
-        let multElite = isElite ? 1.8 : 1.0;
+       let prefixo = isElite ? "💀 Elite: " : "";
+        
+        // 🔥 SCALING POLINOMIAL PARA LATE GAME
+        // isElite agora não soma apenas 80%, ele usa progressão exponencial baseada no nível da Área
+        let multPolinomial = 1.0 + (areaAndar * 0.3) + (Math.pow(areaAndar, 1.4) * 0.05);
+        let multElite = isElite ? 2.5 : 1.0;
+        
+        let hpFinal = Math.floor(hpBase * multElite * multPolinomial);
 
         return { 
             nome: prefixo + mData.nome, 
-            hpMax: Math.floor(hpBase * multElite), 
-            hpAtual: Math.floor(hpBase * multElite), 
-            vivo: true, 
+            hpMax: hpFinal, 
+            hpAtual: hpFinal, 
+            vivo: true,
             elemento: mData.elemento, 
             padrao: mData.padrao,
             fracoContra: mData.fraco,
@@ -2352,9 +2366,12 @@ a.siclos += 5; // Bonus pro Last Hit
                         if (global.io) membrosObjs.forEach(lider => global.io.to(`priv_${lider.id}`).emit('nova_mensagem', { canal: 'zona', autor: 'ALERTA', texto: `🩸 O ${mob.nome} conjurou Magia de Sangue e curou ${cura} HP!` }));
                     }
 
-                    let tempoCast = Math.max(600, Math.floor(tempoBase / diffMult));
-                    chance = Math.min(0.95, chance * diffMult);
-
+                    // 🔥 BALANÇO DE JOGO: O Multiplicador do Andar agora esmaga o tempo de reação
+                    // Quanto maior o andar, mais agressivos e rápidos são os ataques.
+                    let tempoCast = Math.max(450, Math.floor(tempoBase / (diffMult + (inst.faseAtual * 0.2)))); 
+                    
+                    // A chance base sobe drasticamente, tornando o mob muito mais agressivo.
+                    chance = Math.min(0.95, chance + (diffMult * 0.15));
                     if(Math.random() < chance && global.io) {
                         membrosObjs.forEach(lider => {
                             global.io.to(`priv_${lider.id}`).emit('alerta_boss', { 
@@ -2484,7 +2501,20 @@ a.siclos += 5; // Bonus pro Last Hit
         // 🔥 3. MATEMÁTICA DE DANO E SINERGIAS (COM PROFILING TÁTICO)
         // ====================================================================
         if (!mob.efeitos) mob.efeitos = [];
-         let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
+        let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
+        
+        // 🔥 BALANÇO DE DIFICULDADE (END-GAME): Sistema de Mitigação de Dano
+        // Monstros do fim do jogo ganham armadura exponencial.
+        let mobArmor = 0;
+        if (mob.isBoss) mobArmor = mob.hpMax * 0.05; // Bosses têm muita defesa
+        if (inst.mult) mobArmor += (inst.mult * 20); // Multiplicador de Andar da Floresta
+        
+        // Fórmula de Defesa (Warcraft): Cada 100 pontos de armadura reduz 50% do dano bruto.
+        let reducao = 100 / (100 + mobArmor);
+        danoBaseCalculado = Math.floor(danoBaseCalculado * reducao);
+        
+        if (danoBaseCalculado < 1) danoBaseCalculado = 1; // Para nunca dar 0 de dano
+
         let danoFinal = danoBaseCalculado;
         let multiplicador = 1.0;
         let defendeu = false;
