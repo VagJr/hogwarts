@@ -6947,6 +6947,37 @@ window.jogarXadrez = async function(jogada) {
 // ==============================================================================
 // 🔥 PATCH 3.1: RENDERIZADOR ANIME CINEMÁTICO (KINEMATICS E SMEAR FRAMES)
 // ==============================================================================
+// Função auxiliar de desenho procedural
+function desenharEquipamento(ctx, item, x, y, w, h) {
+    if(!item || !item.visual) return;
+    const v = item.visual;
+
+    ctx.fillStyle = v.cor1 || "#444";
+    ctx.strokeStyle = v.cor2 || "#222";
+
+    // DIVERSIDADE DE FORMATOS (Baseado no 'estilo' gerado pela IA)
+    ctx.beginPath();
+    if (v.estilo === "pontudo") {
+        ctx.moveTo(x, y + h); ctx.lineTo(x + w/2, y); ctx.lineTo(x + w, y + h);
+    } else if (v.estilo === "aristocrata") {
+        ctx.rect(x, y + h/2, w, h/2); ctx.rect(x + w/4, y, w/2, h/2);
+    } else {
+        ctx.arc(x + w/2, y + h/2, w/2, 0, Math.PI * 2); // Padrão redondo
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // TEXTURAS E DETALHES
+    if (v.estilo === "runico") {
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.font = "12px serif";
+        ctx.fillText("ᛟ ᚦ", x + 5, y + 15);
+    }
+    if (v.estilo === "listrado") {
+        ctx.fillStyle = v.cor2;
+        for(let i=0; i<w; i+=8) ctx.fillRect(x+i, y, 2, h);
+    }
+}
 
 // ==============================================================================
 // 🔥 RENDERIZADOR ANIME CINEMÁTICO BLINDADO
@@ -7060,14 +7091,14 @@ window.drawAnimeWizard = function(ctx, x, y, scale, tick, atkProgress, atkColor,
     ctx.closePath(); ctx.fill();
     ctx.strokeStyle = "#d4af37"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, 15 + breath); ctx.lineTo(0, 80 + breath); ctx.stroke();
-
-    // Cachecol
-    if (scarfCor1) {
-        ctx.fillStyle = scarfCor1;
-        ctx.beginPath(); ctx.roundRect(-14, 12 + breath, 28, 12, 5); ctx.fill();
+// Cachecol
+    if (ePescoco && ePescoco.visual) {
+        // Desenha o cachecol com os detalhes processuais da IA
+        desenharEquipamento(ctx, ePescoco, -15, 12 + breath, 30, 15);
+        
+        // Mantém a cauda do cachecol voando com o vento
+        ctx.fillStyle = ePescoco.visual.cor1 || "#142a6d";
         ctx.beginPath(); ctx.moveTo(10, 20 + breath); ctx.quadraticCurveTo(20 + wind, 40, 15 + wind*1.5, 60); ctx.lineTo(5 + wind*1.2, 55); ctx.fill();
-        ctx.strokeStyle = scarfCor2; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(-8, 12+breath); ctx.lineTo(-8, 24+breath); ctx.moveTo(0, 12+breath); ctx.lineTo(0, 24+breath); ctx.moveTo(8, 12+breath); ctx.lineTo(8, 24+breath); ctx.stroke();
     }
 
     // Cabeça
@@ -7089,12 +7120,12 @@ window.drawAnimeWizard = function(ctx, x, y, scale, tick, atkProgress, atkColor,
         ctx.beginPath(); ctx.moveTo(12, -4 + breath*0.5); ctx.lineTo(4, 0 + breath*0.5); ctx.lineTo(12, 4 + breath*0.5); ctx.stroke();
     }
 
-    // Chapéu / Cabelo
-    if (hatCor) {
-        ctx.fillStyle = hatCor;
-        ctx.beginPath(); ctx.ellipse(0, -15 + breath*0.5, 30, 8, 0, 0, Math.PI*2); ctx.fill(); 
-        ctx.beginPath(); ctx.moveTo(-15, -15 + breath*0.5); ctx.quadraticCurveTo(0 + wind, -60, 20 + wind, -70); ctx.lineTo(15, -15 + breath*0.5); ctx.fill(); 
+  // Chapéu / Cabelo
+    if (eCabeca && eCabeca.visual) {
+        // Usa a nova IA de desenho procedural para o chapéu!
+        desenharEquipamento(ctx, eCabeca, -20, -60 + breath*0.5, 40, 50);
     } else {
+        // Cabelo Padrão se não tiver chapéu equipado
         ctx.fillStyle = "#3e2723";
         ctx.beginPath(); ctx.arc(0, -5 + breath*0.5, 23, Math.PI, 0); 
         ctx.moveTo(23, -5+breath*0.5); ctx.lineTo(30 + wind*0.2, 5+breath*0.5); ctx.lineTo(15, -15+breath*0.5);

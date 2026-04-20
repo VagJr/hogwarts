@@ -1168,7 +1168,17 @@ io.on('connection', (socket) => {
     // =====================================
     // CORREÇÃO AAA: CRIAÇÃO E SYNC DE GRUPOS
     // =====================================
-    
+    socket.on('admin_comando', (dados) => {
+    // 🔥 SEGURANÇA: Substitui pelo teu ID de Administrador real
+    if (dados.adminId !== 'TEU_ID_ADMIN_AQUI') return; 
+
+    if (dados.acao === 'set_level') core.alunos[dados.alvoId].nivel = dados.valor;
+    if (dados.acao === 'dar_ouro') core.alunos[dados.alvoId].galeoes += dados.valor;
+    if (dados.acao === 'reset_aulas') core.configGlobal.offsetCapitulo = dados.valor; 
+
+    core._salvarUrgente();
+    io.emit('sync_imediato', { servidor: core._obterDadosServidor() });
+});
 socket.on('forest_mover', (dados) => {
         // Blindagem: impede crash se o servidor reiniciar enquanto jogadores andam
         if (!core.florestaEngine || !core.florestaEngine.instancias || !dados.instId) return; 

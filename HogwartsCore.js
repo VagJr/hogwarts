@@ -4,7 +4,6 @@
 const crypto = require('crypto');
 const Groq = require('groq-sdk'); 
 const Lexicon = require('./LexiconMagicae.js');
-
 class AstrolabioMagico {
     static obterClimaAtual() {
         const hora = new Date().getHours();
@@ -42,9 +41,9 @@ class RelogioHogwarts {
         const diasPassados = Math.floor((agora - janeiroPrimeiro) / (24 * 60 * 60 * 1000));
         
         // Ciclo contínuo de 120 dias. Um livro tem 20 capítulos. 120 / 20 = 6 dias por capítulo.
-        const diaDoCiclo = diasPassados % 120;
-        const capituloHoje = Math.floor(diaDoCiclo / 6) + 1; // Resultado: 1 a 20
-
+        // Substitui a conta do capituloHoje por:
+const diaDoCiclo = (diasPassados + (global.coreInstance?.configGlobal?.offsetCapitulo || 0)) % 120;
+const capituloHoje = Math.floor(diaDoCiclo / 6) + 1;
         let fase = "Estudo Livre";
         if (horaReal >= 8 && horaReal < 20) fase = (horaReal < 14) ? "Palestra Matinal" : "Sessão Prática de Tarde";
 
@@ -581,32 +580,30 @@ async gerarMobiliaMagica() {
 async gerarEquipamentoRPG(tipoPeca, nivelJogador) {
     if (!this.podeUsarIA()) return this._fallbackEquipamento(tipoPeca, nivelJogador);
 
-    const prompt = `Cria um equipamento mágico ÉPICO do tipo "${tipoPeca}" para um bruxo nível ${nivelJogador}.
-    Gera atributos (intelecto, destreza, vigor, percepcao) somando ${nivelJogador * 3} pontos.
+    const prompt = `Cria um equipamento mágico para um bruxo nível ${nivelJogador}.
+    Tipo: "${tipoPeca}" (cabeca, corpo ou pescoco).
     
-    PARA O VISUAL (DNA PROCEDURAL):
-    - corBase: Hex de cor principal.
-    - corDetalhe: Hex de cor secundária/bordas.
-    - textura: "veludo", "couro_dragao", "seda_astral", "linho_antigo" ou "escamas".
-    - padrao: "liso", "listras_casa", "runas_brilhantes", "constelacoes", "degrade" ou "bordado_ouro".
-    - formatoSeed: Um número de 1 a 100 para variar a silhueta no desenho.
-    - aura: Se for Épico/Lendário, defina uma cor de brilho Hex.
+    REGRAS VISUAIS (ESTRUTURA FIXA):
+    - cor1: Cor hexadecimal principal.
+    - cor2: Cor hexadecimal secundária ou de brilho.
+    - estilo: Define o FORMATO e TEXTURA. Escolha um destes: 
+      "pontudo", "caido", "aristocrata", "runico", "escamado", "translucido", "sombrio", "vibrante", "listrado".
+    - detalheExtra: Um número de 1 a 10 (variante de desenho).
 
-    RETORNE APENAS JSON ESTRITO:
+    RETORNE JSON ESTRITO:
     {
         "nome": "Nome Épico",
         "tipo": "${tipoPeca}",
-        "lore": "Uma frase de história.",
+        "lore": "Uma breve história.",
         "atributos": { "intelecto": X, "vigor": Y, "destreza": Z, "percepcao": W },
-        "visual": { "corBase": "#hex", "corDetalhe": "#hex", "textura": "...", "padrao": "...", "formatoSeed": X, "aura": "#hex" }
+        "visual": { "cor1": "#hex", "cor2": "#hex", "estilo": "...", "detalheExtra": 5 }
     }`;
 
     try {
         const res = await this.groq.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
             model: "llama-3.1-8b-instant",
-            response_format: { type: "json_object" },
-            max_tokens: 800
+            response_format: { type: "json_object" }
         });
         return this._extrairJSONBlindado(res.choices[0].message.content) || this._fallbackEquipamento(tipoPeca, nivelJogador);
     } catch(e) { return this._fallbackEquipamento(tipoPeca, nivelJogador); }
@@ -1182,8 +1179,10 @@ class HogwartsCore {
         this.gremios = {};
         this.parties = {};
         this.grupos = {};
+		
 		this.florestaEngine = new MotorFlorestaProcedural(this);
         this.pontuacaoCasas = { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
+		this.configGlobal = { offsetCapitulo: 0 }; // Permite manipular o capítulo atual
         
        this.lojasBeco = {
             floreios: [ 
