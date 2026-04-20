@@ -804,6 +804,31 @@
     <button onclick="document.getElementById('modal-recompensa').classList.add('oculto')" style="width:80%; background:#2ecc71; color:#fff; border-color:#2ecc71;">Guardar no Baú</button>
 </div>
 <div id="toast-container"></div>
+<button id="btn-abrir-admin" onclick="document.getElementById('painel-admin-deus').classList.remove('oculto')" class="oculto" style="position: fixed; top: 120px; left: 10px; z-index: 999999; background: linear-gradient(to bottom, #8a0b0c, #4a0000); color: #fff; border: 2px solid #f1c40f; border-radius: 5px; width: auto; padding: 8px 15px; font-weight: bold; box-shadow: 0 0 15px rgba(231,76,60,0.8); font-family: 'Cinzel', serif;">
+    👁️ Modo Deus
+</button>
+
+<div id="painel-admin-deus" class="card oculto" style="position: fixed; top: 170px; left: 10px; z-index: 9999999; background: rgba(10, 0, 0, 0.98); border: 2px solid #e74c3c; width: 320px; box-shadow: 0 0 40px rgba(231, 76, 60, 0.6); backdrop-filter: blur(5px);">
+    <h3 style="color: #e74c3c; text-align: center; margin-top: 0; border-bottom: 1px dashed #e74c3c; padding-bottom: 10px; font-size: 1.5em; text-shadow: 0 0 10px #e74c3c;">👑 Painel Divino</h3>
+
+    <div style="margin-bottom: 15px;">
+        <label style="color: #aaa; font-size: 0.85em; margin-bottom: 5px; display: block;">ID do Alvo (Deixa vazio para ti mesmo):</label>
+        <input type="text" id="admin-alvo-id" placeholder="ID do Jogador" style="background: #000; border: 1px solid #555; color: #fff; width: 100%; padding: 8px; text-align: center;">
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label style="color: #aaa; font-size: 0.85em; margin-bottom: 5px; display: block;">Valor Numérico (Para Ouro, Nível ou Capítulo):</label>
+        <input type="number" id="admin-valor" placeholder="Ex: 1000" style="background: #000; border: 1px solid #555; color: #fff; width: 100%; padding: 8px; text-align: center;">
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button onclick="enviarComandoDeus('dar_ouro')" style="background: linear-gradient(to bottom, #d4af37, #8c6b32); color: #000;">💰 Dar Galeões</button>
+        <button onclick="enviarComandoDeus('set_level')" style="background: linear-gradient(to bottom, #3498db, #1d6fa5); color: #fff;">⭐ Setar Nível Mágico</button>
+        <button onclick="enviarComandoDeus('reset_aulas')" style="background: linear-gradient(to bottom, #e74c3c, #962015); color: #fff;">⏳ Manipular Capítulo (Calendário)</button>
+    </div>
+    
+    <button onclick="document.getElementById('painel-admin-deus').classList.add('oculto')" style="margin-top: 15px; background: transparent; border: 1px dashed #555; color: #aaa; width: 100%;">Fechar Painel</button>
+</div>S
 <script>
     for(let i=0; i<40; i++) {
         let s = document.createElement('div'); s.className = 'spore';
@@ -2324,19 +2349,27 @@ if(sel && meuBruxo) {
     // ==============================================================================
     // 1. Função que APENAS desenha o ecrã (Não faz pedidos à internet)
     window.atualizarInterfaceMagica = function() {
-        if (!meuBruxo || !meuBruxo.id) return;
-        try {
-            atualizarDormitorio(); 
-            
-            // 🔥 CORREÇÃO CRÍTICA: Se a arena estiver ativa, o jogo não esconde a tela de combate!
-            if (!combatEngineAtivo) {
-                gerirTelasPorEstado();
-            }
+    if (!meuBruxo || !meuBruxo.id) return;
+    
+    // Revela o botão de Admin se o jogador for o Deus do jogo
+    // NOTA AS ASPAS À VOLTA DE "Lumi" 👇
+    if (meuBruxo.id === "Lumi") {
+        let btnAdmin = document.getElementById('btn-abrir-admin');
+        if(btnAdmin) btnAdmin.classList.remove('oculto');
+    }       
 
-            renderizarSalaPrecisa();
-            renderizarMercadoUI(servidorGlobal ? servidorGlobal.mercadoJogadores : null);
-            renderizarEstufaUI();
-            
+    try {
+        atualizarDormitorio(); 
+        
+        // 🔥 CORREÇÃO CRÍTICA: Se a arena estiver ativa, o jogo não esconde a tela de combate!
+        if (!combatEngineAtivo) {
+            gerirTelasPorEstado();
+        }
+
+        renderizarSalaPrecisa();
+        renderizarMercadoUI(servidorGlobal ? servidorGlobal.mercadoJogadores : null);
+        renderizarEstufaUI();
+                    
             if(meuBruxo.elos) {
                 safeSet('rank-duelos-ui', renderRankBadge(meuBruxo.elos.duelos, 'Duelos PvP'), true);
                 safeSet('rank-quadribol-ui', renderRankBadge(meuBruxo.elos.quadribol, 'Voo & Quadribol'), true);
@@ -7093,12 +7126,36 @@ window.drawAnimeWizard = function(ctx, x, y, scale, tick, atkProgress, atkColor,
     ctx.beginPath(); ctx.moveTo(0, 15 + breath); ctx.lineTo(0, 80 + breath); ctx.stroke();
 // Cachecol
     if (ePescoco && ePescoco.visual) {
-        // Desenha o cachecol com os detalhes processuais da IA
-        desenharEquipamento(ctx, ePescoco, -15, 12 + breath, 30, 15);
+        let v = ePescoco.visual;
+        ctx.fillStyle = v.cor1 || scarfCor1 || "#142a6d";
+        let corDetalhe = v.cor2 || scarfCor2 || "#0a1538";
         
-        // Mantém a cauda do cachecol voando com o vento
-        ctx.fillStyle = ePescoco.visual.cor1 || "#142a6d";
+        // Gola grossa no pescoço
+        ctx.beginPath(); ctx.roundRect(-14, 12 + breath, 28, 12, 5); ctx.fill();
+        
+        // Cauda do cachecol a bater com o vento
+        ctx.beginPath(); 
+        ctx.moveTo(10, 20 + breath); 
+        ctx.quadraticCurveTo(20 + wind, 40, 15 + wind*1.5, 60); 
+        ctx.lineTo(5 + wind*1.2, 55); 
+        ctx.fill();
+        
+        // Riscas de textura no cachecol
+        ctx.strokeStyle = corDetalhe; 
+        ctx.lineWidth = 3;
+        ctx.beginPath(); 
+        ctx.moveTo(-8, 12+breath); ctx.lineTo(-8, 24+breath); 
+        ctx.moveTo(0, 12+breath); ctx.lineTo(0, 24+breath); 
+        ctx.moveTo(8, 12+breath); ctx.lineTo(8, 24+breath); 
+        ctx.stroke();
+        
+    } else if (scarfCor1) {
+        // Cachecol clássico das Casas de Hogwarts
+        ctx.fillStyle = scarfCor1;
+        ctx.beginPath(); ctx.roundRect(-14, 12 + breath, 28, 12, 5); ctx.fill();
         ctx.beginPath(); ctx.moveTo(10, 20 + breath); ctx.quadraticCurveTo(20 + wind, 40, 15 + wind*1.5, 60); ctx.lineTo(5 + wind*1.2, 55); ctx.fill();
+        ctx.strokeStyle = scarfCor2; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-8, 12+breath); ctx.lineTo(-8, 24+breath); ctx.moveTo(0, 12+breath); ctx.lineTo(0, 24+breath); ctx.moveTo(8, 12+breath); ctx.lineTo(8, 24+breath); ctx.stroke();
     }
 
     // Cabeça
@@ -7122,10 +7179,58 @@ window.drawAnimeWizard = function(ctx, x, y, scale, tick, atkProgress, atkColor,
 
   // Chapéu / Cabelo
     if (eCabeca && eCabeca.visual) {
-        // Usa a nova IA de desenho procedural para o chapéu!
-        desenharEquipamento(ctx, eCabeca, -20, -60 + breath*0.5, 40, 50);
+        let v = eCabeca.visual;
+        ctx.fillStyle = v.cor1 || "#3e2723";
+        ctx.strokeStyle = v.cor2 || "#111";
+        ctx.lineWidth = 1.5;
+
+        // 1. Aba do Chapéu (A base essencial de qualquer mago)
+        ctx.beginPath(); 
+        ctx.ellipse(0, -15 + breath*0.5, 34, 8, 0, 0, Math.PI*2); 
+        ctx.fill(); 
+        ctx.stroke();
+        
+        // 2. Corpo do Chapéu (O Cone Mágico)
+        ctx.beginPath(); 
+        ctx.moveTo(-15, -15 + breath*0.5); 
+        
+        if (v.estilo === "pontudo") {
+            // Mago Imponente: Cone reto e muito alto
+            ctx.lineTo(0, -85); 
+        } else if (v.estilo === "caido" || v.estilo === "sombrio") {
+            // Bruxo Ancestral: O chapéu dobra pesadamente para trás com o vento
+            ctx.quadraticCurveTo(-10 + wind, -40, 35 + wind, -20); 
+        } else if (v.estilo === "aristocrata") {
+            // Cartola Mágica Elegante
+            ctx.lineTo(-12, -45); ctx.lineTo(12, -45);
+        } else {
+            // Clássico de Hogwarts: Curvo, longo e charmoso (O teu modelo original perfeito!)
+            ctx.quadraticCurveTo(0 + wind, -60, 20 + wind, -75); 
+        }
+        
+        ctx.lineTo(15, -15 + breath*0.5); 
+        ctx.fill(); 
+        ctx.stroke();
+
+        // 3. Detalhes Processuais e Texturas
+        if (v.estilo === "runico") {
+            ctx.fillStyle = v.cor2;
+            ctx.font = "bold 12px Cinzel";
+            ctx.fillText("ᛟ", -4, -35);
+            ctx.fillText("ᚦ", 6, -22);
+        } else if (v.estilo === "listrado") {
+            ctx.strokeStyle = v.cor2;
+            ctx.beginPath(); ctx.moveTo(-10, -30); ctx.lineTo(10, -30); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-5, -45); ctx.lineTo(15, -45); ctx.stroke();
+        }
+
+    } else if (hatCor) {
+        // Chapéu Padrão Simples
+        ctx.fillStyle = hatCor;
+        ctx.beginPath(); ctx.ellipse(0, -15 + breath*0.5, 30, 8, 0, 0, Math.PI*2); ctx.fill(); 
+        ctx.beginPath(); ctx.moveTo(-15, -15 + breath*0.5); ctx.quadraticCurveTo(0 + wind, -60, 20 + wind, -70); ctx.lineTo(15, -15 + breath*0.5); ctx.fill(); 
     } else {
-        // Cabelo Padrão se não tiver chapéu equipado
+        // Cabelo sem chapéu
         ctx.fillStyle = "#3e2723";
         ctx.beginPath(); ctx.arc(0, -5 + breath*0.5, 23, Math.PI, 0); 
         ctx.moveTo(23, -5+breath*0.5); ctx.lineTo(30 + wind*0.2, 5+breath*0.5); ctx.lineTo(15, -15+breath*0.5);
@@ -9072,6 +9177,43 @@ socket.on('atualizar_jogadores_zona', (jogadores) => {
     }
     document.getElementById('mmo-online-list').innerHTML = html || '<p style="color:#666; text-align:center;">Sozinho na sala.</p>';
 });
+// ==============================================================================
+// 👑 LÓGICA DO PAINEL DE ADMINISTRAÇÃO (MODO DEUS)
+// ==============================================================================
+
+// 🔥 MUITO IMPORTANTE: Substitui o valor abaixo pelo teu ID de personagem real!
+// Podes descobrir o teu ID escrevendo `meuBruxo.id` na consola do navegador (F12) enquanto jogas.
+const ID_ADMIN_SUPREMO = "COLA_O_TEU_ID_AQUI"; 
+
+window.enviarComandoDeus = function(acao) {
+    playSFX('click');
+    
+    let alvoId = document.getElementById('admin-alvo-id').value.trim();
+    let valor = parseInt(document.getElementById('admin-valor').value) || 0;
+
+    // Se a caixa do ID estiver vazia, o comando é aplicado ao teu próprio personagem
+    if (!alvoId && meuBruxo) {
+        alvoId = meuBruxo.id;
+    }
+
+    if (!alvoId) {
+        mostrarNotificacao("Erro: Precisas definir um ID válido.", "erro");
+        return;
+    }
+
+    // Emite a ordem para o servidor
+    socket.emit('admin_comando', {
+        adminId: meuBruxo.id, // O servidor vai verificar se este ID tem permissão!
+        acao: acao,
+        alvoId: alvoId,
+        valor: valor
+    });
+
+    document.body.classList.add('shake-screen');
+    setTimeout(() => document.body.classList.remove('shake-screen'), 300);
+    mostrarNotificacao(`Ordem divina '${acao.toUpperCase()}' enviada ao servidor!`, "sucesso");
+    playSFX('magic');
+};
 </script>
 </body>
 </html>
