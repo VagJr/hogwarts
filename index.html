@@ -3889,28 +3889,53 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
 	
    window.runTickArenaMatematica_E_Desenhar = function() {
         if(!combatEngineAtivo) return;
-        
+
+        // Regeneração de Mana
         if(arenaMana < arenaMaxMana) arenaMana += 0.055; 
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`; 
         safeSet('ca-mana-text', `${Math.floor(arenaMana)} M`); 
         
-        meuBruxo.feitiçosEquipados.forEach(eFXId => { 
-            const baseUIBtnM = document.getElementById(`ccrd_${eFXId}`); 
-            if(baseUIBtnM) { 
-                const feiticoObj = servidorGlobal.livroDeFeiticos[eFXId] || {};
-                
-                // 🔥 FIX CRÍTICO: Converte garantidamente o valor para Número!
-                let csX = Number(feiticoObj.custoMana) || Number(feiticoObj.custoFocoBase) || 3; 
-                
-                if(arenaMana >= csX) {
-                    baseUIBtnM.style.filter = "none"; 
-                } else {
-                    baseUIBtnM.style.filter = "grayscale(100%) opacity(0.5)"; 
-                }
-            } 
-        });
-        drawCombatScene(); 
-    }
+        // VERIFICA SE O JOGADOR ESTÁ DESARMADO / CONGELADO / ATORDOADO
+        let isStunned = false;
+        if (meuBruxo && meuBruxo.efeitos) {
+            const agora = Date.now();
+            isStunned = meuBruxo.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
+        }
+
+        // Atualização visual dos botões de magia
+        if (meuBruxo.feitiçosEquipados) {
+            meuBruxo.feitiçosEquipados.forEach(eFXId => { 
+                const baseUIBtnM = document.getElementById(`ccrd_${eFXId}`); 
+                if(baseUIBtnM) { 
+                    const feiticoObj = servidorGlobal.livroDeFeiticos[eFXId];
+                    if (!feiticoObj) return; 
+
+                    let csX = Number(feiticoObj.custoMana) || Number(feiticoObj.custoFocoBase) || 3; 
+                    
+                    // Bloqueia se não tem mana OU se está "Stunned"
+                    if(arenaMana >= csX && !isStunned) {
+                        baseUIBtnM.style.filter = "none"; 
+                        baseUIBtnM.style.borderColor = "#333";
+                    } else {
+                        baseUIBtnM.style.filter = "grayscale(100%) opacity(0.5)"; 
+                        if (isStunned) baseUIBtnM.style.borderColor = "#e74c3c"; // Fica vermelho se estiveres desarmado
+                    }
+                } 
+            });
+        }
+
+        const canvas = document.getElementById('engine-combate');
+        if (!canvas) return; 
+        const ctx = canvas.getContext('2d');
+        const timestamp = performance.now();
+
+        if (typeof window.ultimoTempoAtaque === 'undefined') window.ultimoTempoAtaque = 0;
+        const tempoDesdeAtaque = Date.now() - window.ultimoTempoAtaque;
+        const isAtk = tempoDesdeAtaque < 400;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawCombatScene(ctx, timestamp, isAtk); 
+    };
 function lançarFeiticoFloresta(feiticoId) {
     // 1. Gatilho visual imediato! O braço mexe na hora.
     ultimoTempoAtaque = Date.now();
@@ -4051,7 +4076,11 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
     drawAnimeWizard(ctx, playerHitbox.x + 20, playerHitbox.y, 1.5, atTick, playerHitbox.atkTimer, playerHitbox.atkColor, isHurt, meuBruxo.equipamentos, meuBruxo.casa);
 
     // Se estiver com o escudo Protego ativo, desenha a cúpula azul
-    if(playerHitbox.mode === 'protego') {
+    // 🔥 SE TIVER O BUFF DE ESCUDO ATIVO NO SERVIDOR (Tempo Real), DESENHA A CÚPULA!
+    const agoraCena = Date.now();
+    let euTenhoEscudoFisico = meuBruxo.buffs && meuBruxo.buffs.some(b => b.tipo === 'escudo_fisico' && b.expiresAt > agoraCena);
+    
+    if(euTenhoEscudoFisico || playerHitbox.mode === 'protego') {
         ctx.save();
         ctx.translate(playerHitbox.x + 20, playerHitbox.y);
         ctx.shadowColor = '#3498db'; ctx.shadowBlur = 20; 
@@ -4059,6 +4088,7 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         ctx.beginPath(); ctx.arc(20, 0, 90, -Math.PI/2.2, Math.PI/2.2); ctx.stroke();
         ctx.restore();
     }
+
 
     // ==========================================
     // 2. INIMIGOS (COM ARTE AVANÇADA)
@@ -4526,90 +4556,88 @@ let arenaOndasEspeciais = []; // Fila leve de efeitos
 // 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO)
 // ==============================================================================
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
-    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
-    
-    const feitico = servidorGlobal.livroDeFeiticos[sid];
-    if (!feitico) return;
+        if (!combatEngineAtivo || !maoCombate[slotIndex]) return; 
 
-    playSFX('magic');
-    arenaMana -= cMana;
-    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
-    
-    // --- LÓGICA DE DESCARTE E COMPRA ---
-    maoCombate[slotIndex] = null; 
-    renderizarCartasActionHog(); 
-    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
-
-    // --- CONFIGURAÇÃO DA ANIMAÇÃO E FÍSICA ---
-    playerHitbox.atkTimer = 1.0; 
-    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
-    
-    const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
-    
-    let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
-    let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
-
-    // 🚀 O EMISSOR ABSOLUTO: Envia TUDO o que o ecrã do inimigo/aliado precisa saber.
-    // (Apenas UM emit no início da função!)
-    socket.emit('multiplayer_spell', { 
-        instId: combatInstId, 
-        mecanica: mecanica, 
-        feiticoId: sid,
-        shooterId: meuBruxo.id,
-        nome: meuBruxo.nome,
-        visualConfig: cfg // Envia as cores e shapes para o adversário!
-    });
-
-    // 1. SE FOR ESCUDO / DEFESA
-    if (mecanica === 'escudo' || mecanica === 'defesa') {
-        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
-        playerHitbox.mode = 'protego'; 
-        playerHitbox.timer = 1200; 
-        criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-        processarImpactoNoServidor("protego_block_reflex", true); 
-    } 
-    // 2. SE FOR CURA
-    else if (mecanica === 'cura') {
-        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
-        criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
-        processarImpactoNoServidor(sid, false); 
-    } 
-    // 3. SE FOR ATAQUE OU STATUS
-    else {
-        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
-        let qt = cfg.quantity || 1;
-        let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
-        
-        for(let i = 0; i < qt; i++) {
-            setTimeout(() => {
-                let sX = corePlayerOffs.x;
-                let sY = corePlayerOffs.y + (Math.random()*40-20);
-                let tY = playerHitbox.y - 20;
-                let spX = cfg.speed || 25;
-                let spY = 0;
-
-                if (isMeteor) {
-                    sX = 200 + (Math.random() * 500); 
-                    sY = -100 - (Math.random() * 150); 
-                    tY = 280 + (Math.random() * 80); 
-                    spX = 10 + (Math.random() * 10); 
-                    spY = (cfg.speed || 20) + (Math.random() * 5); 
-                }
-                else if (cfg.shape === 'slash') { spX = (cfg.speed || 30); spY = 0; }
-                else if (cfg.shape === 'wave') { spX = (cfg.speed || 15); spY = 0; }
-
-                projeteis.push({ 
-                    x: sX, y: sY, ty: tY, speed: spX, vy: spY, pBoss: false, 
-                    scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
-                    cor: cfg.color, shape: cfg.shape, glow: cfg.glow, trailLen: cfg.trailSize || 15,
-                    mov: cfg.movement || 'linear', pStyle: cfg.particleStyle || 'sparks', 
-                    impact: cfg.impactEffect || 'explosion', faseM: Math.random() * Math.PI * 2, 
-                    idFeiticoSalvo: sid 
-                });
-            }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
+        // 🔥 TRAVA PRINCIPAL: Impede o clique físico se a magia estiver bloqueada por CC!
+        let isStunned = false;
+        if (meuBruxo && meuBruxo.efeitos) {
+            const agora = Date.now();
+            isStunned = meuBruxo.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
         }
-    }
-};
+
+        if (isStunned) {
+            playSFX('error');
+            mostrarNotificacao("Estás incapacitado e não podes lançar magia!", "erro");
+            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 200);
+            return; // 🛑 CORTA AQUI. NÃO GASTA MANA, NÃO FAZ ANIMAÇÃO, NÃO ENVIA AO SERVER!
+        }
+
+        if (arenaMana < cMana) return;
+
+        const feitico = servidorGlobal.livroDeFeiticos[sid];
+        if (!feitico) return;
+
+        playSFX('magic');
+        window.ultimoTempoAtaque = Date.now(); // Dispara a Kinematic Animation Local
+
+        arenaMana -= cMana;
+        document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
+        
+        maoCombate[slotIndex] = null; 
+        renderizarCartasActionHog(); 
+        setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
+
+        playerHitbox.atkTimer = 1.0; 
+        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
+        
+        const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
+        
+        let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
+        let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+
+        socket.emit('multiplayer_spell', { 
+            instId: combatInstId, mecanica: mecanica, feiticoId: sid, shooterId: meuBruxo.id, nome: meuBruxo.nome, visualConfig: cfg 
+        });
+
+        if (mecanica === 'escudo' || mecanica === 'defesa') {
+            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
+            criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
+            processarImpactoNoServidor("protego_block_reflex", true); 
+        } 
+        else if (mecanica === 'cura') {
+            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
+            criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
+            processarImpactoNoServidor(sid, false); 
+        } 
+        else {
+            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
+            let qt = cfg.quantity || 1;
+            let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
+            
+            for(let i = 0; i < qt; i++) {
+                setTimeout(() => {
+                    let sX = corePlayerOffs.x;
+                    let sY = corePlayerOffs.y + (Math.random()*40-20);
+                    let tY = playerHitbox.y - 20;
+                    let spX = cfg.speed || 25;
+                    let spY = 0;
+
+                    if (isMeteor) {
+                        sX = 200 + (Math.random() * 500); sY = -100 - (Math.random() * 150); tY = 280 + (Math.random() * 80); spX = 10 + (Math.random() * 10); spY = (cfg.speed || 20) + (Math.random() * 5); 
+                    } else if (cfg.shape === 'slash') { spX = (cfg.speed || 30); spY = 0; }
+                    else if (cfg.shape === 'wave') { spX = (cfg.speed || 15); spY = 0; }
+
+                    projeteis.push({ 
+                        x: sX, y: sY, ty: tY, speed: spX, vy: spY, pBoss: false, 
+                        scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
+                        cor: cfg.color, shape: cfg.shape, glow: cfg.glow, trailLen: cfg.trailSize || 15,
+                        mov: cfg.movement || 'linear', pStyle: cfg.particleStyle || 'sparks', 
+                        impact: cfg.impactEffect || 'explosion', faseM: Math.random() * Math.PI * 2, idFeiticoSalvo: sid 
+                    });
+                }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
+            }
+        }
+    };
 	
     window.runTickArenaMatematica_E_Desenhar = function() {
     if(!combatEngineAtivo) return;

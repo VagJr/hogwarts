@@ -2366,52 +2366,66 @@ a.siclos += 5; // Bonus pro Last Hit
         const inst = this.dungeonInstancias[instId];
         if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
 
+        const agora = Date.now();
+        if(!a.efeitos) a.efeitos = []; if(!a.buffs) a.buffs = [];
+        a.efeitos = a.efeitos.filter(e => e.expiresAt > agora);
+        a.buffs = a.buffs.filter(b => b.expiresAt > agora);
+
         // ====================================================================
         // 🔥 1. INICIALIZAÇÃO DO PROFILER PROFUNDO DE HABILIDADE (AAA)
         // ====================================================================
         if (!inst.profiler) inst.profiler = {};
         if (!inst.profiler[atacanteId]) {
             inst.profiler[atacanteId] = {
-                magiasDiferentes: new Set(), // Mede a rotação do Grimório
-                parriesPerfeitos: 0,         // Reflexos defensivos
-                explorouFraqueza: 0,         // Exploração elemental
-                ccAplicado: 0,               // Crowd Control (Stun, Freeze, etc)
-                danoSofrido: 0,
-                danoCausado: 0,
-                curaRealizada: 0,
-                comboAtual: 0,               // Hits sem levar dano
-                maiorCombo: 0
+                magiasDiferentes: new Set(), parriesPerfeitos: 0, explorouFraqueza: 0,
+                ccAplicado: 0, danoSofrido: 0, danoCausado: 0, curaRealizada: 0,
+                comboAtual: 0, maiorCombo: 0
             };
         }
         let prof = inst.profiler[atacanteId];
+
+        // VERIFICA STUN NO PVE ANTES DE TUDO (Impede ataques se imobilizado)
+        let incapacitado = a.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+        if (incapacitado && feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
+            return { erro: "Estás sob efeito de controlo mágico!" };
+        }
 
         // 1.1 RASTREIO DE DANO E DEFESA DO JOGADOR
         if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
             if (feiticoId === "dano_recebido") {
                 let danoInimigo = Math.floor((inst.entidades[0].hpMax || 1000) * 0.08 * (inst.mult || 1));
-                a.hpAtual = Math.max(0, a.hpAtual - danoInimigo);
                 
-                // 📉 Quebra a Sequência de Combo e Regista Dor
-                prof.danoSofrido += danoInimigo;
-                prof.comboAtual = 0; 
+                // Lógica de Quebra de Escudo (Protego no PvE)
+                let temEscudo = a.buffs.some(b => b.tipo === 'escudo_fisico');
+                if (temEscudo && a.escudoHp > 0) {
+                    if (danoInimigo >= a.escudoHp) {
+                        a.hpAtual = Math.max(0, a.hpAtual - (danoInimigo - a.escudoHp));
+                        a.escudoHp = 0;
+                        a.buffs = a.buffs.filter(b => b.tipo !== 'escudo_fisico');
+                        prof.comboAtual = 0; // Quebra combo se o escudo partir e levar dano
+                    } else {
+                        a.escudoHp -= danoInimigo; // Absorvido! Combo mantido.
+                    }
+                } else {
+                    a.hpAtual = Math.max(0, a.hpAtual - danoInimigo);
+                    prof.danoSofrido += danoInimigo;
+                    prof.comboAtual = 0; 
+                }
 
                 this._salvarBancoDeDados();
-                return { sucesso: true, relatoAcao: "Sofreste dano!", hpJogador: a.hpAtual };
+                return { sucesso: true, relatoAcao: "Sofreste impacto!", hpJogador: a.hpAtual };
             }
             if (feiticoId === "protego_block_reflex") {
-                // 🛡️ Regista um Parry Perfeito
                 prof.parriesPerfeitos++;
+                return { sucesso: true, relatoAcao: "Parry registado.", hpJogador: a.hpAtual };
             }
-            return { sucesso: true, relatoAcao: "Impacto registado.", hpJogador: a.hpAtual };
         }
 
         const feitico = this.livroDeFeiticos[feiticoId];
         if (!feitico) return { erro: "Feitiço desconhecido." };
 
-        // 1.2 Regista a variedade de feitiços (Para Pontuação Tática)
         prof.magiasDiferentes.add(feiticoId);
 
-        // Progressão da Maestria do Feitiço
         if(!a.maestriaFeiticos[feiticoId]) a.maestriaFeiticos[feiticoId] = { nivel: 1, exp: 0, expProx: 100 };
         let maestria = a.maestriaFeiticos[feiticoId];
         maestria.exp += 15; let upouFeitico = false;
@@ -2431,15 +2445,21 @@ a.siclos += 5; // Bonus pro Last Hit
             let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
             a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
             if (feitico.purificar) a.efeitos = []; 
-            relatoAcao = `Lançaste ${feitico.nome} e recuperaste ${curaAplicada} HP!`;
-            
-            prof.curaRealizada += curaAplicada; // Rastreio de Healer
+            relatoAcao = `Curaste ${curaAplicada} HP!`;
+            prof.curaRealizada += curaAplicada; 
             
             this._salvarBancoDeDados();
             return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
         } 
         
         if (mecanica === 'escudo' || mecanica === 'defesa') {
+            let duracaoMs = (feitico.duracaoBuff || 3) * 2000;
+            a.escudoHp = forcaDoFeitico + ((a.atributosTotais.defesa || 5) * 5);
+            
+            let bExist = a.buffs.find(b => b.tipo === 'escudo_fisico');
+            if(bExist) bExist.expiresAt = agora + duracaoMs;
+            else a.buffs.push({ tipo: 'escudo_fisico', expiresAt: agora + duracaoMs });
+
             return { sucesso: true, relatoAcao: `A barreira de ${feitico.nome} protege-te!`, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
         }
 
@@ -2448,7 +2468,7 @@ a.siclos += 5; // Bonus pro Last Hit
 
         let isImobilizado = mob.efeitos && mob.efeitos.some(e => e.tipo === 'congelado' || e.tipo === 'atordoar');
         if (mob.padrao === 'assassino' && !isImobilizado && Math.random() < 0.30) {
-            prof.comboAtual = 0; // Falhar ataque quebra combo
+            prof.comboAtual = 0; 
             return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: 0, defendeu: true, relatoAcao: `💨 O ${mob.nome} esquivou-se! (Usa Gelo ou Controlo)`, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
         }
 
@@ -2465,12 +2485,17 @@ a.siclos += 5; // Bonus pro Last Hit
         if (isCríticoPassivo) { multiplicador += 1.0; relatoAcao += `⚡ CRÍTICO! `; }
         
         let danoDoT = 0;
+        // PVE Mob DoT - Limpeza dos que expiraram no tempo real
+        mob.efeitos = mob.efeitos.filter(e => {
+            if (e.expiresAt && e.expiresAt < agora) return false;
+            if (e.duracao !== undefined && e.duracao <= 0) return false; // Retrocompatibilidade
+            return true;
+        });
+
         mob.efeitos.forEach(e => {
             if (e.tipo === 'queimar') danoDoT += 45;
             if (e.tipo === 'sangrar') danoDoT += 60;
-            e.duracao--;
         });
-        mob.efeitos = mob.efeitos.filter(e => e.duracao > 0);
         if (danoDoT > 0) { mob.hpAtual -= danoDoT; relatoAcao += `[DoT: -${danoDoT}] `; prof.danoCausado += danoDoT; }
 
         let alvoVeneno = mob.efeitos.find(e => e.tipo === 'envenenar');
@@ -2481,34 +2506,33 @@ a.siclos += 5; // Bonus pro Last Hit
 
         if (alvoVulneravel) multiplicador += 1.0; 
 
-        // 🧠 Inteligência Táctica: Fraquezas e Resistências
         if (mob.fracoContra && feitico.elemento === mob.fracoContra) {
-            multiplicador += 1.0; relatoAcao += `💥 SUPER EFICAZ! `;
-            prof.explorouFraqueza++; // Sobe score Tático
+            multiplicador += 1.0; relatoAcao += `💥 SUPER EFICAZ! `; prof.explorouFraqueza++; 
         }
         if (mob.resisteContra && feitico.elemento === mob.resisteContra) {
-            multiplicador -= 0.8; relatoAcao += `🛡️ Resistiu... `; defendeu = true;
-            prof.comboAtual = 0; // Usar feitiço errado quebra o fluir tático
+            multiplicador -= 0.8; relatoAcao += `🛡️ Resistiu... `; defendeu = true; prof.comboAtual = 0; 
         }
 
-        // 🧠 Inteligência Táctica: Sinergias (Combos Elementais)
         if (feitico.elemento === 'fogo' && alvoVeneno) { multiplicador += 2.0; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'envenenar'); relatoAcao += "💥 DETONAÇÃO TÓXICA! "; prof.explorouFraqueza++; }
-        else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; prof.explorouFraqueza++; prof.ccAplicado++; } 
+        else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2, expiresAt: agora + 4000 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; prof.explorouFraqueza++; prof.ccAplicado++; } 
         else if (feitico.elemento === 'cinetico' && alvoCongelado) { multiplicador += 2.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'congelado'); relatoAcao += "❄️ SHATTER! "; prof.explorouFraqueza++; }
 
-        // Rastreio de Crowd Control e INTERRUPÇÕES
-        let interrompeu = false; // 🔥 NOVA FLAG DE INTERRUPÇÃO
+        let interrompeu = false; 
         if (feitico.efeitoSecundario) {
             if (['atordoar', 'congelado', 'desarmar', 'vulneravel'].includes(feitico.efeitoSecundario)) {
                 prof.ccAplicado++;
-                // Se for um feitiço de controlo rígido, quebra a guarda do inimigo!
                 if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) {
                     interrompeu = true;
                 }
             }
+            let duracaoMs = (feitico.duracao || 2) * 2000;
             let eExistente = mob.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
-            if (eExistente) eExistente.duracao = feitico.duracao || 3;
-            else mob.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: feitico.duracao || 3 });
+            if (eExistente) {
+                eExistente.duracao = feitico.duracao || 3;
+                eExistente.expiresAt = agora + duracaoMs;
+            } else {
+                mob.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: feitico.duracao || 3, expiresAt: agora + duracaoMs });
+            }
         }
 
         if (mob.padrao === 'defensivo' && mecanica !== 'status' && !alvoAntiCura) {
@@ -2518,7 +2542,6 @@ a.siclos += 5; // Bonus pro Last Hit
         danoFinal = Math.max(1, Math.floor(danoBaseCalculado * multiplicador));
         if (Math.random() > 0.85) danoFinal = Math.floor(danoFinal * 1.5);
 
-        // 📈 Registo de Combo Ininterrupto
         prof.danoCausado += danoFinal;
         if (!defendeu) {
             prof.comboAtual++;
@@ -2527,7 +2550,11 @@ a.siclos += 5; // Bonus pro Last Hit
 
         if (feitico.buffJogador) {
             if(!a.buffs) a.buffs = [];
-            a.buffs.push({ tipo: feitico.buffJogador, duracao: feitico.duracaoBuff || 3 });
+            let duracaoMs = (feitico.duracaoBuff || 3) * 2000;
+            let bExist = a.buffs.find(b => b.tipo === feitico.buffJogador);
+            if(bExist) bExist.expiresAt = agora + duracaoMs;
+            else a.buffs.push({ tipo: feitico.buffJogador, duracao: feitico.duracaoBuff || 3, expiresAt: agora + duracaoMs });
+            
             if(feitico.buffJogador === 'regeneracao') prof.curaRealizada += 50;
         }
 
@@ -2541,10 +2568,7 @@ a.siclos += 5; // Bonus pro Last Hit
         relatoAcao += `Infligiu ${danoFinal} Dano!`;
 
         // ====================================================================
-        // 🔥 4. AVALIAÇÃO FINAL (RANKING, TÍTULOS E EXP BÓNUS)
-        // ====================================================================
-        // ====================================================================
-        // 🔥 2. CÁLCULO FINAL E TÍTULOS (INDIVIDUAL PARA CADA JOGADOR)
+        // 🔥 4. AVALIAÇÃO FINAL E LOOT (Se o boss morrer)
         // ====================================================================
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
@@ -2559,14 +2583,12 @@ a.siclos += 5; // Bonus pro Last Hit
                 let xpFaseBase = Math.floor(((isBoss ? 1500 : 400 * inst.entidades.length) * multEvento) / divisao);
                 let galeoesFaseBase = Math.floor(((isBoss ? 800 : 100 * inst.entidades.length) * multEvento) / divisao);
 
-                // 🔥 CRIA UM OBJETO PARA GUARDAR AS AVALIAÇÕES SEPARADAS
                 let avaliacoesIndividuais = {};
 
                 for (let mId of recebedores) {
                     let membro = this.alunos[mId];
                     if (!membro) continue;
 
-                    // --- 🧠 O ALGORITMO MULTI-FATOR (Devil May Cry Style) INDIVIDUAL ---
                     let p = inst.profiler[mId] || { danoCausado: 0, parriesPerfeitos: 0, maiorCombo: 0, explorouFraqueza: 0, ccAplicado: 0, magiasDiferentes: new Set(), elementosUsados: {}, tempoTotalReacao: 0, totalAcoes: 0, danoSofrido: 0, curaRealizada: 0 };
                     
                     let mediaReacao = p.totalAcoes > 0 ? (p.tempoTotalReacao / p.totalAcoes) : 2000;
@@ -2615,14 +2637,12 @@ a.siclos += 5; // Bonus pro Last Hit
                     else if (score >= 150) { grade = 'B'; meuXp = Math.floor(meuXp * 1.2); corRank = '#2ecc71'; }
                     else if (score >= 80) { grade = 'C'; corRank = '#f39c12'; }
 
-                    // GUARDA A AVALIAÇÃO SÓ PARA ESTE JOGADOR
                     avaliacoesIndividuais[mId] = {
                         rank: grade, cor: corRank, titulo: tituloCombate, score: score,
                         detalhes: `APM: ${mediaReacao.toFixed(0)}ms | Dano: ${p.danoCausado || 0} | Parry: ${p.parriesPerfeitos || 0} | Max Combo: ${p.maiorCombo || 0}x`,
                         xp: meuXp, gold: meuGold
                     };
 
-                    // Entrega o Loot e XP final calculado
                     if (inst.isForestNode) {
                         if (!membro.lootTemporario) membro.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
                         membro.lootTemporario.galeoes += meuGold;
@@ -2634,7 +2654,6 @@ a.siclos += 5; // Bonus pro Last Hit
                     if(!membro.estatisticas) membro.estatisticas = { monstrosMortos: 0 };
                     membro.estatisticas.monstrosMortos += inst.entidades.length;
 
-                    // Lógica de drops de equipamentos mantida aqui...
                     if (Math.random() < (isBoss ? 0.35 : 0.08)) { 
                         let tipoRnd = ['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)];
                         this.cerebroIA.gerarEquipamentoRPG(tipoRnd, membro.nivel).then(equipNovo => {
@@ -2657,12 +2676,11 @@ a.siclos += 5; // Bonus pro Last Hit
                             gold: membro.lootTemporario.galeoes, xp: membro.lootTemporario.xp, itens: membro.lootTemporario.itens ? membro.lootTemporario.itens.length : 0 
                         });
                     }
-                } // Fim do Loop dos Jogadores
+                } 
 
                 relatoAcao += ` | Onda Destruída!`;
 
                 if (inst.faseAtual < inst.maxFases) {
-                    // ... (Lógica de avançar fase igual ao que já tens)
                     inst.faseAtual++;
                     let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
                     let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
@@ -2684,23 +2702,20 @@ a.siclos += 5; // Bonus pro Last Hit
 
                     if (this.florestaEngine && inst.isForestNode) { recebedores.forEach(mId => { this.florestaEngine.retornarDaBatalha(mId, true, false, inst.isForestNode, inst.forestInstId, global.io); }); }
 
-                    // 🔥 ENVIA AS AVALIAÇÕES INDIVIDUAIS
                     let pDataBoss = { bossMorto: true, relatoAcao: `Área Purificada!`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, avaliacoes: avaliacoesIndividuais, atiradorId: atacanteId };
                     if(global.io) global.io.to(inst.id).emit('mmo_boss_morto_coop', pDataBoss);
                     return pDataBoss;
                 }
             }
-}
+        }
 
-
-        // 🔥 NOVO: AVISA A PARTY DO DANO RECEBIDO E SINCRONIZA HP (SEM DELAY)
         if(global.io) {
             global.io.to(inst.id).emit('mmo_combat_update', {
                 hpBoss: mob.hpAtual,
-                entidades: inst.entidades, // Envia o array de mobs atualizado
+                entidades: inst.entidades, 
                 atacanteNome: a.nome
             });
-        } // <-- AQUI ESTAVA A FALTAR ESTA CHAVETA DE FECHO!
+        } 
         
         this._salvarBancoDeDados();
         
@@ -2708,7 +2723,7 @@ a.siclos += 5; // Bonus pro Last Hit
             bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, 
             danoAplicado: danoFinal, defendeu, relatoAcao, hpJogador: a.hpAtual, 
             buffsJogador: a.buffs, 
-            interrompeu // 🔥 Envia a informação para o ecrã do jogador!
+            interrompeu 
         };
     }
 	// ==========================================
@@ -2938,6 +2953,9 @@ a.siclos += 5; // Bonus pro Last Hit
     // ====================================================================
     // 🔥 MOTOR DE PVP ABSOLUTO (DANO, ESCUDOS, CURAS E STATUS EFFECTS)
     // ====================================================================
+// ====================================================================
+    // 🔥 MOTOR DE PVP ABSOLUTO (ESCUDOS FÍSICOS E STATUS EM TEMPO REAL)
+    // ====================================================================
     processarAcaoPvP(atacanteId, instId, feiticoId, ioGlobal) {
         const partida = this.pvpPartidas[instId];
         if (!partida || partida.status !== 'jogando') return { erro: "Duelo finalizado ou não existe." };
@@ -2947,84 +2965,90 @@ a.siclos += 5; // Bonus pro Last Hit
         const inimigo = isP1 ? partida.p2 : partida.p1;
         const aEu = this.alunos[eu.id];
         
-        // Garante que os arrays de estado (Buffs e Debuffs) existem nesta partida
+        const agora = Date.now();
+        
+        // 1. LIMPA EFEITOS EXPIRADOS (Tempo Real)
         if(!eu.efeitos) eu.efeitos = []; if(!inimigo.efeitos) inimigo.efeitos = [];
         if(!eu.buffs) eu.buffs = []; if(!inimigo.buffs) inimigo.buffs = [];
+        eu.efeitos = eu.efeitos.filter(e => e.expiresAt > agora);
+        eu.buffs = eu.buffs.filter(b => b.expiresAt > agora);
+        inimigo.efeitos = inimigo.efeitos.filter(e => e.expiresAt > agora);
+        inimigo.buffs = inimigo.buffs.filter(b => b.expiresAt > agora);
 
-        // 1. DRENO DE DOTs (Queimar, Sangrar, Veneno)
-        let danoDoT = 0;
-        eu.efeitos.forEach(e => {
-            if (e.tipo === 'queimar') danoDoT += 45;
-            if (e.tipo === 'sangrar') danoDoT += 60;
-            if (e.tipo === 'envenenar') danoDoT += 80;
-            e.duracao--;
-        });
-        eu.efeitos = eu.efeitos.filter(e => e.duracao > 0);
-        if (danoDoT > 0) eu.hpAtual -= danoDoT;
-
-        // 2. VERIFICA SE O JOGADOR ESTÁ INCAPACITADO (Expelliarmus, Stupefy)
+        // 2. VERIFICA SE O JOGADOR ESTÁ INCAPACITADO ANTES DE ATACAR
         let incapacitado = eu.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         if (incapacitado && feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
-            return { erro: "Estás sob efeito de controlo e não podes lançar magias!", hpJogador: eu.hpAtual };
+            return { erro: "Estás sob efeito de controlo mágico!", hpJogador: eu.hpAtual };
         }
 
-        let dano = 0; let hpCurado = 0; let relatoAcao = "Lançou magia.";
+        let dano = 0; let hpCurado = 0; let relatoAcao = "";
         
-        // Identifica o feitiço (Protego Block Reflex = Protego)
         const fIdReal = feiticoId === "protego_block_reflex" ? "protego" : feiticoId;
         const f = this.livroDeFeiticos[fIdReal];
         let mecanica = f ? (f.tipoMecanica || (f.defende ? 'escudo' : 'ataque')) : 'ataque';
 
         if (f && feiticoId !== "dano_recebido") {
-            // APLICA CURAS E BUFFS A MIM MESMO
-            if (mecanica === 'cura') {
+            // 🔥 SE FOR ESCUDO (Cria uma barreira de HP extra)
+            if (mecanica === 'escudo' || mecanica === 'defesa') {
+                let forcaEscudo = (f.poderBase || 300) + ((aEu.atributosTotais.defesa || 5) * 5);
+                eu.escudoHp = forcaEscudo; // HP próprio do escudo!
+                let duracaoMs = (f.duracaoBuff || 3) * 2000; // Converte turnos para Segundos Reais
+                
+                let bExist = eu.buffs.find(b => b.tipo === 'escudo_fisico');
+                if(bExist) bExist.expiresAt = agora + duracaoMs;
+                else eu.buffs.push({ tipo: 'escudo_fisico', expiresAt: agora + duracaoMs });
+                
+                relatoAcao = `Conjuração defensiva. Escudo com ${forcaEscudo} HP criado!`;
+            }
+            // 🔥 SE FOR CURA
+            else if (mecanica === 'cura') {
                 hpCurado = (f.poderBase || 150) + ((aEu.atributosTotais.pocoes || 5) * 5);
                 eu.hpAtual = Math.min(eu.hpMax, eu.hpAtual + hpCurado);
-                if (f.purificar) eu.efeitos = []; // Limpa Debuffs
+                if (f.purificar) eu.efeitos = []; 
                 relatoAcao = `Curou ${hpCurado} HP.`;
             }
-            if (f.buffJogador) {
-                let bExist = eu.buffs.find(b => b.tipo === f.buffJogador);
-                if(bExist) bExist.duracao = f.duracaoBuff || 3;
-                else eu.buffs.push({ tipo: f.buffJogador, duracao: f.duracaoBuff || 3 });
-            }
-
-            // APLICA DANO E STATUS AO INIMIGO
-            if (mecanica === 'ataque' || mecanica === 'maldicao' || mecanica === 'status') {
+            // 🔥 SE FOR ATAQUE OU DEBUFF
+            else if (mecanica === 'ataque' || mecanica === 'maldicao' || mecanica === 'status') {
                 let dBase = (f.poderBase || 50) + ((aEu.atributosTotais.feiticos || 5) * 5);
-                
-                // Verifica Sinergias/Fraquezas do inimigo (Ex: Vulnerável)
                 if (inimigo.efeitos.some(e => e.tipo === 'vulneravel')) dBase *= 1.5;
 
-                // Verifica se o Inimigo tem ESCUDO ATIVO (Protego)
-                let inimigoTemEscudo = inimigo.buffs.some(b => b.tipo === 'espinhos');
-                if (inimigoTemEscudo) {
-                    dBase = Math.floor(dBase * 0.2); // Escudo bloqueia 80% do dano!
-                    eu.hpAtual -= Math.floor(dBase * 0.5); // Reflete um pouco de dano!
-                    relatoAcao = `O escudo do inimigo bloqueou o impacto!`;
+                // LÓGICA DE QUEBRA DE ESCUDO
+                let temEscudoVisual = inimigo.buffs.some(b => b.tipo === 'escudo_fisico');
+                if (temEscudoVisual && inimigo.escudoHp > 0) {
+                    if (dBase >= inimigo.escudoHp) {
+                        dano = dBase - inimigo.escudoHp; // Dano que sobra passa para o HP
+                        inimigo.escudoHp = 0;
+                        inimigo.buffs = inimigo.buffs.filter(b => b.tipo !== 'escudo_fisico'); // Quebra o escudo
+                        relatoAcao = `O escudo do adversário foi ESTILHAÇADO!`;
+                    } else {
+                        inimigo.escudoHp -= dBase;
+                        dano = 0; // Escudo absorveu tudo
+                        relatoAcao = `O escudo do inimigo absorveu o golpe.`;
+                    }
+                } else {
+                    dano = Math.floor(dBase);
+                    relatoAcao = `Dano direto de ${dano}!`;
                 }
 
-                dano = Math.floor(dBase);
                 if (dano > 0) inimigo.hpAtual -= dano;
 
-                // Aplica o Efeito de Estado no Inimigo (Desarmar, Congelar, etc)
-                if (f.efeitoSecundario && !inimigoTemEscudo) {
+                // SÓ APLICA DEBUFF SE O ESCUDO NÃO O BLOQUEOU
+                if (f.efeitoSecundario && dano > 0) {
+                    let duracaoMs = (f.duracao || 2) * 2000;
                     let eExist = inimigo.efeitos.find(e => e.tipo === f.efeitoSecundario);
-                    if(eExist) eExist.duracao = f.duracao || 2;
-                    else inimigo.efeitos.push({ tipo: f.efeitoSecundario, duracao: f.duracao || 2 });
+                    if(eExist) eExist.expiresAt = agora + duracaoMs;
+                    else inimigo.efeitos.push({ tipo: f.efeitoSecundario, expiresAt: agora + duracaoMs });
                 }
             }
         }
         
-        // Garante limites de HP
         if(inimigo.hpAtual < 0) inimigo.hpAtual = 0;
         if(eu.hpAtual < 0) eu.hpAtual = 0;
         
-        // 🔥 AVISA A REDE DO NOVO ESTADO COM TODOS OS BUFFS E EFEITOS
+        // AVISA A REDE COM OS TIMESTAMPS
         ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_update', { meuHp: inimigo.hpAtual, meusEfeitos: inimigo.efeitos, meusBuffs: inimigo.buffs, inimigoHp: eu.hpAtual, inimigoEfeitos: eu.efeitos, inimigoBuffs: eu.buffs });
         ioGlobal.to(`priv_${eu.id}`).emit('pvp_update', { meuHp: eu.hpAtual, meusEfeitos: eu.efeitos, meusBuffs: eu.buffs, inimigoHp: inimigo.hpAtual, inimigoEfeitos: inimigo.efeitos, inimigoBuffs: inimigo.buffs });
 
-        // Verifica Mortes
         if (inimigo.hpAtual <= 0 || eu.hpAtual <= 0) {
             partida.status = 'finalizado';
             let vencedor = inimigo.hpAtual <= 0 ? eu : inimigo;
@@ -3033,17 +3057,14 @@ a.siclos += 5; // Bonus pro Last Hit
             const aVenc = this.alunos[vencedor.id];
             const aPerd = this.alunos[perdedor.id];
             
-            aVenc.elos.duelos += 25; 
-            aVenc.estatisticas.duelosVencidos++;
+            aVenc.elos.duelos += 25; aVenc.estatisticas.duelosVencidos++;
             aPerd.elos.duelos = Math.max(0, aPerd.elos.duelos - 15);
-            aVenc.galeoes += 50; 
-            this.ganharXp(aVenc, 500); 
+            aVenc.galeoes += 50; this.ganharXp(aVenc, 500); 
             
             ioGlobal.to(`priv_${vencedor.id}`).emit('pvp_fim', { msg: "🏆 Venceste o Duelo Mágico! (+25 ELO, +50G)" });
             ioGlobal.to(`priv_${perdedor.id}`).emit('pvp_fim', { msg: "💀 Foste derrotado no duelo! (-15 ELO)" });
             
-            delete this.pvpPartidas[instId];
-            this._salvarBancoDeDados();
+            delete this.pvpPartidas[instId]; this._salvarBancoDeDados();
             return { sucesso: true, pvpFim: true }; 
         }
 
