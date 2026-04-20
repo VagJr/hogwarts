@@ -1237,7 +1237,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         }
     });
 	
-	socket.on('mmo_action', async (dados) => {
+socket.on('mmo_action', async (dados) => {
         const a = core.alunos[socket.alunoId];
         const sala = core.zonasVivas[dados.zona];
         if(!a || !sala) return;
@@ -1288,47 +1288,39 @@ socket.on('mmo_interagir_objeto', async (dados) => {
             const mob = sala.entidades.find(m => m.id === dados.idAlvo);
             if (!mob) return;
 
-            if (!mob.jogadoresConfirmados) mob.jogadoresConfirmados = [];
-            if (!mob.jogadoresConfirmados.includes(a.id)) {
-                mob.jogadoresConfirmados.push(a.id);
-                
-                io.to(`zona_${dados.zona}`).emit('mmo_raid_status', { 
-                    id: mob.id, count: mob.jogadoresConfirmados.length, texto: `⚔️ ${a.nome} preparou-se para enfrentar ${mob.nome}!`
+            const idInst = `raid_${Date.now()}`;
+            // Se estiver num grupo, puxa todos. Se não, vai sozinho.
+            let membrosGrupo = a.partyId && core.grupos[a.partyId] ? core.grupos[a.partyId].membros : [a.id];
+
+            core.dungeonInstancias[idInst] = {
+                id: idInst, entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
+                status: 'combate', multiplayer: true, membros: membrosGrupo
+            };
+
+            core.iniciarIACombate(idInst);
+
+            let aliadosData = membrosGrupo.map(pid => {
+                let al = core.alunos[pid];
+                return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
+            });
+
+            // Puxa toda a equipa para a sala de combate do Socket e avisa os clientes
+            membrosGrupo.forEach(pid => {
+                let s = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === pid);
+                if(s) s.join(idInst);
+
+                global.io.to(`priv_${pid}`).emit('puxado_para_dungeon', { 
+                    idInstancia: idInst, 
+                    estado: { entidades: core.dungeonInstancias[idInst].entidades },
+                    aliados: aliadosData 
                 });
+            });
 
-                // O primeiro a clicar inicia a contagem
-                if (mob.jogadoresConfirmados.length === 1) {
-                    setTimeout(async () => {
-                        const idInst = `raid_${Date.now()}`;
-                        core.dungeonInstancias[idInst] = {
-                            id: idInst, entidades: [{ ...mob, hpAtual: mob.hpMax, vivo: true, idx: 0 }],
-                            status: 'combate', multiplayer: true, membros: mob.jogadoresConfirmados
-                        };
-
-                        core.iniciarIACombate(idInst);
-
-                        // 🔥 PREPARA OS DADOS DOS ALIADOS (Para renderizar as roupas e posições no Frontend)
-                        let aliadosData = mob.jogadoresConfirmados.map(pid => {
-                            let al = core.alunos[pid];
-                            return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
-                        });
-
-                        // Puxa todos os que clicaram para a MESMA arena cooperativa
-                        mob.jogadoresConfirmados.forEach(pid => {
-                            io.to(`priv_${pid}`).emit('puxado_para_dungeon', { 
-                                idInstancia: idInst, 
-                                estado: { entidades: core.dungeonInstancias[idInst].entidades },
-                                aliados: aliadosData // <-- NOVO: Envia os aliados!
-                            });
-                        });
-
-                        sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
-                        io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
-                    }, 4000); // 4 Segundos para os amigos clicarem também!
-                }
-            }
+            // Remove o mob do mapa global para não ser clicado por outros
+            sala.entidades = sala.entidades.filter(m => m.id !== mob.id);
+            io.to(`zona_${dados.zona}`).emit('mmo_world_update', sala);
         }
-    }); // <-- ESTA LINHA FECHA O SOCKET E EVITA O ERRO!
+    }); // FECHA O SOCKET CORRETAMENTE AQUI // <-- ESTA LINHA FECHA O SOCKET E EVITA O ERRO!
     socket.on('multiplayer_spell', (dados) => {
         // Transmite a renderização visual da magia para os aliados na Masmorra
         socket.to(dados.instId).emit('render_multiplayer_spell', dados);
@@ -1408,7 +1400,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         });
     });
 
-    socket.on('aceitar_convite_grupo', (dados) => { // MUDANÇA DO NOME AQUI
+    socket.on('aceitar_convite_grupo', (dados) => {
         let liderId = dados.liderId;
         if (!core.grupos[liderId]) core.grupos[liderId] = { lider: liderId, membros: [liderId] };
         
@@ -1421,7 +1413,11 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         if(core.alunos[socket.alunoId]) core.alunos[socket.alunoId].partyId = liderId;
         core._salvarUrgente();
         
-        // Puxa os dados visuais completos (Roupas, Casas, etc) para a interface do grupo
+        // O SEGREDO DO COOP: Juntar toda a gente à mesma sala Socket!
+        socket.join(`party_${liderId}`);
+        let sLider = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === liderId);
+        if(sLider) sLider.join(`party_${liderId}`);
+        
         let infoGrupo = { 
             lider: liderId, 
             membrosNomes: core.grupos[liderId].membros.map(id => {
@@ -1430,7 +1426,8 @@ socket.on('mmo_interagir_objeto', async (dados) => {
             }) 
         };
         
-        core.grupos[liderId].membros.forEach(mId => io.to(`priv_${mId}`).emit('grupo_atualizado', infoGrupo));
+        // Emite para a SALA INTEIRA de uma vez
+        global.io.to(`party_${liderId}`).emit('grupo_atualizado', infoGrupo);
     });
 
     socket.on('conteudo_puxar_grupo', (dados) => {

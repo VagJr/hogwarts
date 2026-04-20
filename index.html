@@ -3560,16 +3560,18 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         cvs = document.getElementById('engine-combate'); ctxCombat = cvs.getContext('2d');
         arenaMana = 2.0; playerCurrentHp = meuBruxo.hpAtual;
         
-        // 1. CARREGA E ORGANIZA OS ALIADOS FÍSICOS
-        // Se a chamada não enviar aliados, cria uma array onde tu és o único aliado.
+        // 1. CARREGA E ORGANIZA OS ALIADOS EM FORMAÇÃO DE BATALHA
         arenaAliados = aliadosArray ? aliadosArray : [{ id: meuBruxo.id, nome: meuBruxo.nome, equipamentos: meuBruxo.equipamentos, casa: meuBruxo.casa }];
         
         arenaAliados.forEach((aliado, index) => {
-            aliado.combatX = 100 + (index * 40); // Escadinha
-            aliado.combatY = 280 + ((index % 2 === 0 ? 1 : -1) * Math.ceil(index / 2) * 80); // Cima / Baixo alternado
+            // Formação em "V" perfeita: O líder à frente, os outros atrás nas diagonais
+            let offsetX = index === 0 ? 0 : -50 * Math.ceil(index / 2);
+            let offsetY = index === 0 ? 0 : (index % 2 === 0 ? 90 : -90) * Math.ceil(index / 2);
+            
+            aliado.combatX = 180 + offsetX; 
+            aliado.combatY = 300 + offsetY; 
             aliado.atkProgress = 0;
             
-            // Grava a tua posição na variável mestre para que os cliques das tuas magias saiam do sítio certo
             if(aliado.id === meuBruxo.id) {
                 playerHitbox.x = aliado.combatX;
                 playerHitbox.y = aliado.combatY;
@@ -3581,7 +3583,9 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
             arenaInimigos = []; 
             if(typeof nomeInimigo === 'object') {
                 arenaInimigoPvP = nomeInimigo;
-                arenaInimigoPvP.combatX = 800; arenaInimigoPvP.combatY = 300;
+                // Coloca o Inimigo PvP do outro lado do ecrã
+                arenaInimigoPvP.combatX = 800; 
+                arenaInimigoPvP.combatY = 300;
                 arenaInimigoPvP.atkProgress = 0;
             }
             safeSet('ca-boss-name', arenaInimigoPvP.nome || "Duelista");
@@ -3595,10 +3599,6 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         safeSet('ca-player-name', meuBruxo.nome); 
         renderizarCartasActionHog(); 
         
-        const hudDungeon = document.getElementById('ca-dungeon-info');
-        if(!isDuel) { hudDungeon.classList.remove('oculto'); hudDungeon.innerText = "Combate Cooperativo Ativo"; } 
-        else { hudDungeon.classList.add('oculto'); }
-
         if(arenaLoop) clearInterval(arenaLoop); 
         arenaLoop = setInterval(runTickArenaMatematica_E_Desenhar, 16); 
     }
@@ -5512,8 +5512,11 @@ socket.on('pvp_start', (dados) => {
     document.querySelector('.main-nav-container').classList.add('oculto');
     document.getElementById('arena-acao').classList.remove('oculto');
     
-    // Chama a arena e passa os dados complexos do inimigo PVP
-    iniciarArenaLocal(dados.inimigo, dados.inimigo.hpMax, null, true);
+    // Descobre quem sou eu e quem é o inimigo para não te atacares a ti mesmo
+    let oponente = dados.p1.id === meuBruxo.id ? dados.p2 : dados.p1;
+    let euProps = dados.p1.id === meuBruxo.id ? dados.p1 : dados.p2;
+
+    iniciarArenaLocal(oponente, oponente.hpMax, null, true, null, [euProps]);
     mostrarNotificacao(dados.isInvade ? "Foste invadido nas sombras!" : "Duelo PvP Iniciado!", "erro");
     playSFX('error');
 });

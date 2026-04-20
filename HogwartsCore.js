@@ -2709,7 +2709,6 @@ async folhearLivro(alunoId) {
             const b1 = this.alunos[id1]; const b2 = this.alunos[id2];
             const instId = `pvp_${crypto.randomBytes(4).toString('hex')}`;
             
-            // Restaura a vida de ambos para um duelo justo
             b1.hpAtual = b1.hpMax; b1.focoAtual = b1.maxFoco;
             b2.hpAtual = b2.hpMax; b2.focoAtual = b2.maxFoco;
             
@@ -2720,21 +2719,22 @@ async folhearLivro(alunoId) {
                 status: 'jogando'
             };
             
-            // Puxa ambos os jogadores para a Arena de Ação (Com Equipamentos para Renderizar)!
-            ioGlobal.to(`priv_${b1.id}`).emit('pvp_start', { 
+            // JUNTAR AMBOS À SALA DE PVP DO SOCKET
+            let s1 = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.alunoId === b1.id);
+            let s2 = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.alunoId === b2.id);
+            if(s1) s1.join(instId);
+            if(s2) s2.join(instId);
+
+            // Emite o início apenas para a Sala
+            ioGlobal.to(instId).emit('pvp_start', { 
                 instId, 
-                inimigo: { id: b2.id, nome: b2.nome, hpMax: b2.hpMax, equipamentos: b2.equipamentos, casa: b2.casa },
-                isInvade: true
-            });
-            ioGlobal.to(`priv_${b2.id}`).emit('pvp_start', { 
-                instId, 
-                inimigo: { id: b1.id, nome: b1.nome, hpMax: b1.hpMax, equipamentos: b1.equipamentos, casa: b1.casa },
+                p1: { id: b1.id, nome: b1.nome, hpMax: b1.hpMax, equipamentos: b1.equipamentos, casa: b1.casa },
+                p2: { id: b2.id, nome: b2.nome, hpMax: b2.hpMax, equipamentos: b2.equipamentos, casa: b2.casa },
                 isInvade: true
             });
             return { sucesso: true, msg: "Adversário encontrado! O Duelo vai começar!" };
         }
-        return { sucesso: true, msg: "Entraste na fila. Aguarda um oponente..." };
-    }
+	}
 
     processarAcaoPvP(atacanteId, instId, feiticoId, ioGlobal) {
         const partida = this.pvpPartidas[instId];
