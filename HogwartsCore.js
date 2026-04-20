@@ -2293,13 +2293,41 @@ async folhearLivro(alunoId) {
         const inst = this.dungeonInstancias[instId];
         if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
 
+        // ====================================================================
+        // 🔥 1. INICIALIZAÇÃO DO PROFILER PROFUNDO DE HABILIDADE (AAA)
+        // ====================================================================
+        if (!inst.profiler) inst.profiler = {};
+        if (!inst.profiler[atacanteId]) {
+            inst.profiler[atacanteId] = {
+                magiasDiferentes: new Set(), // Mede a rotação do Grimório
+                parriesPerfeitos: 0,         // Reflexos defensivos
+                explorouFraqueza: 0,         // Exploração elemental
+                ccAplicado: 0,               // Crowd Control (Stun, Freeze, etc)
+                danoSofrido: 0,
+                danoCausado: 0,
+                curaRealizada: 0,
+                comboAtual: 0,               // Hits sem levar dano
+                maiorCombo: 0
+            };
+        }
+        let prof = inst.profiler[atacanteId];
+
+        // 1.1 RASTREIO DE DANO E DEFESA DO JOGADOR
         if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
             if (feiticoId === "dano_recebido") {
-                // O dano inimigo agora escala com a dificuldade da dungeon!
                 let danoInimigo = Math.floor((inst.entidades[0].hpMax || 1000) * 0.08 * (inst.mult || 1));
                 a.hpAtual = Math.max(0, a.hpAtual - danoInimigo);
+                
+                // 📉 Quebra a Sequência de Combo e Regista Dor
+                prof.danoSofrido += danoInimigo;
+                prof.comboAtual = 0; 
+
                 this._salvarBancoDeDados();
                 return { sucesso: true, relatoAcao: "Sofreste dano!", hpJogador: a.hpAtual };
+            }
+            if (feiticoId === "protego_block_reflex") {
+                // 🛡️ Regista um Parry Perfeito
+                prof.parriesPerfeitos++;
             }
             return { sucesso: true, relatoAcao: "Impacto registado.", hpJogador: a.hpAtual };
         }
@@ -2307,6 +2335,10 @@ async folhearLivro(alunoId) {
         const feitico = this.livroDeFeiticos[feiticoId];
         if (!feitico) return { erro: "Feitiço desconhecido." };
 
+        // 1.2 Regista a variedade de feitiços (Para Pontuação Tática)
+        prof.magiasDiferentes.add(feiticoId);
+
+        // Progressão da Maestria do Feitiço
         if(!a.maestriaFeiticos[feiticoId]) a.maestriaFeiticos[feiticoId] = { nivel: 1, exp: 0, expProx: 100 };
         let maestria = a.maestriaFeiticos[feiticoId];
         maestria.exp += 15; let upouFeitico = false;
@@ -2319,11 +2351,17 @@ async folhearLivro(alunoId) {
         let forcaDoFeitico = Number(feitico.valorBase || feitico.poderBase || 50) + bonusMaestria;
         let relatoAcao = "";
 
+        // ====================================================================
+        // 🔥 2. MECÂNICAS DE CURA E SUPORTE
+        // ====================================================================
         if (mecanica === 'cura') {
             let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
             a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
             if (feitico.purificar) a.efeitos = []; 
             relatoAcao = `Lançaste ${feitico.nome} e recuperaste ${curaAplicada} HP!`;
+            
+            prof.curaRealizada += curaAplicada; // Rastreio de Healer
+            
             this._salvarBancoDeDados();
             return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
         } 
@@ -2335,24 +2373,24 @@ async folhearLivro(alunoId) {
         let mob = inst.entidades.find(m => m.idx === alvoIdx && m.vivo) || inst.entidades.find(m => m.vivo);
         if(!mob) return { erro: "Sem alvos vivos." };
 
-        // 🔥 A MECÂNICA DO ASSASSINO (CORRIGIDA)
-        // O assassino esquiva-se de 30% dos ataques, A NÃO SER QUE esteja congelado ou atordoado.
         let isImobilizado = mob.efeitos && mob.efeitos.some(e => e.tipo === 'congelado' || e.tipo === 'atordoar');
         if (mob.padrao === 'assassino' && !isImobilizado && Math.random() < 0.30) {
-            return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: 0, defendeu: true, relatoAcao: `💨 O ${mob.nome} esquivou-se pelas sombras! (Dica: Usa Feitiços de Controle/Gelo)`, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+            prof.comboAtual = 0; // Falhar ataque quebra combo
+            return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: 0, defendeu: true, relatoAcao: `💨 O ${mob.nome} esquivou-se! (Usa Gelo ou Controlo)`, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
         }
 
+        // ====================================================================
+        // 🔥 3. MATEMÁTICA DE DANO E SINERGIAS (COM PROFILING TÁTICO)
+        // ====================================================================
         if (!mob.efeitos) mob.efeitos = [];
         let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
         let danoFinal = danoBaseCalculado;
         let multiplicador = 1.0;
         let defendeu = false;
-   // 🔥 APLICA AS PASSIVAS DO JOGADOR
+
         let isCríticoPassivo = Math.random() < (a.passivasCombate.crit_chance || 0.05);
-        if (isCríticoPassivo) {
-            multiplicador += 1.0; // Dobra o dano base
-            relatoAcao += `⚡ CRÍTICO! `;
-        }
+        if (isCríticoPassivo) { multiplicador += 1.0; relatoAcao += `⚡ CRÍTICO! `; }
+        
         let danoDoT = 0;
         mob.efeitos.forEach(e => {
             if (e.tipo === 'queimar') danoDoT += 45;
@@ -2360,7 +2398,7 @@ async folhearLivro(alunoId) {
             e.duracao--;
         });
         mob.efeitos = mob.efeitos.filter(e => e.duracao > 0);
-        if (danoDoT > 0) { mob.hpAtual -= danoDoT; relatoAcao += `[DoT: -${danoDoT} HP] `; }
+        if (danoDoT > 0) { mob.hpAtual -= danoDoT; relatoAcao += `[DoT: -${danoDoT}] `; prof.danoCausado += danoDoT; }
 
         let alvoVeneno = mob.efeitos.find(e => e.tipo === 'envenenar');
         let alvoMolhado = mob.efeitos.find(e => e.tipo === 'molhado');
@@ -2370,42 +2408,48 @@ async folhearLivro(alunoId) {
 
         if (alvoVulneravel) multiplicador += 1.0; 
 
-        // 🔥 NOVO: SISTEMA DE FRAQUEZAS ELEMENTAIS
+        // 🧠 Inteligência Táctica: Fraquezas e Resistências
         if (mob.fracoContra && feitico.elemento === mob.fracoContra) {
-            multiplicador += 1.0; // Dano a Dobrar!
-            relatoAcao += `💥 ATAQUE SUPER EFICAZ! `;
+            multiplicador += 1.0; relatoAcao += `💥 SUPER EFICAZ! `;
+            prof.explorouFraqueza++; // Sobe score Tático
         }
         if (mob.resisteContra && feitico.elemento === mob.resisteContra) {
-            multiplicador -= 0.8; // Corta 80% do dano!
-            relatoAcao += `🛡️ O monstro resistiu ao teu feitiço... `;
-            defendeu = true;
+            multiplicador -= 0.8; relatoAcao += `🛡️ Resistiu... `; defendeu = true;
+            prof.comboAtual = 0; // Usar feitiço errado quebra o fluir tático
         }
 
-        // Combos (Sinergias)
-        if (feitico.elemento === 'fogo' && alvoVeneno) { multiplicador += 2.0; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'envenenar'); relatoAcao += "💥 DETONAÇÃO TÓXICA CRÍTICA! "; }
-        else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; } 
-        else if (feitico.elemento === 'cinetico' && alvoCongelado) { multiplicador += 2.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'congelado'); relatoAcao += "❄️ SHATTER! Gelo estilhaçado! "; }
-        else if (feitico.elemento === 'fogo' && alvoMolhado) { multiplicador -= 0.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'molhado'); relatoAcao += "💨 Evaporação. "; }
+        // 🧠 Inteligência Táctica: Sinergias (Combos Elementais)
+        if (feitico.elemento === 'fogo' && alvoVeneno) { multiplicador += 2.0; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'envenenar'); relatoAcao += "💥 DETONAÇÃO TÓXICA! "; prof.explorouFraqueza++; }
+        else if (feitico.elemento === 'eletrico' && alvoMolhado) { multiplicador += 1.5; mob.efeitos.push({ tipo: 'atordoar', duracao: 2 }); relatoAcao += "⚡ CHOQUE PARALISANTE! "; prof.explorouFraqueza++; prof.ccAplicado++; } 
+        else if (feitico.elemento === 'cinetico' && alvoCongelado) { multiplicador += 2.5; mob.efeitos = mob.efeitos.filter(e => e.tipo !== 'congelado'); relatoAcao += "❄️ SHATTER! "; prof.explorouFraqueza++; }
 
+        // Rastreio de Crowd Control
         if (feitico.efeitoSecundario) {
+            if (['atordoar', 'congelado', 'desarmar', 'vulneravel'].includes(feitico.efeitoSecundario)) prof.ccAplicado++;
             let eExistente = mob.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
             if (eExistente) eExistente.duracao = feitico.duracao || 3;
             else mob.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: feitico.duracao || 3 });
         }
 
         if (mob.padrao === 'defensivo' && mecanica !== 'status' && !alvoAntiCura) {
-            danoFinal = Math.floor(danoFinal * 0.4); defendeu = true;
+            danoFinal = Math.floor(danoFinal * 0.4); defendeu = true; prof.comboAtual = 0;
         }
 
         danoFinal = Math.max(1, Math.floor(danoBaseCalculado * multiplicador));
+        if (Math.random() > 0.85) danoFinal = Math.floor(danoFinal * 1.5);
+
+        // 📈 Registo de Combo Ininterrupto
+        prof.danoCausado += danoFinal;
+        if (!defendeu) {
+            prof.comboAtual++;
+            if (prof.comboAtual > prof.maiorCombo) prof.maiorCombo = prof.comboAtual;
+        }
 
         if (feitico.buffJogador) {
             if(!a.buffs) a.buffs = [];
             a.buffs.push({ tipo: feitico.buffJogador, duracao: feitico.duracaoBuff || 3 });
+            if(feitico.buffJogador === 'regeneracao') prof.curaRealizada += 50;
         }
-
-        let critico = Math.random() > 0.85;
-        if(critico) danoFinal = Math.floor(danoFinal * 1.5);
 
         if (feitico.lifesteal) {
             let roubo = Math.floor(danoFinal * feitico.lifesteal);
@@ -2416,21 +2460,62 @@ async folhearLivro(alunoId) {
         mob.hpAtual -= danoFinal;
         relatoAcao += `Infligiu ${danoFinal} Dano!`;
 
+        // ====================================================================
+        // 🔥 4. AVALIAÇÃO FINAL (RANKING, TÍTULOS E EXP BÓNUS)
+        // ====================================================================
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
             let todosMortos = inst.entidades.every(m => !m.vivo);
 
             if(todosMortos) {
                 let isBoss = (inst.faseAtual === inst.maxFases);
-                
-                // 🔥 NOVO: PARTILHA DE LOOT E XP MULTIPLAYER COOP
                 let recebedores = inst.membros && inst.membros.length > 0 ? inst.membros : [a.id];
                 let divisao = recebedores.length;
 
                 let xpFase = Math.floor((isBoss ? 1500 : 400 * inst.entidades.length) / divisao);
                 let galeoesFase = Math.floor((isBoss ? 800 : 100 * inst.entidades.length) / divisao);
 
-                // Aplica Loot a todos os membros vivos na instância!
+                // --- 🧠 O ALGORITMO DE AVALIAÇÃO DE DESEMPENHO (DEVIL MAY CRY STYLE) ---
+                let p = inst.profiler[atacanteId];
+                let score = 0;
+                score += Math.floor(p.danoCausado / 100);     // Fator Dano Bruto
+                score += (p.parriesPerfeitos * 30);           // Defesas no timing perfeito
+                score += (p.maiorCombo * 10);                 // Fluidez do combate
+                score += (p.explorouFraqueza * 25);           // Tática Elemental
+                score += (p.ccAplicado * 15);                 // Controlo de Feras
+                score += (p.magiasDiferentes.size * 15);      // Rotação não-repetitiva
+                
+                if (p.danoSofrido === 0) score += 150;        // Bónus Intocável "Flawless"
+
+                // Descobrir o Arquétipo (Estilo de Jogo) do Bruxo
+                let wAgressivo = p.danoCausado + (p.maiorCombo * 100);
+                let wDefensivo = (p.parriesPerfeitos * 300) - p.danoSofrido;
+                let wTatico = (p.explorouFraqueza * 300) + (p.ccAplicado * 200) + (p.magiasDiferentes.size * 100);
+                let wSuporte = p.curaRealizada * 5;
+
+                let estiloMax = Math.max(wAgressivo, wDefensivo, wTatico, wSuporte);
+                let tituloCombate = 'Sobrevivente Esforçado';
+                
+                if (estiloMax === wAgressivo) tituloCombate = 'Executor Implacável';
+                if (estiloMax === wDefensivo && wDefensivo > 0) tituloCombate = 'Muralha Intransponível';
+                if (estiloMax === wTatico && wTatico > 0) tituloCombate = 'Mestre Tático';
+                if (estiloMax === wSuporte && wSuporte > 0) tituloCombate = 'Guardião da Luz';
+                if (p.danoSofrido === 0 && p.danoCausado > 0) tituloCombate = 'Fantasma Intocável';
+
+                // Cálculo do Rank (S, A, B, C, D)
+                let grade = 'D';
+                let corRank = '#e74c3c';
+                if (score >= 350) { grade = 'S'; xpFase = Math.floor(xpFase * 1.8); galeoesFase = Math.floor(galeoesFase * 1.5); corRank = '#f1c40f'; }
+                else if (score >= 250) { grade = 'A'; xpFase = Math.floor(xpFase * 1.4); corRank = '#3498db'; }
+                else if (score >= 150) { grade = 'B'; xpFase = Math.floor(xpFase * 1.2); corRank = '#2ecc71'; }
+                else if (score >= 80) { grade = 'C'; corRank = '#f39c12'; }
+
+                let avaliacaoData = {
+                    rank: grade, cor: corRank, titulo: tituloCombate, score: score,
+                    detalhes: `Dano Infligido: ${p.danoCausado} | Dano Sofrido: ${p.danoSofrido} | Parry(s): ${p.parriesPerfeitos} | Max Combo: ${p.maiorCombo}x`
+                };
+                // -------------------------------------------------------------------------
+
                 for (let mId of recebedores) {
                     let membro = this.alunos[mId];
                     if (!membro) continue;
@@ -2440,8 +2525,9 @@ async folhearLivro(alunoId) {
                         membro.lootTemporario.galeoes += galeoesFase;
                         membro.lootTemporario.xp += xpFase;
                         if (!membro.inventario.ingredientes) membro.inventario.ingredientes = {};
-                        if (mob.nome.includes("Aranha")) membro.inventario.ingredientes['veneno_aranha'] = (membro.inventario.ingredientes['veneno_aranha']||0) + 1;
-                        if (mob.nome.includes("Lobisomem")) membro.inventario.ingredientes['pelo_lobo'] = (membro.inventario.ingredientes['pelo_lobo']||0) + 1;
+                        if (mob.nome.includes("Aranha")||mob.nome.includes("Acromântula")) membro.inventario.ingredientes['veneno_aranha'] = (membro.inventario.ingredientes['veneno_aranha']||0) + 1;
+                        if (mob.nome.includes("Lobo")||mob.nome.includes("Gigante")) membro.inventario.ingredientes['pelo_lobo'] = (membro.inventario.ingredientes['pelo_lobo']||0) + 1;
+                        if (mob.nome.includes("Basilisco")||mob.nome.includes("Trevas")) membro.inventario.ingredientes['bezoar'] = (membro.inventario.ingredientes['bezoar']||0) + 1;
                     } else {
                         this._addXp(membro, xpFase); membro.galeoes += galeoesFase; 
                     }
@@ -2449,7 +2535,7 @@ async folhearLivro(alunoId) {
                     if(!membro.estatisticas) membro.estatisticas = { monstrosMortos: 0 };
                     membro.estatisticas.monstrosMortos += inst.entidades.length;
 
-                    // DROP DE EQUIPAMENTOS PROCEDURAIS PARA TODOS (Roll individual!)
+                    // DROP DE EQUIPAMENTOS PROCEDURAIS
                     if (Math.random() < (isBoss ? 0.35 : 0.08)) { 
                         let tipoRnd = ['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)];
                         this.cerebroIA.gerarEquipamentoRPG(tipoRnd, membro.nivel).then(equipNovo => {
@@ -2467,7 +2553,6 @@ async folhearLivro(alunoId) {
                         });
                     }
 
-                    // Envia HUD de Floresta
                     if (inst.isForestNode && global.io) {
                         global.io.to(`priv_${membro.id}`).emit('forest_loot_update', { 
                             gold: membro.lootTemporario.galeoes, xp: membro.lootTemporario.xp, itens: membro.lootTemporario.itens ? membro.lootTemporario.itens.length : 0 
@@ -2475,19 +2560,29 @@ async folhearLivro(alunoId) {
                     }
                 }
 
-                relatoAcao += ` | O Grupo ganhou ${xpFase} XP e ${galeoesFase} G cada!`;
+                relatoAcao += ` | Rank ${grade} (+${xpFase} XP | +${galeoesFase} G)`;
 
                 if (inst.faseAtual < inst.maxFases) {
                     inst.faseAtual++;
                     let maxMobs = (a.pveProgresso && a.pveProgresso.nivel >= 2) ? 2 : 1;
                     let proxMobs = inst.faseAtual === inst.maxFases ? 1 : Math.floor(Math.random() * maxMobs) + 1;
                     let novasEntidades = [];
-                    let mData = await this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel);
-                    for(let i=0; i<proxMobs; i++) {
-                        novasEntidades.push({ idx: i, nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), hpMax: mData.hp, hpAtual: mData.hp, vivo: true, padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)], efeitos: [] });
-                    }
-                    inst.entidades = novasEntidades; this._salvarBancoDeDados();
-                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! ${relatoAcao}`, entidades: novasEntidades, hpBoss: novasEntidades[0].hpAtual, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+                    
+                    this.cerebroIA.gerarMonstroProcedural(mob.hpMax * 1.3, inst.local, (inst.faseAtual === inst.maxFases), a.nivel).then(mData => {
+                        for(let i=0; i<proxMobs; i++) {
+                            novasEntidades.push({ 
+                                idx: i, 
+                                nome: (proxMobs > 1 ? `${mData.nome} [${i+1}]` : mData.nome), 
+                                hpMax: mData.hp, hpAtual: mData.hp, vivo: true, 
+                                padrao: ['agressivo', 'tanque'][Math.floor(Math.random()*2)], 
+                                efeitos: [] 
+                            });
+                        }
+                        inst.entidades = novasEntidades; this._salvarBancoDeDados();
+                        global.io.to(inst.id).emit('alerta_nova_fase', { entidades: novasEntidades }); // Sincroniza Mobs Novos
+                    });
+                    
+                    return { novaFase: true, faseAtual: inst.faseAtual, relatoAcao: `Onda aniquilada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual };
                 } else {
                     inst.status = 'finalizado'; 
                     if (inst.timerBossAtaque) clearInterval(inst.timerBossAtaque);
@@ -2502,15 +2597,16 @@ async folhearLivro(alunoId) {
                         });
                     }
 
-                    return { bossMorto: true, relatoAcao: `Área Purificada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+                    // 🔥 ENVIA A AVALIAÇÃO S/A/B/C PARA O ECRÃ FINAL!
+                    return { bossMorto: true, relatoAcao: `Área Purificada! ${relatoAcao}`, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual, avaliacao: avaliacaoData };
                 }
             } else {
                 this._salvarBancoDeDados();
-                return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+                return { mobEliminado: true, relatoAcao: `${mob.nome} caiu!`, entidades: inst.entidades, hpBoss: 0, danoAplicado: danoFinal, alvoMorto: mob.idx, hpJogador: a.hpAtual };
             }
         }
         this._salvarBancoDeDados();
-        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: danoFinal, defendeu, relatoAcao, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual, buffsJogador: a.buffs };
+        return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: danoFinal, defendeu, relatoAcao, hpJogador: a.hpAtual, buffsJogador: a.buffs };
     }
 	// ==========================================
 // RECEITAS DE FORJA (CRAFTING)
@@ -2921,45 +3017,78 @@ class MotorFlorestaProcedural {
 
     gerarNivelFloresta(areaNivel, instId) {
         let size = 2000 + (areaNivel * 500); 
+        
+        // 🔥 NOVO: BIOMAS E LORE PROCEDURAL
+        const BIOMAS = [
+            { nome: "Clareira das Teias", dica: "Fios grossos prendem as folhas. A biologia destas feras odeia FOGO.", fraco: "fogo" },
+            { nome: "Pântano do Lamento", dica: "Um frio de gelar a espinha. O vazio teme a LUZ pura.", fraco: "luz" },
+            { nome: "Ruínas dos Gigantes", dica: "Pedras antigas tremem. Feitiços CINÉTICOS de impacto forte quebram rocha.", fraco: "cinetico" },
+            { nome: "Ninho Serpentino", dica: "O chão sibila e derrete. GELO e CHOQUE paralisam sangue-frio.", fraco: "gelo" }
+        ];
+        let biomaSorteado = BIOMAS[areaNivel % BIOMAS.length];
+
+        // 🔥 NOVO: SPAWN E PORTAL ESTRATÉGICOS (Extremos Opostos)
+        let edges = [
+            {x: 200, y: 200}, {x: size-200, y: size-200}, 
+            {x: 200, y: size-200}, {x: size-200, y: 200}
+        ];
+        let spawnIndex = Math.floor(Math.random() * 4);
+        let portalIndex = (spawnIndex + 2) % 4; // Opósto diagonal
+
         let inst = {
-            id: instId, area: areaNivel, w: size, h: size,
+            id: instId, area: areaNivel, w: size, h: size, bioma: biomaSorteado,
             jogadores: {}, mobs: [], baus: [], arvores: [],
-            spawn: { x: size/2, y: size - 200 },
-            portal: { x: size/2, y: 200, ativo: false } 
+            spawn: edges[spawnIndex],
+            portal: { x: edges[portalIndex].x, y: edges[portalIndex].y, ativo: false } 
         };
 
-        for(let i=0; i < (size/10); i++) {
-            let ax = Math.random() * size; let ay = Math.random() * size;
-            if (Math.hypot(ax - inst.spawn.x, ay - inst.spawn.y) > 300 && Math.hypot(ax - inst.portal.x, ay - inst.portal.y) > 300) {
-                inst.arvores.push({ x: ax, y: ay, r: 30 + Math.random()*30 });
+        // 🔥 NOVO: LEVEL DESIGN - Criação de Bosques/Corredores
+        let numBosques = 10 + (areaNivel * 5);
+        for(let i=0; i < numBosques; i++) {
+            let centroX = Math.random() * size;
+            let centroY = Math.random() * size;
+            
+            // Garante que o bosque não bloqueia o spawn nem o portal
+            if (Math.hypot(centroX - inst.spawn.x, centroY - inst.spawn.y) < 400) continue;
+            if (Math.hypot(centroX - inst.portal.x, centroY - inst.portal.y) < 400) continue;
+
+            // Cria um aglomerado denso de árvores nesse ponto (Cria paredes naturais)
+            let arvoresNoBosque = 5 + Math.random() * 15;
+            for(let j=0; j < arvoresNoBosque; j++) {
+                inst.arvores.push({ 
+                    x: centroX + (Math.random() * 300 - 150), 
+                    y: centroY + (Math.random() * 300 - 150), 
+                    r: 40 + Math.random()*30 
+                });
             }
         }
 
+        // Mobs e Bosses (Teu código existente, apenas ajusta para o novo portal)
         let qtdMobs = 5 + (areaNivel * 3);
         for(let i=0; i<qtdMobs; i++) {
             let baseHp = 400 * (1 + (areaNivel*0.2));
             let mData = this.core._gerarMonstroRapido(baseHp, "Floresta", false);
+            // Força a fraqueza baseada no bioma do andar!
+            mData.fracoContra = biomaSorteado.fraco; 
+
             inst.mobs.push({
                 id: `fmob_${crypto.randomBytes(3).toString('hex')}`,
                 nome: mData.nome, hpMax: mData.hpMax, hpAtual: mData.hpMax,
-                padrao: mData.padrao, elemento: mData.elemento, // Guarda IA
+                padrao: mData.padrao, elemento: mData.elemento, fracoContra: mData.fracoContra,
                 x: Math.random() * size, y: Math.random() * size,
                 vx: Math.random()*2-1, vy: Math.random()*2-1, isBoss: false
             });
         }
 
         let bossData = this.core._gerarMonstroRapido(1500 * areaNivel, "Floresta", true);
+        bossData.fracoContra = biomaSorteado.fraco;
         inst.mobs.push({
             id: `fboss_${crypto.randomBytes(3).toString('hex')}`,
             nome: bossData.nome, hpMax: bossData.hpMax, hpAtual: bossData.hpMax,
-            padrao: bossData.padrao, elemento: bossData.elemento, 
+            padrao: bossData.padrao, elemento: bossData.elemento, fracoContra: bossData.fracoContra,
             x: inst.portal.x, y: inst.portal.y + 100, vx: 0, vy: 0, isBoss: true
         });
 
-        let qtdBaus = 3 + Math.floor(Math.random() * 3);
-        for(let i=0; i<qtdBaus; i++) {
-            inst.baus.push({ id: `chest_${crypto.randomBytes(3).toString('hex')}`, x: Math.random() * size, y: Math.random() * size, looted: false });
-        }
         return inst;
     }
 

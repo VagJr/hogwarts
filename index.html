@@ -1131,18 +1131,23 @@
         <div id="aba-pve" class="aba oculto">
             <div class="card" style="border-color: #e74c3c; background: rgba(231, 76, 60, 0.1);">
                 <h3 style="color: #e74c3c; text-align:center; font-size:1.8em;">A Floresta Proibida</h3>
-                <p style="color:#aaa; font-size:0.9em; text-align:center; margin-bottom:15px; padding: 0 10px;">
-                    Um antro de escuridão onde feras antigas e criaturas das trevas se escondem. 
-                    Prepara o teu <b style="color:var(--hp-gold);">Grimório</b>, mantém a varinha em riste e sobrevive às hordas para obteres ingredientes raros e pura glória.
-                </p>
-                <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:8px; border:1px dashed #e74c3c; margin-bottom:20px; text-align:center; box-shadow: inset 0 0 20px rgba(231, 76, 60, 0.1);">
+                
+                <div style="background:rgba(20,5,5,0.8); border-left:4px solid #e74c3c; padding:15px; margin-bottom:15px; border-radius:0 4px 4px 0;">
+                    <h4 style="color:#e74c3c; margin:0 0 5px 0;">🦅 Relatório do Batedor</h4>
+                    <p id="ui-pve-dica" style="color:#ccc; font-size:0.9em; font-style:italic; margin:0;">"Avança para o próximo andar para identificares o rasto das criaturas..."</p>
+                </div>
+
+                <div style="background:rgba(0,0,0,0.6); padding:15px; border-radius:8px; border:1px dashed #e74c3c; margin-bottom:20px; text-align:center;">
                     <p style="margin:5px 0;">O teu Progresso: <b id="ui-pve-nivel" style="color:var(--hp-gold); font-size:1.2em;">1</b></p> 
                     <p style="margin:5px 0; color:#ccc;">Profundeza Atual: <b id="ui-pve-area" style="color:#e74c3c; font-size:1.2em;">1</b> / 7</p> 
-                    <p style="margin:5px 0; font-size:0.8em; color:#888;">Multiplicador de Perigo: <span id="ui-pve-mult" style="color:#2ecc71; font-weight:bold;">1.0x</span></p>
                 </div>
-                <button onclick="entrarFlorestaExploracao()"style="background: linear-gradient(to bottom, #8a0b0c, #4a0000); color: #fff; border-color:#e74c3c; font-size:1.1em; padding:15px; box-shadow: 0 0 15px rgba(231,76,60,0.4);">
-                    🌲 Adentrar Floresta (3 Foco)
-                </button>
+                
+                <div style="display:flex; gap:10px;">
+                    <button onclick="mudarCategoria('aposentos')" style="background:#111; color:#fff; border-color:#555; flex:1;">📖 Ajustar Grimório</button>
+                    <button onclick="entrarFlorestaExploracao()" id="btn-entrar-floresta" style="background: linear-gradient(to bottom, #8a0b0c, #4a0000); color: #fff; border-color:#e74c3c; font-size:1.1em; padding:15px; flex:2;">
+                        🌲 Adentrar (3 Foco)
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -2695,11 +2700,42 @@ let arenaInimigos = []; // Array de inimigos
              }
 
              // 3. BOSS FINAL MORREU (FIM TOTAL)
+             // 3. BOSS FINAL MORREU (FIM TOTAL)
              if(dataBackend.bossMorto) {
                  gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#f1c40f", 200, "stars");
                  document.getElementById('ca-boss-hp').style.width = `0%`; safeSet('ca-boss-hp-txt', "0");
-                 document.getElementById('modal-recompensa').classList.remove('oculto');
-                 document.getElementById('recompensa-conteudo').innerHTML = `<h3 style="color:#2ecc71;">Área Limpa!</h3><p>${dataBackend.relatoAcao}</p>`;
+                 
+                 // 🔥 RENDERIZAÇÃO ESTILO JOGO DE LUTA (Devil May Cry / Persona)
+                 if (dataBackend.avaliacao) {
+                     const aval = dataBackend.avaliacao;
+                     document.getElementById('modal-recompensa').classList.remove('oculto');
+                     document.getElementById('recompensa-conteudo').innerHTML = `
+                        <div style="display:flex; flex-direction:column; align-items:center;">
+                            <h3 style="color:#2ecc71; margin-top:0;">Fenda Selada!</h3>
+                            <div style="background:rgba(0,0,0,0.8); border:2px solid ${aval.cor}; padding:20px; border-radius:10px; width:100%; text-align:center; box-shadow:0 0 40px ${aval.cor}55;">
+                                <div style="font-size:1.2em; color:#ccc; letter-spacing:2px;">RANK DE COMBATE</div>
+                                <div style="font-size:5em; font-family:'Cinzel'; font-weight:900; color:${aval.cor}; text-shadow:0 0 20px ${aval.cor}, 2px 2px 0px #000; line-height:1; margin:10px 0;">
+                                    ${aval.rank}
+                                </div>
+                                <div style="font-size:1.4em; color:${aval.cor}; font-weight:bold; text-transform:uppercase;">
+                                    <span style="font-size:0.8em; color:#fff;">ESTILO:</span> ${aval.titulo}
+                                </div>
+                            </div>
+                            
+                            <div style="margin-top:15px; font-size:0.8em; color:#aaa; font-family:monospace; background:rgba(255,255,255,0.05); padding:10px; border-radius:4px; width:100%;">
+                                <div style="color:#f1c40f;">Pontuação Tática: ${aval.score}</div>
+                                <div style="margin-top:5px;">${aval.detalhes}</div>
+                            </div>
+                            
+                            <div style="margin-top:15px; color:#3498db;">${dataBackend.relatoAcao}</div>
+                        </div>
+                     `;
+                 } else {
+                     // Fallback de segurança se o profiler estiver desligado nalguma instância
+                     document.getElementById('modal-recompensa').classList.remove('oculto');
+                     document.getElementById('recompensa-conteudo').innerHTML = `<h3 style="color:#2ecc71;">Área Limpa!</h3><p>${dataBackend.relatoAcao}</p>`;
+                 }
+
                  playSFX('magic'); finalizarArena(true);
                  return;
              }
@@ -8425,8 +8461,13 @@ socket.on('forest_sync', (data) => {
     ForestMMOEngine.mapData = data;
     safeSet('forest-ui-andar', data.area);
     
+    // 🔥 NOVO: Atualiza a dica no painel de Entrada!
+    if (data.bioma) {
+        safeSet('ui-pve-dica', `"${data.bioma.dica}"<br><span style="color:#e74c3c; font-weight:bold; font-size:0.8em; display:block; margin-top:5px;">FRAQUEZA ESPERADA: ${data.bioma.fraco.toUpperCase()}</span>`, true);
+    }
+    
     let eu = data.jogadores[meuBruxo.id];
-    if (eu && !ForestMMOEngine.player.x) { // Sincroniza spawn initial
+    if (eu && !ForestMMOEngine.player.x) { 
         ForestMMOEngine.player.x = eu.x; ForestMMOEngine.player.y = eu.y;
     }
 });
