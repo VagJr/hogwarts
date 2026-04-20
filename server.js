@@ -738,6 +738,7 @@ app.post('/api/estufa/limpar_morto', (req, res) => {
 });
 
 // Atualização da rota de vender no mercado para suportar móveis
+// Atualização da rota de vender no mercado para suportar móveis
 app.post('/api/mercado/vender', (req, res) => {
     const { id, itemId, preco } = req.body;
     const a = core.alunos[id];
@@ -763,11 +764,9 @@ app.post('/api/mercado/vender', (req, res) => {
         tipo: isMovel ? 'mobilia' : 'item'
     };
 
-    // 🔥 CORREÇÃO: Guardar na variável "servidorGlobal" para que a interface o encontre ao atualizar!
-    if (!core.servidorGlobal) core.servidorGlobal = {};
-    if (!core.servidorGlobal.mercadoJogadores) core.servidorGlobal.mercadoJogadores = [];
-    
-    core.servidorGlobal.mercadoJogadores.push(oferta);
+    // 🔥 CORREÇÃO: Guardar na array correta do núcleo do jogo!
+    if (!core.mercadoJogadores) core.mercadoJogadores = [];
+    core.mercadoJogadores.push(oferta);
     
     // Retira o item da mochila ou do baú
     if(isMovel) a.inventario.mobilia = a.inventario.mobilia.filter(m => m.id !== itemId);

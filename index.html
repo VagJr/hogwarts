@@ -3965,12 +3965,15 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
     // 2. INIMIGOS (MOTORES DE RENDERIZAÇÃO PROCEDURAL E COLOSSAL)
     // ==========================================
     ctxCombat.save();
+    ctxCombat.save();
     let mobsVivos = arenaInimigos.filter(m => m.vivo);
 
     mobsVivos.forEach((mob, index) => {
         let offsetX = (index * 160) - ((mobsVivos.length - 1) * 80);
-        let bx = mob.x || ((stateBossHitbox.x - 80) + offsetX); 
-let bY = mob.y || (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos(atTick * 1.5 + index) * 15);
+        
+        // 🔥 CORREÇÃO AQUI: Força as coordenadas da Arena e ignora o X/Y do Mundo Aberto!
+        let bx = ((stateBossHitbox.x - 80) + offsetX); 
+        let bY = (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos(atTick * 1.5 + index) * 15);
         let bN = mob.nome.toLowerCase();
         
         // Verifica se é um Boss (Mais de 2500 de Vida) para aumentar a escala
