@@ -3684,12 +3684,11 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         arenaMana -= cMana;
         document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
         
-        // --- 🃏 LÓGICA DE DESCARTE ---
-        // 1. Remove a carta da mão imediatamente. O 'drawCardInterval' vai tratá-la sozinho!
+        // --- 🃏 LÓGICA DE DESCARTE E ROTAÇÃO ---
         maoCombate[slotIndex] = null; 
         renderizarCartasActionHog(); 
+        setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
 
-        // --- RESTO DA LÓGICA DE ATAQUE VISUAL E FÍSICA COMPLETA ---
         playerHitbox.atkTimer = 1.0; 
         playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
         
@@ -3698,13 +3697,22 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
         let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
         let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
 
+        // 🔥 ENVIAR PARA TODOS A MECÂNICA EXATA (Defesa, Ataque ou Cura)
+        socket.emit('multiplayer_spell', { 
+            instId: combatInstId, 
+            mecanica: mecanica, // <-- A Chave do Sincronismo!
+            cor: cfg.color, 
+            nome: meuBruxo.nome, 
+            shooterId: meuBruxo.id, 
+            feiticoId: sid 
+        });
+
         // 1. SE FOR ESCUDO / DEFESA
         if (mecanica === 'escudo' || mecanica === 'defesa') {
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
             playerHitbox.mode = 'protego'; 
             playerHitbox.timer = 1200; 
             criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-            socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
             processarImpactoNoServidor("protego_block_reflex", true); 
         } 
         // 2. SE FOR CURA
@@ -3713,10 +3721,8 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
             criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
             processarImpactoNoServidor(sid, false); 
         } 
-        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS DINÂMICOS E FEITIÇOS FÍSICOS)
+        // 3. SE FOR ATAQUE OU STATUS (PROJÉTEIS)
         else {
-            socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
-
             gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
             let qt = cfg.quantity || 1;
             let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
@@ -3736,26 +3742,15 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
                         spX = 10 + (Math.random() * 10); 
                         spY = (cfg.speed || 20) + (Math.random() * 5); 
                     }
-                    else if (cfg.shape === 'slash') {
-                        spX = (cfg.speed || 30); 
-                        spY = 0; 
-                    }
-                    else if (cfg.shape === 'wave') {
-                        spX = (cfg.speed || 15); 
-                        spY = 0;
-                    }
+                    else if (cfg.shape === 'slash') { spX = (cfg.speed || 30); spY = 0; }
+                    else if (cfg.shape === 'wave') { spX = (cfg.speed || 15); spY = 0; }
 
                     projeteis.push({ 
-                        x: sX, y: sY, ty: tY, 
-                        speed: spX, vy: spY, 
-                        pBoss: false, 
+                        x: sX, y: sY, ty: tY, speed: spX, vy: spY, pBoss: false, 
                         scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
-                        cor: cfg.color, shape: cfg.shape, glow: cfg.glow,
-                        trailLen: cfg.trailSize || 15,
-                        mov: cfg.movement || 'linear', 
-                        pStyle: cfg.particleStyle || 'sparks', 
-                        impact: cfg.impactEffect || 'explosion', 
-                        faseM: Math.random() * Math.PI * 2, 
+                        cor: cfg.color, shape: cfg.shape, glow: cfg.glow, trailLen: cfg.trailSize || 15,
+                        mov: cfg.movement || 'linear', pStyle: cfg.particleStyle || 'sparks', 
+                        impact: cfg.impactEffect || 'explosion', faseM: Math.random() * Math.PI * 2, 
                         idFeiticoSalvo: sid 
                     });
                 }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
@@ -3975,55 +3970,56 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
     ctx.beginPath(); 
     ctx.arc(200, cvs.height, cvs.width/1.5 + Math.sin(atTick)*20, 0, Math.PI, true); 
     ctx.fill();
-// ==========================================
+
+    // ==========================================
     // 1. JOGADORES ALIADOS E PVP (MULTILAYER SYNC)
     // ==========================================
     
     // Anima a queda do cooldown dos ataques dos aliados para a varinha deles mexer suavemente
-    arenaAliados.forEach(al => {
-        if (al.atkProgress > 0) al.atkProgress = Math.max(0, al.atkProgress - 0.04);
-    });
+    if (arenaAliados) {
+        arenaAliados.forEach(al => {
+            if (al.atkProgress > 0) al.atkProgress = Math.max(0, al.atkProgress - 0.04);
+        });
+    }
     if (arenaInimigoPvP && arenaInimigoPvP.atkProgress > 0) {
         arenaInimigoPvP.atkProgress = Math.max(0, arenaInimigoPvP.atkProgress - 0.04);
     }
 
-    // Desenha todos os teus amigos na tela do teu grupo (ou apenas tu se estiveres sozinho)
-    arenaAliados.forEach(aliado => {
-        let isMe = (aliado.id === meuBruxo.id);
-        
-        let dX = isMe ? playerHitbox.x : aliado.combatX;
-        let dY = isMe ? playerHitbox.y : aliado.combatY;
-        let dHurt = isMe ? (playerHitbox.mode === 'hurt') : false;
-        
-        // Puxa as animações partilhadas (O teu usa o playerHitbox, os amigos usam a variável deles)
-        let dAtkProg = isMe ? playerHitbox.atkTimer : aliado.atkProgress;
-        let dAtkCor = isMe ? playerHitbox.atkColor : (aliado.atkColor || '#fff');
+    // 🔥 ATUALIZAÇÃO: DESENHA OS ALIADOS (COOP) COM OS ESCUDOS
+    if (arenaAliados && arenaAliados.length > 1) {
+        arenaAliados.forEach(al => {
+            if (al.id !== meuBruxo.id) {
+                if (al.timer > 0) al.timer -= 16;
+                
+                // Sombra no chão do Aliado
+                ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+                ctx.beginPath(); ctx.ellipse(al.combatX + 20, al.combatY + 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
 
-        // Sombra no chão
-        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-        ctx.beginPath(); ctx.ellipse(dX + 20, dY + 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
+                drawAnimeWizard(ctx, al.combatX + 20, al.combatY, 1.5, atTick, al.atkProgress || 0, al.atkColor || '#fff', false, al.equipamentos || {}, al.casa);
+                
+                // 🔥 DESENHA O ESCUDO DO TEU AMIGO DA PARTY
+                if (al.mode === 'protego' && al.timer > 0) {
+                    ctx.beginPath();
+                    ctx.arc(al.combatX + 20, al.combatY - 30, 45, 0, Math.PI * 2);
+                    ctx.fillStyle = "rgba(100, 200, 255, 0.15)";
+                    ctx.fill();
+                    ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
 
-        // O renderizador cinemático que puxa a roupa exata de cada um
-        drawAnimeWizard(ctx, dX + 20, dY, 1.5, atTick, dAtkProg, dAtkCor, dHurt, aliado.equipamentos || {}, aliado.casa);
+                // Nome do Aliado
+                ctx.fillStyle = '#2ecc71'; ctx.font = "bold 12px Arial"; ctx.textAlign="center";
+                ctx.fillText(al.nome, al.combatX + 20, al.combatY - 20);
+            }
+        });
+    }
 
-        // Se for o teu jogador e tiver escudo
-        if (isMe && playerHitbox.mode === 'protego') {
-            ctx.save(); ctx.translate(playerHitbox.x + 20, playerHitbox.y);
-            ctx.shadowColor = '#3498db'; ctx.shadowBlur = 20; 
-            ctx.strokeStyle = 'rgba(52, 152, 219, 0.8)'; ctx.lineWidth = 6; 
-            ctx.beginPath(); ctx.arc(20, 0, 90, -Math.PI/2.2, Math.PI/2.2); ctx.stroke();
-            ctx.restore();
-        }
-        
-        // Nome em cima da cabeça dos aliados
-        if (!isMe) {
-            ctx.fillStyle = '#2ecc71'; ctx.font = "bold 12px Arial"; ctx.textAlign="center";
-            ctx.fillText(aliado.nome, dX + 20, dY - 20);
-        }
-    });
-
-    // Se estiver em modo PvP, desenha o oponente (em vez dos monstros)
+    // 🔥 ATUALIZAÇÃO: DESENHA O INIMIGO NO PVP COM O ESCUDO
     if (arenaInimigoPvP) {
+        // Diminui o timer do escudo se existir
+        if (arenaInimigoPvP.timer > 0) arenaInimigoPvP.timer -= 16;
+        
         ctx.save();
         // O inimigo é desenhado na direita, virado para a esquerda (scale -1)
         ctx.translate(arenaInimigoPvP.combatX || 800, arenaInimigoPvP.combatY || 300);
@@ -4032,14 +4028,26 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
         ctx.beginPath(); ctx.ellipse(0, 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
 
-        drawAnimeWizard(ctx, 0, 0, 1.0, atTick, arenaInimigoPvP.atkProgress, arenaInimigoPvP.atkColor, false, arenaInimigoPvP.equipamentos || {}, arenaInimigoPvP.casa);
+        drawAnimeWizard(ctx, 0, 0, 1.0, atTick, arenaInimigoPvP.atkProgress, arenaInimigoPvP.atkColor || '#e74c3c', false, arenaInimigoPvP.equipamentos || {}, arenaInimigoPvP.casa);
         ctx.restore();
+
+        // 🔥 DESENHA O ESCUDO DO INIMIGO PVP (Fora do ctx.save para a coordenada não inverter)
+        if (arenaInimigoPvP.mode === 'protego' && arenaInimigoPvP.timer > 0) {
+            ctx.beginPath();
+            ctx.arc((arenaInimigoPvP.combatX || 800) - 20, (arenaInimigoPvP.combatY || 300) - 30, 45, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(100, 200, 255, 0.15)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
 
         ctx.fillStyle = '#e74c3c'; ctx.font = "bold 16px Cinzel"; ctx.textAlign="center";
         ctx.fillText(arenaInimigoPvP.nome, (arenaInimigoPvP.combatX || 800), (arenaInimigoPvP.combatY || 300) - 30);
     }
+
     // ==========================================
-    // 1. JOGADOR (ESTILO ANIME C/ KINEMATICS PROTEGIDAS)
+    // 2. JOGADOR LOCAL (ESTILO ANIME C/ KINEMATICS PROTEGIDAS)
     // ==========================================
     let isHurt = playerHitbox.mode === 'hurt'; 
     
@@ -4053,6 +4061,10 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         playerHitbox.atkTimer -= 0.04; // Velocidade da animação (volta ao zero suavemente)
         if (playerHitbox.atkTimer < 0) playerHitbox.atkTimer = 0;
     }
+
+    // Sombra no chão Local
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.beginPath(); ctx.ellipse(playerHitbox.x + 20, playerHitbox.y + 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
 
     // Desenha o jogador. NOTE: Todas as animações do corpo/braço ocorrem APENAS aqui dentro!
     drawAnimeWizard(ctx, playerHitbox.x + 20, playerHitbox.y, 1.5, atTick, playerHitbox.atkTimer, playerHitbox.atkColor, isHurt, meuBruxo.equipamentos, meuBruxo.casa);
@@ -5073,9 +5085,8 @@ socket.on('mmo_item_coletado', (d) => {
         if(!combatEngineAtivo) return;
         if(d.shooterId === meuBruxo.id) return; // Ignora os próprios feitiços
 
-        const feitico = servidorGlobal.livroDeFeiticos[d.feiticoId];
-        if(!feitico) return;
-
+        const feitico = servidorGlobal.livroDeFeiticos[d.feiticoId] || {};
+        
         let shooter = arenaAliados ? arenaAliados.find(a => a.id === d.shooterId) : null;
         if(!shooter && arenaInimigoPvP && arenaInimigoPvP.id === d.shooterId) { shooter = arenaInimigoPvP; }
         if(!shooter) return;
@@ -5084,13 +5095,16 @@ socket.on('mmo_item_coletado', (d) => {
         let sX = isShootingAtMe ? (shooter.combatX - 40) : (shooter.combatX + 40); 
         let sY = shooter.combatY - 40;
 
-        // 🔥 LÊ A MECÂNICA ORIGINAL ENVIADA PELO JOGADOR
-        let mecanica = d.mecanica || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
-        const cfg = feitico.visualConfig || { shape: 'sphere', color: d.cor || '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
+        // 🔥 Lê a mecânica diretamente do pacote enviado (Resolve os feitiços customizados!)
+        let mecanica = d.mecanica || feitico.tipoMecanica || 'ataque';
+        const cfg = feitico.visualConfig || { shape: 'sphere', color: d.cor || '#fff', glow: d.cor || '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
 
         if (mecanica === 'escudo' || mecanica === 'defesa') {
             gerarSparksEmCombate(sX, sY, cfg.color, 40);
             criarOndaDeChoqueVisual(sX, sY, cfg.glow || cfg.color);
+            // 🔥 Adiciona o temporizador e o modo de escudo ao aliado/oponente para desenhar o escudo físico!
+            shooter.mode = 'protego';
+            shooter.timer = 1200;
         } 
         else if (mecanica === 'cura') {
             gerarSparksEmCombate(sX, sY, cfg.color, 60, 'stars');
@@ -5105,7 +5119,6 @@ socket.on('mmo_item_coletado', (d) => {
                 setTimeout(() => {
                     let stX = sX;
                     let stY = sY + (Math.random()*40-20);
-                    // O alvo do tiro do aliado (se for inimigo atira para nós, se for aliado atira para o boss)
                     let tY = isShootingAtMe ? (playerHitbox.y - 20) : (stateBossHitbox.y - 20);
                     let spX = isShootingAtMe ? -(cfg.speed || 25) : (cfg.speed || 25);
                     let spY = 0;
@@ -5772,10 +5785,23 @@ socket.on('pvp_update', (dados) => {
     atualizarHPUIVisual();
     
     if (arenaInimigoPvP) {
-        arenaInimigoPvP.atkColor = '#ff0000'; 
-        setTimeout(() => { if(arenaInimigoPvP) arenaInimigoPvP.atkColor = '#fff'; }, 300);
-    }
-});
+                // Diminui o timer do escudo se existir
+                if (arenaInimigoPvP.timer > 0) arenaInimigoPvP.timer -= 16;
+                
+                drawAnimeWizard(ctxCombat, arenaInimigoPvP.combatX, arenaInimigoPvP.combatY, 0.5, atTick, arenaInimigoPvP.atkProgress, '#e74c3c', true, arenaInimigoPvP.equipamentos, arenaInimigoPvP.casa);
+
+                // 🔥 DESENHA O ESCUDO DO INIMIGO PVP
+                if (arenaInimigoPvP.mode === 'protego' && arenaInimigoPvP.timer > 0) {
+                    ctxCombat.beginPath();
+                    ctxCombat.arc(arenaInimigoPvP.combatX - 20, arenaInimigoPvP.combatY - 30, 45, 0, Math.PI * 2);
+                    ctxCombat.fillStyle = "rgba(100, 200, 255, 0.15)";
+                    ctxCombat.fill();
+                    ctxCombat.strokeStyle = "rgba(100, 200, 255, 0.8)";
+                    ctxCombat.lineWidth = 2;
+                    ctxCombat.stroke();
+                }
+            }
+		});	
 
 socket.on('pvp_fim', (dados) => {
     mostrarNotificacao(dados.msg, "info");
