@@ -1320,10 +1320,32 @@ io.on('connection', (socket) => {
     // =====================================
     // CORREÇÃO AAA: CRIAÇÃO E SYNC DE GRUPOS
     // =====================================
-    socket.on('admin_comando', (dados) => {
+    socket.on('admin_comando', async (dados) => {
     // 🔥 SEGURANÇA: Substitui pelo teu ID de Administrador real
-    if (dados.adminId !== 'TEU_ID_ADMIN_AQUI') return; 
+    if (dados.adminId !== 'BRX_9AC7F35224') return; 
+// Dentro do switch ou if de comandos admin
+if (dados.acao === 'gerar_backup_agora') {
+    console.log("📦 [ADMIN] Backup de segurança disparado manualmente por", dados.adminId);
+    
+    const snapshot = { 
+        alunos: core.alunos, 
+        mercadoJogadores: core.mercadoJogadores, 
+        pontuacaoCasas: core.pontuacaoCasas, 
+        gremios: core.gremios,
+        livroDeFeiticos: core.livroDeFeiticos
+    };
 
+    try {
+        await core.backup_collection.insertOne({
+            timestamp: Date.now(),
+            data_humana: new Date().toLocaleString('pt-PT'),
+            dados: snapshot
+        });
+        socket.emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: '✅ Backup de 30min gerado manualmente com sucesso!' });
+    } catch(e) {
+        socket.emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: '❌ Erro ao gerar backup manual.' });
+    }
+}
     if (dados.acao === 'set_level') core.alunos[dados.alvoId].nivel = dados.valor;
     if (dados.acao === 'dar_ouro') core.alunos[dados.alvoId].galeoes += dados.valor;
     if (dados.acao === 'reset_aulas') core.configGlobal.offsetCapitulo = dados.valor; 

@@ -812,6 +812,7 @@
    <button onclick="fecharRecompensaESair()" style="width:80%; background:#2ecc71; color:#fff; border-color:#2ecc71; padding:15px; font-size:1.1em; font-weight:bold;">Guardar no Baú e Sair</button>
    </div>
 <div id="toast-container"></div>
+
 <button id="btn-abrir-admin" onclick="document.getElementById('painel-admin-deus').classList.remove('oculto')" class="oculto" style="position: fixed; top: 120px; left: 10px; z-index: 999999; background: linear-gradient(to bottom, #8a0b0c, #4a0000); color: #fff; border: 2px solid #f1c40f; border-radius: 5px; width: auto; padding: 8px 15px; font-weight: bold; box-shadow: 0 0 15px rgba(231,76,60,0.8); font-family: 'Cinzel', serif;">
     👁️ Modo Deus
 </button>
@@ -829,6 +830,29 @@
         <input type="number" id="admin-valor" placeholder="Ex: 1000" style="background: #000; border: 1px solid #555; color: #fff; width: 100%; padding: 8px; text-align: center;">
     </div>
 
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button onclick="enviarComandoDeus('dar_ouro')" style="background: linear-gradient(to bottom, #d4af37, #8c6b32); color: #000;">💰 Dar Galeões</button>
+        <button onclick="enviarComandoDeus('set_level')" style="background: linear-gradient(to bottom, #3498db, #1d6fa5); color: #fff;">⭐ Setar Nível Mágico</button>
+        <button onclick="enviarComandoDeus('reset_aulas')" style="background: linear-gradient(to bottom, #e74c3c, #962015); color: #fff;">⏳ Manipular Capítulo</button>
+        
+        <button onclick="enviarComandoDeus('gerar_backup_agora')" style="background: linear-gradient(to bottom, #8e44ad, #4b0082); color: #fff; border-color: #9b59b6;">
+            ⚡ Forçar Backup Automático
+        </button>
+    </div>
+
+    <div style="margin-top: 15px; border-top: 1px dashed #e74c3c; padding-top: 15px;">
+        <button onclick="fazerDownloadBackup()" style="background: #27ae60; color: #fff; width:100%; padding:10px; font-size:0.9em; margin-bottom:8px; border-color:#2ecc71;">
+            📥 Baixar Backup Local (.json)
+        </button>
+        
+        <label for="upload-backup" style="display:block; background: #c0392b; color: #fff; width:100%; padding:10px; font-size:0.9em; text-align: center; cursor: pointer; border-radius: 4px; border:1px solid #e74c3c; font-family:'Cinzel', serif;">
+            📤 Restaurar Backup Local (.json)
+        </label>
+        <input type="file" id="upload-backup" accept=".json" style="display:none;" onchange="restaurarBackup(event)">
+    </div>
+    
+    <button onclick="document.getElementById('painel-admin-deus').classList.add('oculto')" style="margin-top: 15px; background: transparent; border: 1px dashed #555; color: #aaa; width: 100%;">Fechar Painel</button>
+</div>
     <div style="display: flex; flex-direction: column; gap: 8px;">
         <button onclick="enviarComandoDeus('dar_ouro')" style="background: linear-gradient(to bottom, #d4af37, #8c6b32); color: #000;">💰 Dar Galeões</button>
         <button onclick="enviarComandoDeus('set_level')" style="background: linear-gradient(to bottom, #3498db, #1d6fa5); color: #fff;">⭐ Setar Nível Mágico</button>
