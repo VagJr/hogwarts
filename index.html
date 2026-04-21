@@ -1361,16 +1361,24 @@
                     </div>
                     
                     <div id="bib-escrever" class="secao-bib oculto">
-                        <h4 style="color:#0f5; border-bottom: 1px dashed #0f5; padding-bottom: 5px;">A Forja Arcana</h4>
+                        <h4 style="color:#0f5; border-bottom: 1px dashed #0f5; padding-bottom: 5px;">A Forja Arcana: Tese de Mestrado</h4>
                         <p style="font-size: 0.9em; color: #ccc; margin-bottom: 15px;">
-                            Tens uma teoria sobre uma nova torção mágica? Descreve detalhadamente o fluxo de energia, o gesto do pulso e o efeito devastador da tua magia inventada.<br>
-                            Se o julgamento do Castelo considerar a tua tese equilibrada e plausível, a magia nascerá no teu Grimório (Custo: 5 Foco).
+                            Criar magia não é um capricho, é uma ciência perigosa. A Matriz Académica exige uma tese completa. 
+                            O poder do teu feitiço será regulado (nerfado) com base no teu nível atual para não quebrar as leis da física de Hogwarts.
+                            Preenche os 4 manuscritos com rigor e criatividade. (Custo: 5 Foco).
                         </p>
-                        <textarea id="tese-manuscrito" rows="7" placeholder="Ex: Um estalar de pulso em diagonal que condensa o ar à volta do alvo, culminando numa implosão gélida..." style="border-color:#0f5; background:rgba(0,0,0,0.6);"></textarea>
-                        <button onclick="submeterTese()" id="btn-submeter-tese" style="color:#0f5; border-color:#0f5; background: rgba(0,255,85,0.1); font-size:1.1em; padding:12px;">⚖️ Submeter ao Julgamento do Castelo</button>
+                        
+                        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
+                            <textarea id="tese-etapa1" rows="2" placeholder="1. Nome da Magia e Intenção (Qual o objetivo exato?)" style="border-color:#0f5; background:rgba(0,0,0,0.6); margin:0;"></textarea>
+                            <textarea id="tese-etapa2" rows="2" placeholder="2. Gesto e Movimento (Como a varinha corta o ar?)" style="border-color:#0f5; background:rgba(0,0,0,0.6); margin:0;"></textarea>
+                            <textarea id="tese-etapa3" rows="2" placeholder="3. Encantamento e Foco Mental (O que dizes e pensas?)" style="border-color:#0f5; background:rgba(0,0,0,0.6); margin:0;"></textarea>
+                            <textarea id="tese-etapa4" rows="3" placeholder="4. Física Mágica (O que acontece quando atinge o alvo? Explica o efeito biológico ou material)" style="border-color:#0f5; background:rgba(0,0,0,0.6); margin:0;"></textarea>
+                        </div>
+                        
+                        <button onclick="submeterTese()" id="btn-submeter-tese" style="color:#0f5; border-color:#0f5; background: rgba(0,255,85,0.1); font-size:1.1em; padding:12px;">⚖️ Submeter Tese ao Conselho</button>
                         
                         <div id="tese-loading" class="oculto" style="text-align:center; padding:20px;">
-                            <p style="animation: pulse 1.5s infinite; color:var(--hp-gold); font-size:1.2em;">👁️ O Castelo respira sobre as tuas palavras...</p>
+                            <p style="animation: pulse 1.5s infinite; color:var(--hp-gold); font-size:1.2em;">👁️ Os velhos mestres debatem o teu manuscrito...</p>
                         </div>
                         <div id="tese-resultado" style="margin-top: 15px;"></div>
                     </div>
@@ -2834,17 +2842,28 @@ let arenaInimigos = []; // Array de inimigos
 	// ==========================================================
 // 🔄 RENDERIZADOR DE DEBUFFS EM TEMPO REAL
 // ==========================================================
+// ==========================================================
+// 🔄 RENDERIZADOR DE DEBUFFS EM TEMPO REAL
+// ==========================================================
 setInterval(() => {
-    if (!meuBruxo || !meuBruxo.efeitos || !combatEngineAtivo) return;
+    // 1. Verifica se estamos num combate ativo
+    if (!meuBruxo || !combatEngineAtivo) return;
+
+    const hudBlock = document.getElementById('hud-bloqueios-centro');
+    if (!meuBruxo.efeitos || meuBruxo.efeitos.length === 0) {
+        if (hudBlock) hudBlock.style.display = 'none';
+        return;
+    }
     
     const agora = Date.now();
     let htmlDebuffs = '';
     
-    // Filtra apenas os efeitos que ainda estão ativos
+    // Filtra para remover os efeitos que JÁ EXPIRARAM (Limpeza passiva sem depender do clique)
     meuBruxo.efeitos = meuBruxo.efeitos.filter(e => e.expiresAt > agora);
     
     meuBruxo.efeitos.forEach(e => {
         if (['desarmar', 'atordoar', 'congelado'].includes(e.tipo)) {
+            // Calcula os segundos exatos restantes para a UI
             let tempoRestante = ((e.expiresAt - agora) / 1000).toFixed(1);
             let icone = e.tipo === 'desarmar' ? '⚔️❌' : (e.tipo === 'congelado' ? '🧊' : '💫');
             
@@ -2857,7 +2876,6 @@ setInterval(() => {
         }
     });
     
-    const hudBlock = document.getElementById('hud-bloqueios-centro');
     if (hudBlock) {
         if (htmlDebuffs !== '') {
             hudBlock.innerHTML = htmlDebuffs;
@@ -2866,7 +2884,7 @@ setInterval(() => {
             hudBlock.style.display = 'none';
         }
     }
-}, 100);
+}, 50); // Corre a 50ms para um relógio muito mais fluido!
 
 // ==========================================================
 // 🛡️ RECEPTOR GLOBAL DE COMBATE
@@ -3848,28 +3866,19 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
 // 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO COM SYNC MULTIPLAYER)
 // ==============================================================================
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
-        if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
-        // Substitui a validação de stun nestas duas funções por esta blindagem absoluta:
-let agora = Date.now();
-let statusArray = meuBruxo.efeitos || []; // Lê os efeitos atualizados do sync_imediato
-let efeitoBloqueio = statusArray.find(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
-
-if (efeitoBloqueio) {
-    playSFX('error'); 
-    document.body.classList.add('shake-screen');
-    setTimeout(() => document.body.classList.remove('shake-screen'), 300);
-    mostrarNotificacao(`Não podes lançar magia! Efeito ativo: ${efeitoBloqueio.tipo.toUpperCase()}`, "erro");
-    return; // 🛑 CORTA AQUI IMEDIATAMENTE. Nenhuma animação ou gasto de mana ocorre.
-}
-        // 🔥 TRAVA MECÂNICA: Se estiver desarmado/atordoado, sai da função antes de rodar qualquer animação
-        let isStunned = (meuBruxo.efeitos || []).some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
-        if (isStunned) {
-            playSFX('error');
-            mostrarNotificacao("Não consegues segurar a varinha!", "erro");
-            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-            return; // 🛑 Bloqueia animações, sockets e lógica de dano
-        }
-
+    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
+    
+    // 🔥 DUPLA BLINDAGEM: Lê o relógio absoluto do ecrã
+    let agora = Date.now();
+    let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
+    // Verifica se algum efeito impeditivo ainda não expirou
+    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
+    
+    if (isStunned) {
+        playSFX('error');
+        document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
+        return; // 🛑 CORTA AQUI. NENHUMA ANIMAÇÃO É GERADA E A MANA NÃO É GASTA.
+    }
         const feitico = servidorGlobal.livroDeFeiticos[sid];
         if (!feitico) return;
         
@@ -4102,16 +4111,15 @@ if (efeitoBloqueio) {
 
         // 🔥 1. CONTAGEM REGRESSIVA DOS EFEITOS E SINCRONIZAÇÃO ABSOLUTA
         if (meuBruxo.efeitos && meuBruxo.efeitos.length > 0) {
-            meuBruxo.efeitos.forEach((ef, idx) => {
-                // Suporta a matemática do PvP (expiresAt em ms reais) e PvE (turnos simulados)
+            meuBruxo.efeitos = meuBruxo.efeitos.filter(ef => {
                 if (ef.expiresAt) {
                     ef.duracao = (ef.expiresAt - agora) / 1000;
                 } else {
-                    ef.duracao = parseFloat((ef.duracao - 0.016).toFixed(3)); // 16ms tick
+                    ef.duracao -= 0.016; // Matemática segura de frames (16ms)
                 }
-                if (ef.duracao <= 0) meuBruxo.efeitos.splice(idx, 1);
+                return ef.duracao > 0;
             });
-            atualizarHPUIVisual(); // Mantém os ícones atualizados
+            atualizarHPUIVisual(); // Apaga os ícones no ecrã e tira a vermelhidão na mesma frame!
         }
 
         // 🔥 2. VERIFICA SE O JOGADOR ESTÁ SOB EFEITO DE CROWD CONTROL (CC)
@@ -6765,8 +6773,17 @@ window.salvarEdicaoManuscrito = async function() {
 
 
 async function submeterTese() {
-    const texto = document.getElementById('tese-manuscrito').value;
-    if(texto.length < 50) return mostrarNotificacao("A sua tese é muito rasa para a Consciência.", "erro");
+    const e1 = document.getElementById('tese-etapa1').value;
+    const e2 = document.getElementById('tese-etapa2').value;
+    const e3 = document.getElementById('tese-etapa3').value;
+    const e4 = document.getElementById('tese-etapa4').value;
+    
+    if(e1.length < 10 || e2.length < 10 || e3.length < 10 || e4.length < 20) {
+        return mostrarNotificacao("A tua tese está incompleta. Os mestres exigem mais detalhes nas 4 etapas.", "erro");
+    }
+    
+    // Empacota as 4 etapas num objeto JSON
+    const teseCompleta = { etapa1: e1, etapa2: e2, etapa3: e3, etapa4: e4 };
     
     document.getElementById('tese-loading').classList.remove('oculto');
     document.getElementById('btn-submeter-tese').disabled = true;
@@ -6775,7 +6792,8 @@ async function submeterTese() {
         const res = await fetch('/api/biblioteca/avaliar_tese', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: meuBruxo.id, manuscrito: texto })
+            // O backend continua a aceitar "manuscrito", mas agora é um Objeto em vez de String!
+            body: JSON.stringify({ id: meuBruxo.id, manuscrito: teseCompleta })
         });
         const d = await res.json();
         
@@ -6783,16 +6801,16 @@ async function submeterTese() {
         document.getElementById('btn-submeter-tese').disabled = false;
 
         if (d.aprovado) {
-            falarTextoIA("A sua tese foi aceita. O feitiço agora pulsa no seu grimório.", "Consciência");
+            falarTextoIA("A sua tese foi aceita. O conselho ajustou a potência para o teu nível.", "Consciência");
             document.getElementById('tese-resultado').innerHTML = `
                 <div class="card" style="border-color:#0f5; text-align:center;">
-                    <h2 style="color:#0f5;">Maniestação Aprovada!</h2>
+                    <h2 style="color:#0f5;">Manifestação Aprovada!</h2>
                     <p>${d.feedback}</p>
                     <div style="background:#111; padding:15px; border-radius:8px; margin:10px 0;">
                         <b style="font-size:1.4em;">${d.feitico.nome}</b><br>
-                        Elemento: ${d.feitico.elemento} | Poder: ${d.feitico.poderBase}
+                        Elemento: ${d.feitico.elemento} | Poder: ${d.feitico.poderBase} | Projéteis: ${d.feitico.visualConfig.quantity}
                     </div>
-                    <button onclick="publicarEstudo('${d.feitico.nome}', '${texto}')">Publicar Estudo para a Comunidade</button>
+                    <button onclick="publicarEstudo('${d.feitico.nome}', '${e1} - ${e4}')">Publicar Estudo para a Comunidade</button>
                 </div>`;
             syncRequest();
         } else {
@@ -9388,6 +9406,12 @@ window.abrirPlacarCasas = function() {
         document.getElementById('taca-timer').innerText = `${Math.floor(horasRestantes / 24)} dias e ${Math.floor(horasRestantes % 24)} horas`;
     }
 };
+// 🔥 HEARTBEAT ANTI-SONO: Mantém o Render acordado enquanto o jogador joga!
+setInterval(() => {
+    if (meuBruxo && meuBruxo.id) {
+        fetch('/api/ping').catch(err => console.log("Ping silencioso falhou."));
+    }
+}, 300000); // Corre a cada 5 minutos (300.000 milissegundos)
 </script>
 </body>
 </html>

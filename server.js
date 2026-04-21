@@ -23,6 +23,10 @@ const MONGO_URI = process.env.MONGO_URI || "";
 
 app.use(express.json());
 app.use(express.static(__dirname));
+// 🔥 SISTEMA ANTI-SONO PARA O RENDER FREE TIER
+app.get('/api/ping', (req, res) => {
+    res.status(200).send('Servidor de Hogwarts Acordado!');
+});
 
 const core = new HogwartsCore();
 // Inicializar a gestão de grupos
@@ -85,14 +89,22 @@ async function inicializarServidor() {
     }
 
     // 2. CONEXÃO BLINDADA AO MONGODB (Otimizada para o Render)
+    // 2. CONEXÃO BLINDADA AO MONGODB (Otimizada para Render Free Tier)
     if (MONGO_URI) {
         try {
-            // Adicionado Pool de conexões e Timeouts mais longos para não cair no Render
+            // O driver moderno do MongoDB já gere o keepAlive por defeito.
             const client = new MongoClient(MONGO_URI, {
                 maxPoolSize: 10,
+                minPoolSize: 2, 
                 serverSelectionTimeoutMS: 5000,
-                socketTimeoutMS: 45000,
-            }); 
+                socketTimeoutMS: 45000
+            });
+            
+            // Ouvintes para detetar quebras de conexão no Render
+            client.on('error', (err) => console.error('❌ Erro Fatal no MongoDB:', err));
+            client.on('timeout', () => console.error('⚠️ Timeout na conexão do MongoDB'));
+            client.on('close', () => console.error('🔌 Conexão do MongoDB fechada!'));
+
             await client.connect();
             const db = client.db('hogwarts_db'); 
             core.collection = db.collection('registos_escolares');

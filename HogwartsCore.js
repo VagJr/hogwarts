@@ -664,153 +664,48 @@ async avaliarEstudoParaAprender(alunoSummary, feiticoOriginal) {
     } catch (e) { return { aprovado: false, feedback: "A conexão com a biblioteca falhou." }; }
 }
 
-async avaliarTeseMagica(aluno, manuscrito) {
-        const prompt = `És a Consciência de Hogwarts. Analisa a tese: "${manuscrito}".
+async avaliarTeseMagica(aluno, manuscritoObj) {
+        // 🔥 NOVO: O manuscrito agora é um Objeto com 4 etapas da tese do aluno
+        let teseString = `1. Nome e Intenção: ${manuscritoObj.etapa1}\n2. Movimento da Varinha: ${manuscritoObj.etapa2}\n3. Fórmula e Palavras Mágicas: ${manuscritoObj.etapa3}\n4. Efeito Biológico/Físico no Alvo: ${manuscritoObj.etapa4}`;
+
+        const prompt = `És a Consciência de Hogwarts. Analisa a tese estruturada em 4 etapas:
+        "${teseString}"
         
-        REGRAS DE EQUILÍBRIO (MÁXIMO DE MANA 10):
-        - Tier 1: custoMana 2-3 | valorBase 100
-        - Tier 2: custoMana 4-6 | valorBase 250
-        - Tier 3: custoMana 7-8 | valorBase 500
-        - Tier 4: custoMana 9-10 | valorBase 900
+        O bruxo criador está no Nível: ${aluno.nivel}.
         
+        ⚖️ REGRA ANTI-OVERPOWER (LIMITES DE STATUS POR NÍVEL DO JOGADOR):
+        - O jogador NÃO PODE ter magias que "quebram o jogo", "matam num hit", "disparam infinitamente" ou "destroem bosses instantaneamente".
+        - O atributo "quantity" (quantidade de projéteis) MÁXIMO PERMITIDO é: 
+          Nível 1-10: Max 3 projéteis. Nível 11-30: Max 6 projéteis. Nível 31+: Max 10 projéteis. Se a tese pedir "uma chuva infinita" ou "mil tiros", tu deves NERFAR e forçar para o limite do nível dele.
+        - O "poderBase" MÁXIMO PERMITIDO é:
+          Nível 1-10: Max 120. Nível 11-30: Max 400. Nível 31+: Max 1500. Se a tese disser "Dano infinito", reduz para o limite!
+        - O "custoMana" (Foco) varia de 1 a 10. Se a magia for muito forte, o custo DEVE ser 8, 9 ou 10.
+        
+        AVALIAÇÃO ACADÉMICA DA TESE:
+        A tese deve ter alta qualidade literária nas 4 etapas. Se o jogador escreveu apenas "Quero atirar fogo muito rápido que mata tudo" em vez de explicar o processo mágico, REJEITE a tese e exija mais rigor académico na Física Mágica.
+
         DNA VISUAL AVANÇADO (visualConfig):
-        - shape: 'bolt' (raio zig-zag), 'sphere' (bola clássica), 'meteor' (chuva do céu), 'wave' (meia-lua cortante), 'slash' (lâmina invisível), 'spiral' (hélice dupla giratória), 'beam' (laser contínuo).
-        - color: código Hex da cor principal.
-        - glow: código Hex do brilho.
-        - quantity: 1 a 15 projéteis.
+        - shape: 'bolt', 'sphere', 'meteor', 'wave', 'slash', 'spiral', 'beam'.
+        - color: Hex da cor principal.
+        - glow: Hex do brilho.
+        - quantity: Aplica o limite ANTI-OP!
         - speed: velocidade (15 a 35).
-        - trailSize: tamanho do rastro (10 a 50).
-        - movement: 'linear' (reto), 'wavy' (movimento senoidal em onda), 'erratic' (tremeluzente/caótico).
-        - particleStyle: 'sparks' (faíscas de luz), 'smoke' (fumaça escura), 'stars' (estrelas brilhantes), 'void' (distorção negra/vácuo), 'blood' (gotas vermelhas).
-        - impactEffect: 'explosion' (explosão radial), 'implosion' (suga para o centro antes de explodir), 'nova' (anel de energia massivo), 'shatter' (quebra como vidro).
-        Regras:
-
-        - O shape define obrigatoriamente o tipo de movimento e impacto.
-
-        - Nunca gerar comportamento que contradiga o shape.
-
-        - Sempre associar origem + trajetória + efeito final.
-
-
-
-
-
-    - color:
-
-        Define a cor base dominante da habilidade (Hex).
-
-        A IA deve interpretar a cor como identidade elemental e emocional.
-
-
-
-        Interpretação:
-
-        - Vermelho (#FF0000 - #FF5500) → fogo, agressividade, destruição
-
-        - Azul (#0099FF - #00CCFF) → energia, gelo, controle
-
-        - Roxo (#8000FF - #CC00FF) → arcano, caos, magia instável
-
-        - Verde (#00FF66 - #66FF99) → veneno, natureza, corrupção
-
-        - Amarelo (#FFFF00 - #FFD700) → luz, eletricidade, poder divino
-
-        - Branco (#FFFFFF) → pureza, energia máxima
-
-        - Preto (#000000) → vazio, escuridão, anulação
-
-
-
-Regras:
-- Deve influenciar partículas, iluminação e impacto.
-- Pode variar em tons durante o movimento.
-- Deve harmonizar ou contrastar com o glow.
-- glow:
-Define a cor do brilho externo e da aura energética.
-Função:
-- Criar sensação de energia irradiando
-- Destacar o efeito no ambiente
-- Adicionar profundidade visual
-Interpretação:
-- Glow igual ao color → efeito coeso e sólido
-- Glow contrastante → efeito mais mágico ou instável
-A IA deve:
-- Criar pulsação, vibração ou emissão contínua
-- Aplicar bloom visual (brilho forte)
-- Expandir levemente além da forma principal
-- quantity:
-Define quantas instâncias do efeito existem simultaneamente.
-Escala:
-- 1 a 2   → ataque focado, precisão máxima
-- 3 a 5   → múltiplos projéteis controlados
-- 6 a 10  → ataque em área moderado
-- 11 a 15 → caos visual, chuva massiva, destruição em larga escala
-A IA deve:
-- Determinar distribuição (linha, arco, círculo, chuva, aleatório)
-- Definir se ocorre simultâneo ou em sequência
-- Evitar sobreposição visual confusa
-- speed:
-Define a velocidade de movimento do efeito.
-Escala:
-- 15 a 18 → lento/pesado (sensação de massa e impacto)
-- 19 a 24 → equilibrado (controle + impacto)
-- 25 a 30 → extremamente rápido (difícil de reagir)
-A IA deve:
-- Ajustar sensação de peso vs agilidade
-- Alterar tempo de impacto
-- Influenciar o comprimento do rastro
-- trailSize:
-Define o tamanho e intensidade do rastro visual deixado pelo movimento.
-Escala:
-- 10 a 15 → rastro leve, quase imperceptível
-- 16 a 25 → rastro visível e estilizado
-- 26 a 40 → rastro dominante, cinematográfico
-A IA deve:
-- Gerar partículas residuais (faíscas, fumaça, energia)
-- Criar persistência temporal (rastro permanece após movimento)
-- Ajustar largura e opacidade do rastro
-REGRAS GLOBAIS DE INTERPRETAÇÃO:
-- Sempre converter os valores em comportamento visual, nunca apenas repetir.
-- Sempre criar uma sequência lógica:
-
-origem → movimento → trajetória → impacto → dissipação
-
-
-- Sempre adicionar:
-- partículas secundárias
-- efeitos de luz
-- sensação física (calor, choque, pressão, tremor)
-- Sempre manter coerência:
-- velocidade deve combinar com shape
-- quantidade deve combinar com escala do ataque
-- cores devem reforçar o tema
-- Sempre gerar sensação de poder e impacto visual forte.
-        RETORNE JSON ESTRITO (Exemplo para Implosão de Vácuo):
+        - movement: 'linear', 'wavy', 'erratic'.
+        - particleStyle: 'sparks', 'smoke', 'stars', 'void', 'blood'.
+        - impactEffect: 'explosion', 'implosion', 'nova', 'shatter'.
+        
+        EFEITOS SECUNDÁRIOS:
+        'queimar', 'sangrar', 'envenenar', 'atordoar', 'congelado', 'desarmar', 'vulneravel', 'anti_cura'.
+        
+        RETORNE JSON ESTRITO:
         {
-            "aprovado": true,
-            "feedback": "Uma teoria fascinante sobre a física do vácuo.",
+            "aprovado": true (ou false se a tese for preguiçosa/mal escrita),
+            "feedback": "Análise da qualidade do texto e explicação do porquê o poder foi ajustado para o nível dele.",
             "feitico": {
-                "nome": "Implosio Totalis", "tipoMecanica": "ataque", "elemento": "cinetico",
-                "valorBase": 600, "custoMana": 8,
+                "nome": "Nome do Feitiço", "tipoMecanica": "ataque/status/escudo/cura", "elemento": "cinetico/fogo/gelo/trevas/luz",
+                "valorBase": 100, "custoMana": 5, "efeitoSecundario": "queimar", "duracao": 2,
                 "visualConfig": { "shape": "sphere", "color": "#8e44ad", "glow": "#4b0082", "quantity": 1, "speed": 18, "trailSize": 10, "movement": "linear", "particleStyle": "void", "impactEffect": "implosion" },
-                "lore": "Colapso de pressão atmosférica."
-            }
-        REGRAS DE SINERGIA E STATUS (NOVO E PROFUNDO):
-        - A tua tarefa é criar combos MTG/MMORPG. Podes adicionar 'efeitoSecundario' à magia. Efeitos válidos:
-          'queimar' (DoT de fogo), 'sangrar' (DoT de trevas), 'envenenar' (DoT de natureza), 'atordoar' (Impede ataque), 'congelado' (Impede ataque + combo cinético), 'desarmar' (Impede ataque), 'vulneravel' (Alvo sofre o dobro do dano), 'molhado' (Combo elétrico), 'anti_cura' (Quebra escudos).
-        - Podes adicionar 'buffJogador' para classes de Suporte/Tank: 'regeneracao' (Cura por tempo), 'espinhos' (Reflete dano), 'pressa' (Reduz custo de feitiços).
-        - Podes adicionar 'duracao' (em turnos 1 a 5).
-        - Podes adicionar 'lifesteal' (ex: 0.3 para 30% do dano curar o jogador).
-        - Podes adicionar 'purificar': true (remove status negativos do jogador).
-        RETORNE JSON ESTRITO (Exemplo para Implosão de Vácuo):
-        {
-            "aprovado": true,
-            "feedback": "Uma teoria fascinante sobre a física do vácuo.",
-            "feitico": {
-                "nome": "Implosio Totalis", "tipoMecanica": "status", "elemento": "cinetico",
-                "valorBase": 200, "custoMana": 8, "efeitoSecundario": "atordoar", "duracao": 2,
-                "visualConfig": { "shape": "sphere", "color": "#8e44ad", "glow": "#4b0082", "quantity": 1, "speed": 18, "trailSize": 10, "movement": "linear", "particleStyle": "void", "impactEffect": "implosion" },
-                "lore": "Colapso de pressão atmosférica."
+                "lore": "Resumo lore."
             }
         }`;       
         try {
@@ -1239,11 +1134,11 @@ class HogwartsCore {
 
         // NOVO GRIMÓRIO (Sistema de Classes: DPS, Healer, Tank, Control)
         this.livroDeFeiticos = {
-            'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 2, poderBase: 40, efeitoSecundario: 'desarmar', duracao: 2, lore: "Desarma o oponente (Impede o inimigo de atacar por 2 turnos).", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1, trailSize: 15 } },
+            'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 2, poderBase: 40, efeitoSecundario: 'desarmar', duracao: 2, lore: "Desarma o oponente (Impede o inimigo de atacar por 2 segundos).", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1, trailSize: 15 } },
             'incendio': { nome: "Incendio", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 4, poderBase: 80, efeitoSecundario: 'queimar', duracao: 4, lore: "Dano + Queimadura. Sinergia: Detona 'Veneno' para 300% de dano extra.", visualConfig: { shape: 'wave', color: '#ff4500', glow: '#ff8800', quantity: 3, trailSize: 8 } },
-            'protego': { nome: "Protego", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 3, poderBase: 300, defende: true, buffJogador: 'espinhos', duracaoBuff: 3, lore: "Escudo denso. Reflete 20% do dano recebido (Espinhos por 3 turnos).", visualConfig: { shape: 'sphere', color: '#3498db' } },
-            'stupefy': { nome: "Estupefaça", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 120, efeitoSecundario: 'atordoar', duracao: 1, lore: "Dano massivo. Sinergia: Shatter (Quebra o alvo se Congelado multiplicando dano).", visualConfig: { shape: 'sphere', color: '#e74c3c', glow: '#ff0000', quantity: 1, trailSize: 20 } },
-            'sectumsempra': { nome: "Sectumsempra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 150, efeitoSecundario: 'sangrar', duracao: 4, lifesteal: 0.5, lore: "Cortes profundos. (Sangramento 4 turnos + 50% Roubo de Vida).", visualConfig: { shape: 'slash', color: '#ffffff', glow: '#888888', quantity: 2, trailSize: 5 } },
+            'protego': { nome: "Protego", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 3, poderBase: 300, defende: true, buffJogador: 'espinhos', duracaoBuff: 3, lore: "Escudo denso. Reflete 20% do dano recebido (Espinhos por 3 segundos).", visualConfig: { shape: 'sphere', color: '#3498db' } },
+            'stupefy': { nome: "Estupefaça", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 120, efeitoSecundario: 'atordoar', duracao: 1.5, lore: "Dano massivo. Sinergia: Shatter (Quebra o alvo se Congelado multiplicando dano).", visualConfig: { shape: 'sphere', color: '#e74c3c', glow: '#ff0000', quantity: 1, trailSize: 20 } },
+            'sectumsempra': { nome: "Sectumsempra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 150, efeitoSecundario: 'sangrar', duracao: 4, lifesteal: 0.5, lore: "Cortes profundos. (Sangramento 4 segundos + 50% Roubo de Vida).", visualConfig: { shape: 'slash', color: '#ffffff', glow: '#888888', quantity: 2, trailSize: 5 } },
             'aguamenti': { nome: "Aguamenti", tipoMecanica: 'status', elemento: 'agua', custoFocoBase: 3, poderBase: 50, efeitoSecundario: 'molhado', duracao: 3, lore: "Jato de água. Sinergia: Feitiços elétricos em alvos molhados causam Paralisia e Dano x2.", visualConfig: { shape: 'wave', color: '#0f3c55', glow: '#3498db', quantity: 5, trailSize: 15 } },
             'crucio': { nome: "Crucio", tipoMecanica: 'maldicao', elemento: 'trevas', custoFocoBase: 8, poderBase: 80, efeitoSecundario: 'vulneravel', duracao: 3, lore: "Maldição. O alvo recebe +100% de dano de TODAS as fontes (Quebra Defesa).", visualConfig: { shape: 'bolt', color: '#8e44ad', glow: '#4b0082', quantity: 3, trailSize: 25 } },
             'expecto_patronum': { nome: "Expecto Patronum", tipoMecanica: 'cura', elemento: 'luz', custoFocoBase: 10, poderBase: 400, purificar: true, buffJogador: 'regeneracao', duracaoBuff: 5, lore: "Cura 400 HP, purifica e concede Regeneração de Vida contínua (HoT).", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#a8d5ff', quantity: 1, trailSize: 30 } },
@@ -2453,10 +2348,19 @@ a.siclos += 5; // Bonus pro Last Hit
         const inst = this.dungeonInstancias[instId];
         if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
 
+        // 🔥 O RELÓGIO ABSOLUTO DO SERVIDOR (1.2 Segundos)
         const agora = Date.now();
         if(!a.efeitos) a.efeitos = []; if(!a.buffs) a.buffs = [];
+        
+        // Limpa automaticamente os efeitos cujo tempo já passou!
         a.efeitos = a.efeitos.filter(e => e.expiresAt > agora);
         a.buffs = a.buffs.filter(b => b.expiresAt > agora);
+
+        // VERIFICA STUN NO PVE ANTES DE TUDO
+        let incapacitado = a.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+        if (incapacitado && feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
+            return { erro: "Estás sob efeito de controlo mágico!" };
+        }
 
         // ====================================================================
         // 🔥 1. INICIALIZAÇÃO DO PROFILER PROFUNDO DE HABILIDADE (AAA)
@@ -2470,12 +2374,6 @@ a.siclos += 5; // Bonus pro Last Hit
             };
         }
         let prof = inst.profiler[atacanteId];
-
-        // VERIFICA STUN NO PVE ANTES DE TUDO (Impede ataques se imobilizado)
-        let incapacitado = a.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
-        if (incapacitado && feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
-            return { erro: "Estás sob efeito de controlo mágico!" };
-        }
 
         // 1.1 RASTREIO DE DANO E DEFESA DO JOGADOR
         if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
@@ -2540,7 +2438,7 @@ a.siclos += 5; // Bonus pro Last Hit
         } 
         
         if (mecanica === 'escudo' || mecanica === 'defesa') {
-            let duracaoMs = (feitico.duracaoBuff || 3) * 2000;
+            let duracaoMs = (feitico.duracaoBuff || 3) * 1000;
             a.escudoHp = forcaDoFeitico + ((a.atributosTotais.defesa || 5) * 5);
             
             let bExist = a.buffs.find(b => b.tipo === 'escudo_fisico');
@@ -2560,51 +2458,51 @@ a.siclos += 5; // Bonus pro Last Hit
         }
 
         // ====================================================================
-        // 🔥 3. MATEMÁTICA DE DANO E SINERGIAS (COM PROFILING TÁTICO)
+        // 🔥 3. MATEMÁTICA DE DANO, SINERGIAS E CC EM TEMPO REAL
         // ====================================================================
         if (!mob.efeitos) mob.efeitos = [];
         let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
         
-        // 🔥 BALANÇO DE DIFICULDADE (END-GAME): Sistema de Mitigação de Dano
-        // Monstros do fim do jogo ganham armadura exponencial.
         let mobArmor = 0;
-        if (mob.isBoss) mobArmor = mob.hpMax * 0.05; // Bosses têm muita defesa
-        if (inst.mult) mobArmor += (inst.mult * 20); // Multiplicador de Andar da Floresta
+        if (mob.isBoss) mobArmor = mob.hpMax * 0.05;
+        if (inst.mult) mobArmor += (inst.mult * 20);
         
-        // Fórmula de Defesa (Warcraft): Cada 100 pontos de armadura reduz 50% do dano bruto.
         let reducao = 100 / (100 + mobArmor);
         danoBaseCalculado = Math.floor(danoBaseCalculado * reducao);
-        
-        if (danoBaseCalculado < 1) danoBaseCalculado = 1; // Para nunca dar 0 de dano
+        if (danoBaseCalculado < 1) danoBaseCalculado = 1;
 
         let danoFinal = danoBaseCalculado;
         let multiplicador = 1.0;
         let defendeu = false;
-        let interrompeu = false; // 🔥 NOVA FLAG PARA AVISAR O CLIENTE
+        let interrompeu = false; 
 
-        // Quando aplicas os Efeitos Secundários (Expelliarmus, Glacius, etc)
-        let entidadeAlvo = inst.isPvP ? alvo : mob; 
-        
-        if (feitico.efeitoSecundario && entidadeAlvo) {
-            
-            // 🔥 SE O FEITIÇO FOR DE CC (Desarmar, Atordoar, Congelar), INTERROMPE O ALVO!
+        // ============================================
+        // 🔥 O CONTROLO DE MASSAS (CC) ABSOLUTO E TEMPO REAL
+        // ============================================
+        if (feitico.efeitoSecundario) {
             if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) {
                 interrompeu = true;
             }
 
-            let nivelMagia = (a.maestriaFeiticos && a.maestriaFeiticos[feiticoId]) ? a.maestriaFeiticos[feiticoId].nivel : 1;
-            let duracaoCalculada = parseFloat((1.0 + (nivelMagia * 0.2)).toFixed(1)); 
+            // O CC dura EXATAMENTE 1.2 segundos (1200ms) sem depender de ações do inimigo!
+            let duracaoSegundos = 1.2;
+            let duracaoMs = 767; 
 
-            if (!entidadeAlvo.efeitos) entidadeAlvo.efeitos = [];
-            let eExistente = entidadeAlvo.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
-            if (eExistente) eExistente.duracao = duracaoCalculada;
-            else entidadeAlvo.efeitos.push({ tipo: feitico.efeitoSecundario, duracao: duracaoCalculada });
+            let eExistente = mob.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
             
-            if (inst.isPvP && global.io) {
-                global.io.to(inst.id).emit('sync_imediato', { aluno: entidadeAlvo, servidor: this._obterDadosServidor() });
+            if (eExistente) {
+                eExistente.expiresAt = agora + duracaoMs;
+                eExistente.duracao = duracaoSegundos;
+            } else {
+                mob.efeitos.push({ 
+                    tipo: feitico.efeitoSecundario, 
+                    expiresAt: agora + duracaoMs,
+                    duracao: duracaoSegundos 
+                });
             }
         }
 
+        let alvoAntiCura = mob.efeitos.some(e => e.tipo === 'anti_cura');
         if (mob.padrao === 'defensivo' && mecanica !== 'status' && !alvoAntiCura) {
             danoFinal = Math.floor(danoFinal * 0.4); defendeu = true; prof.comboAtual = 0;
         }
@@ -2620,7 +2518,7 @@ a.siclos += 5; // Bonus pro Last Hit
 
         if (feitico.buffJogador) {
             if(!a.buffs) a.buffs = [];
-            let duracaoMs = (feitico.duracaoBuff || 3) * 2000;
+            let duracaoMs = (feitico.duracaoBuff || 3) * 1000;
             let bExist = a.buffs.find(b => b.tipo === feitico.buffJogador);
             if(bExist) bExist.expiresAt = agora + duracaoMs;
             else a.buffs.push({ tipo: feitico.buffJogador, duracao: feitico.duracaoBuff || 3, expiresAt: agora + duracaoMs });
@@ -2638,7 +2536,7 @@ a.siclos += 5; // Bonus pro Last Hit
         relatoAcao += `Infligiu ${danoFinal} Dano!`;
 
         // ====================================================================
-        // 🔥 4. AVALIAÇÃO FINAL E LOOT (Se o boss morrer)
+        // 🔥 4. AVALIAÇÃO FINAL E LOOT
         // ====================================================================
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
@@ -2666,11 +2564,11 @@ a.siclos += 5; // Bonus pro Last Hit
 
                     let score = 0;
                     score += Math.floor((p.danoCausado || 0) / 100);     
-                    score += ((p.parriesPerfeitos || 0) * 40);           
+                    score += ((p.parriesPerfeitos || 0) * 40);            
                     score += ((p.maiorCombo || 0) * 15);                 
                     score += ((p.explorouFraqueza || 0) * 35);           
                     score += ((p.ccAplicado || 0) * 20);                 
-                    score += ((p.magiasDiferentes ? p.magiasDiferentes.size : 0) * 20);      
+                    score += ((p.magiasDiferentes ? p.magiasDiferentes.size : 0) * 20);     
                     score += bonusVelocidade;
                     if (p.danoSofrido === 0 && p.danoCausado > 0) score += 200; 
 
@@ -2795,7 +2693,7 @@ a.siclos += 5; // Bonus pro Last Hit
             buffsJogador: a.buffs, 
             interrompeu: interrompeu // 🔥 INJETA O SINAL DE INTERRUPÇÃO AQUI
         };
-    }
+        }
 	// ==========================================
 // RECEITAS DE FORJA (CRAFTING)
 // ==========================================
@@ -3037,7 +2935,7 @@ a.siclos += 5; // Bonus pro Last Hit
         
         const agora = Date.now();
         
-        // 1. LIMPA EFEITOS EXPIRADOS (Tempo Real)
+        // 1. LIMPA EFEITOS EXPIRADOS (Tempo Real Absoluto)
         if(!eu.efeitos) eu.efeitos = []; if(!inimigo.efeitos) inimigo.efeitos = [];
         if(!eu.buffs) eu.buffs = []; if(!inimigo.buffs) inimigo.buffs = [];
         eu.efeitos = eu.efeitos.filter(e => e.expiresAt > agora);
@@ -3061,8 +2959,8 @@ a.siclos += 5; // Bonus pro Last Hit
             // 🔥 SE FOR ESCUDO (Cria uma barreira de HP extra)
             if (mecanica === 'escudo' || mecanica === 'defesa') {
                 let forcaEscudo = (f.poderBase || 300) + ((aEu.atributosTotais.defesa || 5) * 5);
-                eu.escudoHp = forcaEscudo; // HP próprio do escudo!
-                let duracaoMs = (f.duracaoBuff || 3) * 2000; // Converte turnos para Segundos Reais
+                eu.escudoHp = forcaEscudo; 
+                let duracaoMs = (f.duracaoBuff || 3) * 1000; 
                 
                 let bExist = eu.buffs.find(b => b.tipo === 'escudo_fisico');
                 if(bExist) bExist.expiresAt = agora + duracaoMs;
@@ -3086,13 +2984,13 @@ a.siclos += 5; // Bonus pro Last Hit
                 let temEscudoVisual = inimigo.buffs.some(b => b.tipo === 'escudo_fisico');
                 if (temEscudoVisual && inimigo.escudoHp > 0) {
                     if (dBase >= inimigo.escudoHp) {
-                        dano = dBase - inimigo.escudoHp; // Dano que sobra passa para o HP
+                        dano = dBase - inimigo.escudoHp; 
                         inimigo.escudoHp = 0;
-                        inimigo.buffs = inimigo.buffs.filter(b => b.tipo !== 'escudo_fisico'); // Quebra o escudo
+                        inimigo.buffs = inimigo.buffs.filter(b => b.tipo !== 'escudo_fisico');
                         relatoAcao = `O escudo do adversário foi ESTILHAÇADO!`;
                     } else {
                         inimigo.escudoHp -= dBase;
-                        dano = 0; // Escudo absorveu tudo
+                        dano = 0; 
                         relatoAcao = `O escudo do inimigo absorveu o golpe.`;
                     }
                 } else {
@@ -3102,12 +3000,22 @@ a.siclos += 5; // Bonus pro Last Hit
 
                 if (dano > 0) inimigo.hpAtual -= dano;
 
-                // SÓ APLICA DEBUFF SE O ESCUDO NÃO O BLOQUEOU
-                if (f.efeitoSecundario && dano > 0) {
-                    let duracaoMs = (f.duracao || 2) * 2000;
+                // 🔥 BLOQUEIO AUTOMÁTICO - APLICA DEBUFF SEMPRE QUE ATINGE (Muitos feitiços de status causam 0 dano mas aplicam CC)
+                if (f.efeitoSecundario && (dano > 0 || mecanica === 'status')) {
+                    // Fixado em 1.2 segundos para qualquer controlo de massas (Anti-Stunlock longo)
+                    let duracaoMs = 1200; 
+                    
                     let eExist = inimigo.efeitos.find(e => e.tipo === f.efeitoSecundario);
-                    if(eExist) eExist.expiresAt = agora + duracaoMs;
-                    else inimigo.efeitos.push({ tipo: f.efeitoSecundario, expiresAt: agora + duracaoMs });
+                    if(eExist) {
+                        eExist.expiresAt = agora + duracaoMs;
+                        eExist.duracao = 1.2; 
+                    } else {
+                        inimigo.efeitos.push({ 
+                            tipo: f.efeitoSecundario, 
+                            expiresAt: agora + duracaoMs,
+                            duracao: 1.2
+                        });
+                    }
                 }
             }
         }
@@ -3130,8 +3038,8 @@ a.siclos += 5; // Bonus pro Last Hit
             aVenc.elos.duelos += 25; aVenc.estatisticas.duelosVencidos++;
             aPerd.elos.duelos = Math.max(0, aPerd.elos.duelos - 15);
             aVenc.galeoes += 50; this.ganharXp(aVenc, 500); 
-			
-			// 🔥 GANHA PONTOS PARA A CASA NO DUELO
+            
+            // GANHA PONTOS PARA A CASA NO DUELO
             this.adicionarPontosCasa(aVenc.casa, 10);
             if (global.io) global.io.emit('pontuacao_atualizada', this.pontuacaoCasas);
             
