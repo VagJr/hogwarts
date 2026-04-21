@@ -73,11 +73,20 @@ async function inicializarServidor() {
     
     // 1. FUNÇÃO AUXILIAR PARA CARREGAR OS DADOS
     function carregarDadosNaMemoria(doc) {
-        core.alunos = doc.alunos || {}; 
-        core.mercadoJogadores = doc.mercadoJogadores || []; 
-        core.logs = doc.logs || { salaoPrincipal: [], profetaDiario: [] };
-        core.pontuacaoCasas = doc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate' };
-        core.gremios = doc.gremios || {};
+        // 1. Substitui a RAM imediatamente
+            core.alunos = backupData.alunos || {};
+            core.mercadoJogadores = backupData.mercadoJogadores || [];
+            core.pontuacaoCasas = backupData.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate', fimCiclo: Date.now() + 604800000 };
+            core.gremios = backupData.gremios || {};
+
+            // 🔥 CORREÇÃO NA RESTAURAÇÃO: Protege o Grimório Base
+            if (backupData.livroDeFeiticos) {
+                for (let key in backupData.livroDeFeiticos) {
+                    if (key.startsWith('custom_')) {
+                        core.livroDeFeiticos[key] = backupData.livroDeFeiticos[key];
+                    }
+                }
+            }
         
         if (doc.livroDeFeiticos) {
             let feiticosPersonalizados = {};
@@ -136,7 +145,15 @@ async function inicializarServidor() {
                 core.mercadoJogadores = doc.mercadoJogadores || [];
                 core.pontuacaoCasas = doc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate', fimCiclo: Date.now() + 604800000 };
                 core.gremios = doc.gremios || {};
-                core.livroDeFeiticos = doc.livroDeFeiticos || core.livroDeFeiticos;
+                
+                // 🔥 CORREÇÃO: Mantém os 47 feitiços originais, puxa apenas os "Criados por Jogadores" do Save!
+                if (doc.livroDeFeiticos) {
+                    for (let key in doc.livroDeFeiticos) {
+                        if (key.startsWith('custom_')) {
+                            core.livroDeFeiticos[key] = doc.livroDeFeiticos[key];
+                        }
+                    }
+                }
             }
 
         } catch (error) { 
