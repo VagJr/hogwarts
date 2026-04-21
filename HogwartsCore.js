@@ -1100,7 +1100,8 @@ class HogwartsCore {
                 { id: "l_10", nome: "O Céu Noturno", tipo: "livro", preco: 40 },
                 { id: "l_11", nome: "Vida Doméstica dos Muggles", tipo: "livro", preco: 25 },
                 { id: "l_12", nome: "Alquimia, O Guia Prático", tipo: "livro", preco: 80 },
-                { id: "l_13", nome: "História da Magia", tipo: "livro", preco: 30 }
+                { id: "l_13", nome: "História da Magia", tipo: "livro", preco: 30 },
+                { id: "l_14", nome: "Quadribol Através dos Séculos", tipo: "livro", preco: 25 }
             ],
             madamalkin: [ { id: "r_1", nome: "Veste Escolar Simples", tipo: "veste", preco: 50 } ],
             boticario: [ 
@@ -1132,18 +1133,73 @@ class HogwartsCore {
         this.listaZonas = ["Salão Principal", "Grande Escadaria", "Masmorras", "Torre de Astronomia", "Biblioteca", "Floresta Proibida", "Banheiro da Murta", "Hogsmeade"];
         this.listaZonas.forEach(z => this.zonasVivas[z] = { entidades: [], itens: [] });
 
-        // NOVO GRIMÓRIO (Sistema de Classes: DPS, Healer, Tank, Control)
+// ==============================================================================
+        // 📖 NOVO GRIMÓRIO DE COMBATE (50 Feitiços - Sistema MTG Combo)
+        // ==============================================================================
         this.livroDeFeiticos = {
-            'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 2, poderBase: 40, efeitoSecundario: 'desarmar', duracao: 2, lore: "Desarma o oponente (Impede o inimigo de atacar por 2 segundos).", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1, trailSize: 15 } },
-            'incendio': { nome: "Incendio", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 4, poderBase: 80, efeitoSecundario: 'queimar', duracao: 4, lore: "Dano + Queimadura. Sinergia: Detona 'Veneno' para 300% de dano extra.", visualConfig: { shape: 'wave', color: '#ff4500', glow: '#ff8800', quantity: 3, trailSize: 8 } },
-            'protego': { nome: "Protego", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 3, poderBase: 300, defende: true, buffJogador: 'espinhos', duracaoBuff: 3, lore: "Escudo denso. Reflete 20% do dano recebido (Espinhos por 3 segundos).", visualConfig: { shape: 'sphere', color: '#3498db' } },
-            'stupefy': { nome: "Estupefaça", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 120, efeitoSecundario: 'atordoar', duracao: 1.5, lore: "Dano massivo. Sinergia: Shatter (Quebra o alvo se Congelado multiplicando dano).", visualConfig: { shape: 'sphere', color: '#e74c3c', glow: '#ff0000', quantity: 1, trailSize: 20 } },
-            'sectumsempra': { nome: "Sectumsempra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 150, efeitoSecundario: 'sangrar', duracao: 4, lifesteal: 0.5, lore: "Cortes profundos. (Sangramento 4 segundos + 50% Roubo de Vida).", visualConfig: { shape: 'slash', color: '#ffffff', glow: '#888888', quantity: 2, trailSize: 5 } },
-            'aguamenti': { nome: "Aguamenti", tipoMecanica: 'status', elemento: 'agua', custoFocoBase: 3, poderBase: 50, efeitoSecundario: 'molhado', duracao: 3, lore: "Jato de água. Sinergia: Feitiços elétricos em alvos molhados causam Paralisia e Dano x2.", visualConfig: { shape: 'wave', color: '#0f3c55', glow: '#3498db', quantity: 5, trailSize: 15 } },
-            'crucio': { nome: "Crucio", tipoMecanica: 'maldicao', elemento: 'trevas', custoFocoBase: 8, poderBase: 80, efeitoSecundario: 'vulneravel', duracao: 3, lore: "Maldição. O alvo recebe +100% de dano de TODAS as fontes (Quebra Defesa).", visualConfig: { shape: 'bolt', color: '#8e44ad', glow: '#4b0082', quantity: 3, trailSize: 25 } },
-            'expecto_patronum': { nome: "Expecto Patronum", tipoMecanica: 'cura', elemento: 'luz', custoFocoBase: 10, poderBase: 400, purificar: true, buffJogador: 'regeneracao', duracaoBuff: 5, lore: "Cura 400 HP, purifica e concede Regeneração de Vida contínua (HoT).", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#a8d5ff', quantity: 1, trailSize: 30 } },
-            'glacius': { nome: "Glacius", tipoMecanica: 'status', elemento: 'gelo', custoFocoBase: 4, poderBase: 40, efeitoSecundario: 'congelado', duracao: 2, lore: "Congela o alvo (Impede ataque). O próximo ataque cinético causa Dano Crítico Absoluto.", visualConfig: { shape: 'beam', color: '#a2d2df', glow: '#ffffff', quantity: 1, speed: 30, trailSize: 25 } },
-            'diffindo': { nome: "Diffindo", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 2, poderBase: 80, efeitoSecundario: 'anti_cura', duracao: 3, lore: "Corta a magia do inimigo, impedindo-o de se curar ou defender.", visualConfig: { shape: 'slash', color: '#ffcc00', glow: '#ff9900', quantity: 1, speed: 35, trailSize: 10 } }
+            // --- 1. DECK BÁSICO (Feitiços Iniciais Fracos) ---
+            'flipendo': { nome: "Flipendo", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 1, poderBase: 25, lore: "Feitiço de recuo. Baixo dano, rápido e essencial.", visualConfig: { shape: 'sphere', color: '#ffaa00', quantity: 1, speed: 30 } },
+            'lumos': { nome: "Lumos", tipoMecanica: 'status', elemento: 'luz', custoFocoBase: 1, poderBase: 10, efeitoSecundario: 'cegar', duracao: 2, lore: "Cega temporariamente o inimigo com luz intensa.", visualConfig: { shape: 'bolt', color: '#ffffff', glow: '#ffffaa', quantity: 1 } },
+            'protego_menor': { nome: "Protego Menor", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 2, poderBase: 100, defende: true, lore: "Escudo básico de cristal mágico.", visualConfig: { shape: 'sphere', color: '#88ccff' } },
+            'incendio_menor': { nome: "Faíscas (Incendio Menor)", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 2, poderBase: 30, efeitoSecundario: 'queimar', duracao: 2, lore: "Atira pequenas faíscas que podem queimar levemente.", visualConfig: { shape: 'sparks', color: '#ff4400', quantity: 2 } },
+            'aguamenti_menor': { nome: "Esguicho (Aguamenti Menor)", tipoMecanica: 'status', elemento: 'agua', custoFocoBase: 2, poderBase: 20, efeitoSecundario: 'molhado', duracao: 3, lore: "Deixa o alvo molhado, preparando combos elétricos.", visualConfig: { shape: 'wave', color: '#0044ff', quantity: 1 } },
+            'locomotor': { nome: "Locomotor Mortis", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 2, poderBase: 20, efeitoSecundario: 'lento', duracao: 3, lore: "Prende as pernas, atrasando os ataques inimigos.", visualConfig: { shape: 'slash', color: '#aaaaaa' } },
+
+            // --- 2. DECK AGGRO / BURN (FOGO) ---
+            'incendio': { nome: "Incendio", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 4, poderBase: 80, efeitoSecundario: 'queimar', duracao: 4, lore: "Dano e Queimadura profunda.", visualConfig: { shape: 'wave', color: '#ff4500', glow: '#ff8800', quantity: 3 } },
+            'confringo': { nome: "Confringo", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 5, poderBase: 140, lore: "Maldição explosiva. Alto dano bruto.", visualConfig: { shape: 'meteor', color: '#ff2200', glow: '#ffdd00', impactEffect: 'nova' } },
+            'bombarda': { nome: "Bombarda", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 4, poderBase: 110, lore: "Explosão direcionada, boa contra escudos.", visualConfig: { shape: 'sphere', color: '#ff8844', impactEffect: 'shatter' } },
+            'bombarda_maxima': { nome: "Bombarda Maxima", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 7, poderBase: 220, lore: "Devastação em área. Destrói barreiras.", visualConfig: { shape: 'meteor', color: '#ffaa44', impactEffect: 'nova', scale: 40 } },
+            'fiendfyre': { nome: "Fogomaldito", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 10, poderBase: 300, efeitoSecundario: 'queimar', duracao: 6, lore: "Fogo das trevas incontrolável.", visualConfig: { shape: 'wave', color: '#aa0000', glow: '#ff0000', quantity: 5 } },
+            'flagrate': { nome: "Flagrate", tipoMecanica: 'status', elemento: 'fogo', custoFocoBase: 3, poderBase: 40, efeitoSecundario: 'queimar', duracao: 5, lore: "Marca o alvo com fogo duradouro.", visualConfig: { shape: 'slash', color: '#ff5500', quantity: 2 } },
+            'lacarnum_inflamari': { nome: "Lacarnum Inflamari", tipoMecanica: 'ataque', elemento: 'fogo', custoFocoBase: 3, poderBase: 70, lore: "Atira bolas de fogo da ponta da varinha.", visualConfig: { shape: 'sphere', color: '#ff3300', quantity: 3 } },
+
+            // --- 3. DECK CONTROLO / SHATTER (GELO & ÁGUA) ---
+            'aguamenti': { nome: "Aguamenti", tipoMecanica: 'status', elemento: 'agua', custoFocoBase: 3, poderBase: 50, efeitoSecundario: 'molhado', duracao: 4, lore: "Jato d'água.", visualConfig: { shape: 'wave', color: '#0f3c55', glow: '#3498db', quantity: 5 } },
+            'glacius': { nome: "Glacius", tipoMecanica: 'status', elemento: 'gelo', custoFocoBase: 4, poderBase: 40, efeitoSecundario: 'congelado', duracao: 2, lore: "Congela o alvo.", visualConfig: { shape: 'beam', color: '#a2d2df', glow: '#ffffff' } },
+            'glacius_tria': { nome: "Glacius Tria", tipoMecanica: 'ataque', elemento: 'gelo', custoFocoBase: 6, poderBase: 120, efeitoSecundario: 'congelado', duracao: 2.5, lore: "Onda de gelo massiva.", visualConfig: { shape: 'wave', color: '#ccffff', quantity: 4 } },
+            'ebublio': { nome: "Ebublio", tipoMecanica: 'status', elemento: 'agua', custoFocoBase: 4, poderBase: 10, efeitoSecundario: 'atordoar', duracao: 2, lore: "Prende o inimigo numa bolha de água.", visualConfig: { shape: 'sphere', color: '#66ccff' } },
+            'aquaeructo': { nome: "Aqua Eructo", tipoMecanica: 'ataque', elemento: 'agua', custoFocoBase: 5, poderBase: 100, efeitoSecundario: 'molhado', duracao: 3, lore: "Mangueira de pressão mágica.", visualConfig: { shape: 'beam', color: '#0088ff' } },
+            'ducklifors': { nome: "Ducklifors", tipoMecanica: 'status', elemento: 'transfiguracao', custoFocoBase: 5, poderBase: 0, efeitoSecundario: 'desarmar', duracao: 2.5, lore: "Transfigura a varinha do alvo em borracha.", visualConfig: { shape: 'spiral', color: '#ffee00' } },
+            
+            // --- 4. DECK TEMPESTADE (ELÉTRICO & VENTO) ---
+            'relashio': { nome: "Relashio", tipoMecanica: 'ataque', elemento: 'eletrico', custoFocoBase: 3, poderBase: 80, lore: "Faíscas elétricas que repelem o alvo.", visualConfig: { shape: 'bolt', color: '#ffff00', quantity: 2 } },
+            'fulgari': { nome: "Fulgari", tipoMecanica: 'status', elemento: 'eletrico', custoFocoBase: 5, poderBase: 50, efeitoSecundario: 'atordoar', duracao: 1.5, lore: "Cordões elétricos impiedosos.", visualConfig: { shape: 'bolt', color: '#aaffff', quantity: 4 } },
+            'tempestas': { nome: "Tempestas", tipoMecanica: 'ataque', elemento: 'eletrico', custoFocoBase: 7, poderBase: 160, lore: "Conjura um raio dos céus.", visualConfig: { shape: 'meteor', color: '#00ffff', impactEffect: 'shatter' } },
+            'ventusus': { nome: "Ventusus", tipoMecanica: 'status', elemento: 'vento', custoFocoBase: 3, poderBase: 40, efeitoSecundario: 'vulneravel', duracao: 3, lore: "Ventania. Combina com fogo para tempestade.", visualConfig: { shape: 'wave', color: '#eeeeee', quantity: 3 } },
+            'arresto_momentum': { nome: "Arresto Momentum", tipoMecanica: 'status', elemento: 'vento', custoFocoBase: 4, poderBase: 0, efeitoSecundario: 'lento', duracao: 4, lore: "Atrasa as ações cinéticas do inimigo.", visualConfig: { shape: 'spiral', color: '#bbccdd' } },
+
+            // --- 5. DECK ARTES DAS TREVAS / DOT (TREVAS & VENENO) ---
+            'sectumsempra': { nome: "Sectumsempra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 150, efeitoSecundario: 'sangrar', duracao: 4, lifesteal: 0.5, lore: "Cortes profundos.", visualConfig: { shape: 'slash', color: '#ffffff', glow: '#888888', quantity: 2 } },
+            'crucio': { nome: "Crucio", tipoMecanica: 'maldicao', elemento: 'trevas', custoFocoBase: 8, poderBase: 80, efeitoSecundario: 'vulneravel', duracao: 3, lore: "Maldição Imperdoável. Quebra defesas.", visualConfig: { shape: 'bolt', color: '#8e44ad', glow: '#4b0082', quantity: 3 } },
+            'imperio': { nome: "Imperio", tipoMecanica: 'maldicao', elemento: 'trevas', custoFocoBase: 7, poderBase: 0, efeitoSecundario: 'cegar', duracao: 3, lore: "Controla a mente. (Causa cegueira/miss total).", visualConfig: { shape: 'spiral', color: '#00ff00', glow: '#003300' } },
+            'avada_kedavra': { nome: "Avada Kedavra", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 10, poderBase: 999, lore: "A Maldição da Morte. Dano irreal.", visualConfig: { shape: 'beam', color: '#00ff00', glow: '#00ff00' } },
+            'morsmordre': { nome: "Morsmordre", tipoMecanica: 'maldicao', elemento: 'trevas', custoFocoBase: 5, poderBase: 40, efeitoSecundario: 'lento', duracao: 4, lore: "A Marca Negra aterroriza o inimigo.", visualConfig: { shape: 'meteor', color: '#22ff22', particleStyle: 'smoke' } },
+            'fumus_venenum': { nome: "Fumus Venenum", tipoMecanica: 'status', elemento: 'veneno', custoFocoBase: 4, poderBase: 30, efeitoSecundario: 'envenenar', duracao: 5, lore: "Gás tóxico. Altamente inflamável.", visualConfig: { shape: 'wave', color: '#aaff00', particleStyle: 'smoke' } },
+            'obscuro': { nome: "Obscuro", tipoMecanica: 'status', elemento: 'trevas', custoFocoBase: 3, poderBase: 0, efeitoSecundario: 'cegar', duracao: 3, lore: "Venda os olhos do oponente.", visualConfig: { shape: 'slash', color: '#000000' } },
+            'expulso_sanguis': { nome: "Expulso Sanguis", tipoMecanica: 'ataque', elemento: 'trevas', custoFocoBase: 6, poderBase: 100, lifesteal: 1.0, lore: "Magia Sanguínea. Rouba 100% da vida.", visualConfig: { shape: 'bolt', color: '#880000', particleStyle: 'blood' } },
+
+            // --- 6. DECK FORÇA FÍSICA (CINÉTICO) ---
+            'expelliarmus': { nome: "Expelliarmus", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 2, poderBase: 40, efeitoSecundario: 'desarmar', duracao: 1.2, lore: "Desarma o oponente por 1.2s.", visualConfig: { shape: 'bolt', color: '#ff4040', glow: '#ff0000', quantity: 1 } },
+            'stupefy': { nome: "Estupefaça", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 120, efeitoSecundario: 'atordoar', duracao: 1.5, lore: "Atordoa por 1.5s.", visualConfig: { shape: 'sphere', color: '#e74c3c', glow: '#ff0000', quantity: 1 } },
+            'depulso': { nome: "Depulso", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 3, poderBase: 90, lore: "Onda de choque violenta.", visualConfig: { shape: 'wave', color: '#ffffff' } },
+            'reducto': { nome: "Reducto", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 5, poderBase: 130, lore: "Desintegra objetos e escudos.", visualConfig: { shape: 'sphere', color: '#ffcc00', impactEffect: 'shatter' } },
+            'defodio': { nome: "Defodio", tipoMecanica: 'ataque', elemento: 'terra', custoFocoBase: 4, poderBase: 80, efeitoSecundario: 'sangrar', duracao: 3, lore: "Escava a carne e a rocha.", visualConfig: { shape: 'slash', color: '#cc8844' } },
+            'oppugno': { nome: "Oppugno", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 4, poderBase: 35, lore: "Conjura pássaros de pedra (Acerta 4 vezes).", visualConfig: { shape: 'sphere', color: '#dddddd', quantity: 4 } },
+            'duro': { nome: "Duro", tipoMecanica: 'status', elemento: 'terra', custoFocoBase: 5, poderBase: 40, efeitoSecundario: 'atordoar', duracao: 2, lore: "Transforma o alvo em pedra (Stun).", visualConfig: { shape: 'meteor', color: '#888888' } },
+            'incarcerous': { nome: "Incarcerous", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 3, poderBase: 10, efeitoSecundario: 'desarmar', duracao: 2, lore: "Amordaça o inimigo com cordas.", visualConfig: { shape: 'slash', color: '#996633' } },
+            'levicorpus': { nome: "Levicorpus", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 4, poderBase: 0, efeitoSecundario: 'vulneravel', duracao: 3, lore: "Levanta o alvo, deixando-o frágil.", visualConfig: { shape: 'spiral', color: '#ccccff' } },
+            'tarantallegra': { nome: "Tarantallegra", tipoMecanica: 'status', elemento: 'cinetico', custoFocoBase: 2, poderBase: 10, efeitoSecundario: 'lento', duracao: 4, lore: "Obriga as pernas do alvo a dançar.", visualConfig: { shape: 'bolt', color: '#ff00ff' } },
+            'diffindo': { nome: "Diffindo", tipoMecanica: 'ataque', elemento: 'cinetico', custoFocoBase: 2, poderBase: 80, efeitoSecundario: 'anti_cura', duracao: 3, lore: "Corta a magia do inimigo, impedindo a cura.", visualConfig: { shape: 'slash', color: '#ffcc00', glow: '#ff9900' } },
+
+            // --- 7. DECK HEAL / TANK (LUZ & ESCUDOS) ---
+            'expecto_patronum': { nome: "Expecto Patronum", tipoMecanica: 'cura', elemento: 'luz', custoFocoBase: 10, poderBase: 400, purificar: true, buffJogador: 'regeneracao', duracaoBuff: 5, lore: "Cura 400 HP, purifica debuffs e dá Regeneração.", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#a8d5ff' } },
+            'episkey': { nome: "Episkey", tipoMecanica: 'cura', elemento: 'luz', custoFocoBase: 3, poderBase: 150, lore: "Cura rápida de pequenos ferimentos.", visualConfig: { shape: 'sparks', color: '#aaffaa' } },
+            'vulnera_sanentur': { nome: "Vulnera Sanentur", tipoMecanica: 'cura', elemento: 'luz', custoFocoBase: 6, poderBase: 100, buffJogador: 'regeneracao', duracaoBuff: 6, lore: "Cura profunda contínua (HoT).", visualConfig: { shape: 'spiral', color: '#ffaaaa' } },
+            'protego': { nome: "Protego", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 3, poderBase: 300, defende: true, buffJogador: 'espinhos', duracaoBuff: 3, lore: "Escudo denso. (Espinhos reflete dano).", visualConfig: { shape: 'sphere', color: '#3498db' } },
+            'protego_maxima': { nome: "Protego Maxima", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 6, poderBase: 800, defende: true, lore: "Barreira impenetrável.", visualConfig: { shape: 'sphere', color: '#ffffff', glow: '#00ffff' } },
+            'salvio_hexia': { nome: "Salvio Hexia", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 4, poderBase: 200, defende: true, buffJogador: 'espinhos', duracaoBuff: 5, lore: "Proteção reflexiva duradoura.", visualConfig: { shape: 'wave', color: '#ddaaff' } },
+            'repello_inimicum': { nome: "Repello Inimicum", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 5, poderBase: 400, defende: true, lore: "Desintegra trevas que tentem passar.", visualConfig: { shape: 'slash', color: '#ffffdd' } }
         };
 
         this.receitasPocoes = {
@@ -1506,7 +1562,7 @@ class HogwartsCore {
             id: idBruxo, nome: nomeBruxo, tgId: "WEB", tgUsername: `@Jogador`, titulo: "O Aprendiz",
             senhaHash: senhaHash,
             estadoJogo: "BECO_DIAGONAL", casa: "Nenhuma", nivel: 1, xp: 0, xpProx: 100, 
-            galeoes: 10, siclos: 50, nuques: 100, // Dinheiro na mão para o tutorial
+            galeoes: 1344, siclos: 50, nuques: 100, // Dinheiro na mão para o tutorial
             hpAtual: 1000, hpMax: 1000, focoAtual: 10, maxFoco: 10, energia: 100, fome: 100, 
             cofreGringotes: { galeoes: 500, siclos: 0, nuques: 0 }, // O grosso fica no banco atributos: { feiticos: 5, defesa: 5, pocoes: 5, transfiguracao: 5, furtividade: 5, artes_trevas: 1 }, 
             // 🔥 NOVO: Atributos de RPG para Progressão Vertical
@@ -1523,8 +1579,15 @@ class HogwartsCore {
     { id: 2, plantada: false, tipo: null, plantaTempo: null },
     { id: 3, plantada: false, tipo: null, plantaTempo: null }
 ],
-            maestriaFeiticos: { 'expelliarmus': {nivel:1, exp:0, expProx:100}, 'protego': {nivel:1, exp:0, expProx:100} }, 
-            feitiçosEquipados: ['expelliarmus', 'protego'], 
+            maestriaFeiticos: { 
+                'flipendo': {nivel:1, exp:0, expProx:100}, 
+                'lumos': {nivel:1, exp:0, expProx:100}, 
+                'protego_menor': {nivel:1, exp:0, expProx:100}, 
+                'incendio_menor': {nivel:1, exp:0, expProx:100}, 
+                'aguamenti_menor': {nivel:1, exp:0, expProx:100}, 
+                'locomotor': {nivel:1, exp:0, expProx:100} 
+            }, 
+            feitiçosEquipados: ['flipendo', 'lumos', 'protego_menor', 'incendio_menor', 'aguamenti_menor', 'locomotor'],
             mochilaEscolar: [
                 { id: crypto.randomBytes(4).toString('hex'), nome: "Sapo de Chocolate", tipo: 'comida' },
                 { id: crypto.randomBytes(4).toString('hex'), nome: "Kit de Polimento", tipo: 'reliquia' }
@@ -1761,27 +1824,28 @@ a.siclos += 5;
 
     comprarNoBecoDiagonal(alunoId, loja, itemId) {
         const a = this.alunos[alunoId]; if (!a) return { erro: "Fantasma." };
-        let lista = this.lojasBeco[loja] || (loja === 'boticario' ? this.boticario : null); if(!lista) return { erro: "Loja fechada."};
+        let lista = this.lojasBeco[loja]; if(!lista) return { erro: "Loja fechada."};
         const item = lista.find(i => i.id === itemId); if (!item) return { erro: "Item não existe." };
         if (a.galeoes < item.preco) return { erro: `Custa ${item.preco} Galeões.` };
         a.galeoes -= item.preco;
         
-        // Tratamento Correto para a Mochila / Inventário
-        if (item.tipo === 'veste') a.equipamentos.veste = { id: item.id, nome: item.nome };
-        else if (item.tipo === 'livro') { if(!a.inventario.livros.includes(item.nome)) a.inventario.livros.push(item.nome); }
+        // Tratamento Correto para a Mochila / Inventário e Guarda-Roupa
+        if (item.tipo === 'veste') {
+            a.equipamentos.corpo = { id: item.id, nome: item.nome, tipo: 'corpo' }; // 🔥 Envia para o Corpo!
+        }
+        else if (item.tipo === 'livro') { 
+            if(!a.inventario.livros.includes(item.nome)) a.inventario.livros.push(item.nome); 
+        }
         else if (item.tipo === 'ingrediente') { 
             let k = item.key || item.nome.toLowerCase().replace(/ /g, '_');
             a.inventario.ingredientes[k] = (a.inventario.ingredientes[k] || 0) + 1; 
         }
-        // NOVA LÓGICA: Adicionar sementes ao inventário (BLINDADO)
         else if (item.tipo === 'semente') {
             if (!a.inventario) a.inventario = {};
             if (!a.inventario.sementes) a.inventario.sementes = { ditamno: 0, mandragora: 0, asfodelo: 0, muco: 0, bezoar: 0 };
-            
             let k = item.key || item.nome.toLowerCase().replace(/ /g, '_');
             a.inventario.sementes[k] = (a.inventario.sementes[k] || 0) + 1;
         }
-        // 🔥 CORREÇÃO: O bloco vazio que roubava os sapos de chocolate foi removido!
         else if (item.tipo === 'comida' || item.tipo === 'brinquedo') { 
             a.mochilaEscolar.push({ id: crypto.randomBytes(4).toString('hex'), nome: item.nome, tipo: item.tipo }); 
         }
@@ -2127,7 +2191,7 @@ a.siclos += 5;;
     atacarWorldBossGlobal(alunoId) {
         const a = this.alunos[alunoId];
         if(!a || !this.worldBoss.ativo) return {erro: "Não há ameaças no momento."};
-        if(a.focoAtual < 2) return {erro: "Estás demasiado exausto para atacar (2 Foco)."};
+        if(!a.feitiçosEquipados || a.feitiçosEquipados.length !== 6) return { erro: "O teu Grimório de Combate deve ter ESTRITAMENTE 6 feitiços equipados para atacares o Boss!" };
         
         a.focoAtual -= 2;
         let dano = this._obterAtributosTotais(a).feiticos * 10 + (a.nivel * 5);
@@ -2202,7 +2266,7 @@ a.siclos += 5; // Bonus pro Last Hit
     async entrarDungeon(liderId, local) {
         const lider = this.alunos[liderId]; 
         if (!lider || lider.focoAtual < 3) return { erro: "A exploração exige 3 de Foco." };
-        if (!lider.pveProgresso) lider.pveProgresso = { nivel: 1, area: 1 };
+        if (!lider.feitiçosEquipados || lider.feitiçosEquipados.length !== 6) return { erro: "O teu Grimório de Combate deve ter ESTRITAMENTE 6 feitiços equipados para entrar na floresta!" };
         
         lider.focoAtual -= 3;
         const idInst = `dungeon_${crypto.randomBytes(4).toString('hex')}`;
@@ -2343,28 +2407,25 @@ a.siclos += 5; // Bonus pro Last Hit
 
         }, 1800);
     }
+   // ====================================================================
+    // 🔥 MOTOR DE PVE ABSOLUTO (COM SINERGIAS MTG E FLORESTA)
+    // ====================================================================
     async processarActionCombat(atacanteId, instId, feiticoId, alvoIdx = 0) {
         const a = this.alunos[atacanteId]; 
         const inst = this.dungeonInstancias[instId];
         if (!a || !inst || inst.status !== 'combate') return { erro: "Combate encerrado." };
 
-        // 🔥 O RELÓGIO ABSOLUTO DO SERVIDOR (1.2 Segundos)
         const agora = Date.now();
         if(!a.efeitos) a.efeitos = []; if(!a.buffs) a.buffs = [];
         
-        // Limpa automaticamente os efeitos cujo tempo já passou!
         a.efeitos = a.efeitos.filter(e => e.expiresAt > agora);
         a.buffs = a.buffs.filter(b => b.expiresAt > agora);
 
-        // VERIFICA STUN NO PVE ANTES DE TUDO
         let incapacitado = a.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         if (incapacitado && feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
             return { erro: "Estás sob efeito de controlo mágico!" };
         }
 
-        // ====================================================================
-        // 🔥 1. INICIALIZAÇÃO DO PROFILER PROFUNDO DE HABILIDADE (AAA)
-        // ====================================================================
         if (!inst.profiler) inst.profiler = {};
         if (!inst.profiler[atacanteId]) {
             inst.profiler[atacanteId] = {
@@ -2375,35 +2436,22 @@ a.siclos += 5; // Bonus pro Last Hit
         }
         let prof = inst.profiler[atacanteId];
 
-        // 1.1 RASTREIO DE DANO E DEFESA DO JOGADOR
         if (feiticoId === "dano_recebido" || feiticoId === "protego_block_reflex") {
             if (feiticoId === "dano_recebido") {
                 let danoInimigo = Math.floor((inst.entidades[0].hpMax || 1000) * 0.08 * (inst.mult || 1));
-                
-                // Lógica de Quebra de Escudo (Protego no PvE)
                 let temEscudo = a.buffs.some(b => b.tipo === 'escudo_fisico');
                 if (temEscudo && a.escudoHp > 0) {
                     if (danoInimigo >= a.escudoHp) {
                         a.hpAtual = Math.max(0, a.hpAtual - (danoInimigo - a.escudoHp));
-                        a.escudoHp = 0;
-                        a.buffs = a.buffs.filter(b => b.tipo !== 'escudo_fisico');
-                        prof.comboAtual = 0; // Quebra combo se o escudo partir e levar dano
-                    } else {
-                        a.escudoHp -= danoInimigo; // Absorvido! Combo mantido.
-                    }
+                        a.escudoHp = 0; a.buffs = a.buffs.filter(b => b.tipo !== 'escudo_fisico'); prof.comboAtual = 0; 
+                    } else { a.escudoHp -= danoInimigo; }
                 } else {
-                    a.hpAtual = Math.max(0, a.hpAtual - danoInimigo);
-                    prof.danoSofrido += danoInimigo;
-                    prof.comboAtual = 0; 
+                    a.hpAtual = Math.max(0, a.hpAtual - danoInimigo); prof.danoSofrido += danoInimigo; prof.comboAtual = 0; 
                 }
-
                 this._salvarBancoDeDados();
                 return { sucesso: true, relatoAcao: "Sofreste impacto!", hpJogador: a.hpAtual };
             }
-            if (feiticoId === "protego_block_reflex") {
-                prof.parriesPerfeitos++;
-                return { sucesso: true, relatoAcao: "Parry registado.", hpJogador: a.hpAtual };
-            }
+            if (feiticoId === "protego_block_reflex") { prof.parriesPerfeitos++; return { sucesso: true, relatoAcao: "Parry registado.", hpJogador: a.hpAtual }; }
         }
 
         const feitico = this.livroDeFeiticos[feiticoId];
@@ -2414,25 +2462,18 @@ a.siclos += 5; // Bonus pro Last Hit
         if(!a.maestriaFeiticos[feiticoId]) a.maestriaFeiticos[feiticoId] = { nivel: 1, exp: 0, expProx: 100 };
         let maestria = a.maestriaFeiticos[feiticoId];
         maestria.exp += 15; let upouFeitico = false;
-        if(maestria.exp >= maestria.expProx) {
-            maestria.nivel++; maestria.exp -= maestria.expProx; maestria.expProx = Math.floor(maestria.expProx * 1.5); upouFeitico = true;
-        }
+        if(maestria.exp >= maestria.expProx) { maestria.nivel++; maestria.exp -= maestria.expProx; maestria.expProx = Math.floor(maestria.expProx * 1.5); upouFeitico = true; }
 
         let mecanica = feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
         let bonusMaestria = (maestria.nivel - 1) * 10;
         let forcaDoFeitico = Number(feitico.valorBase || feitico.poderBase || 50) + bonusMaestria;
         let relatoAcao = "";
 
-        // ====================================================================
-        // 🔥 2. MECÂNICAS DE CURA E SUPORTE
-        // ====================================================================
         if (mecanica === 'cura') {
             let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
             a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
             if (feitico.purificar) a.efeitos = []; 
-            relatoAcao = `Curaste ${curaAplicada} HP!`;
-            prof.curaRealizada += curaAplicada; 
-            
+            relatoAcao = `Curaste ${curaAplicada} HP!`; prof.curaRealizada += curaAplicada; 
             this._salvarBancoDeDados();
             return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
         } 
@@ -2440,11 +2481,9 @@ a.siclos += 5; // Bonus pro Last Hit
         if (mecanica === 'escudo' || mecanica === 'defesa') {
             let duracaoMs = (feitico.duracaoBuff || 3) * 1000;
             a.escudoHp = forcaDoFeitico + ((a.atributosTotais.defesa || 5) * 5);
-            
             let bExist = a.buffs.find(b => b.tipo === 'escudo_fisico');
             if(bExist) bExist.expiresAt = agora + duracaoMs;
             else a.buffs.push({ tipo: 'escudo_fisico', expiresAt: agora + duracaoMs });
-
             return { sucesso: true, relatoAcao: `A barreira de ${feitico.nome} protege-te!`, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
         }
 
@@ -2454,52 +2493,64 @@ a.siclos += 5; // Bonus pro Last Hit
         let isImobilizado = mob.efeitos && mob.efeitos.some(e => e.tipo === 'congelado' || e.tipo === 'atordoar');
         if (mob.padrao === 'assassino' && !isImobilizado && Math.random() < 0.30) {
             prof.comboAtual = 0; 
-            return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: 0, defendeu: true, relatoAcao: `💨 O ${mob.nome} esquivou-se! (Usa Gelo ou Controlo)`, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
+            return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: 0, defendeu: true, relatoAcao: `💨 O ${mob.nome} esquivou-se!`, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
         }
 
-        // ====================================================================
-        // 🔥 3. MATEMÁTICA DE DANO, SINERGIAS E CC EM TEMPO REAL
-        // ====================================================================
-        if (!mob.efeitos) mob.efeitos = [];
         let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
-        
         let mobArmor = 0;
         if (mob.isBoss) mobArmor = mob.hpMax * 0.05;
         if (inst.mult) mobArmor += (inst.mult * 20);
-        
         let reducao = 100 / (100 + mobArmor);
         danoBaseCalculado = Math.floor(danoBaseCalculado * reducao);
         if (danoBaseCalculado < 1) danoBaseCalculado = 1;
 
         let danoFinal = danoBaseCalculado;
-        let multiplicador = 1.0;
         let defendeu = false;
         let interrompeu = false; 
 
-        // ============================================
-        // 🔥 O CONTROLO DE MASSAS (CC) ABSOLUTO E TEMPO REAL
-        // ============================================
+        let entidadeAlvo = mob; 
+        if (!entidadeAlvo.efeitos) entidadeAlvo.efeitos = [];
+
+        // ====================================================================
+        // 🔮 SINERGIA MTG (NO PVE)
+        // ====================================================================
+        let multiplicador = 1.0;
+        let efeitosDoAlvo = (entidadeAlvo.efeitos || []).map(e => e.tipo);
+        
+        if (feitico.elemento === 'eletrico' && efeitosDoAlvo.includes('molhado')) {
+            multiplicador *= 2.0;
+            entidadeAlvo.efeitos.push({tipo: 'atordoar', expiresAt: agora + 1500, duracao: 1.5});
+            relatoAcao += " ⚡ Água conduz eletricidade! (Paralisia) ";
+        }
+        if (feitico.elemento === 'fogo' && efeitosDoAlvo.includes('envenenar')) {
+            multiplicador *= 2.5;
+            entidadeAlvo.efeitos = entidadeAlvo.efeitos.filter(e => e.tipo !== 'envenenar');
+            relatoAcao += " 💥 DETONAÇÃO TÓXICA! ";
+        }
+        if (feitico.elemento === 'cinetico' && efeitosDoAlvo.includes('congelado')) {
+            multiplicador *= 3.0;
+            entidadeAlvo.efeitos = entidadeAlvo.efeitos.filter(e => e.tipo !== 'congelado');
+            relatoAcao += " 🧊🔨 SHATTER! Quebra de Gelo! ";
+        }
+        if (feitico.elemento === 'vento' && efeitosDoAlvo.includes('queimar')) {
+            multiplicador *= 1.5;
+            let burn = entidadeAlvo.efeitos.find(e => e.tipo === 'queimar');
+            if(burn) { burn.expiresAt = agora + 4000; burn.duracao = 4.0; } 
+            relatoAcao += " 🌪️🔥 Tempestade de Fogo! ";
+        }
+        if (feitico.elemento === 'trevas' && efeitosDoAlvo.includes('sangrar')) {
+            let sifen = Math.floor(danoBaseCalculado * 0.5);
+            a.hpAtual = Math.min(a.hpMax, a.hpAtual + sifen); 
+            relatoAcao += ` 🦇 Sifão de Sangue (+${sifen} HP)! `;
+        }
+        danoFinal = Math.floor(danoBaseCalculado * multiplicador);
+
         if (feitico.efeitoSecundario) {
-            if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) {
-                interrompeu = true;
-            }
-
-            // O CC dura EXATAMENTE 1.2 segundos (1200ms) sem depender de ações do inimigo!
-            let duracaoSegundos = 1.2;
-            let duracaoMs = 767; 
-
-            let eExistente = mob.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
-            
-            if (eExistente) {
-                eExistente.expiresAt = agora + duracaoMs;
-                eExistente.duracao = duracaoSegundos;
-            } else {
-                mob.efeitos.push({ 
-                    tipo: feitico.efeitoSecundario, 
-                    expiresAt: agora + duracaoMs,
-                    duracao: duracaoSegundos 
-                });
-            }
+            if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) { interrompeu = true; }
+            let duracaoMs = 1200; 
+            let eExistente = entidadeAlvo.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
+            if (eExistente) { eExistente.expiresAt = agora + duracaoMs; eExistente.duracao = 1.2; } 
+            else { entidadeAlvo.efeitos.push({ tipo: feitico.efeitoSecundario, expiresAt: agora + duracaoMs, duracao: 1.2 }); }
         }
 
         let alvoAntiCura = mob.efeitos.some(e => e.tipo === 'anti_cura');
@@ -2507,22 +2558,15 @@ a.siclos += 5; // Bonus pro Last Hit
             danoFinal = Math.floor(danoFinal * 0.4); defendeu = true; prof.comboAtual = 0;
         }
 
-        danoFinal = Math.max(1, Math.floor(danoBaseCalculado * multiplicador));
         if (Math.random() > 0.85) danoFinal = Math.floor(danoFinal * 1.5);
-
         prof.danoCausado += danoFinal;
-        if (!defendeu) {
-            prof.comboAtual++;
-            if (prof.comboAtual > prof.maiorCombo) prof.maiorCombo = prof.comboAtual;
-        }
+        if (!defendeu) { prof.comboAtual++; if (prof.comboAtual > prof.maiorCombo) prof.maiorCombo = prof.comboAtual; }
 
         if (feitico.buffJogador) {
             if(!a.buffs) a.buffs = [];
             let duracaoMs = (feitico.duracaoBuff || 3) * 1000;
             let bExist = a.buffs.find(b => b.tipo === feitico.buffJogador);
-            if(bExist) bExist.expiresAt = agora + duracaoMs;
-            else a.buffs.push({ tipo: feitico.buffJogador, duracao: feitico.duracaoBuff || 3, expiresAt: agora + duracaoMs });
-            
+            if(bExist) bExist.expiresAt = agora + duracaoMs; else a.buffs.push({ tipo: feitico.buffJogador, duracao: feitico.duracaoBuff || 3, expiresAt: agora + duracaoMs });
             if(feitico.buffJogador === 'regeneracao') prof.curaRealizada += 50;
         }
 
@@ -2535,9 +2579,6 @@ a.siclos += 5; // Bonus pro Last Hit
         mob.hpAtual -= danoFinal;
         relatoAcao += `Infligiu ${danoFinal} Dano!`;
 
-        // ====================================================================
-        // 🔥 4. AVALIAÇÃO FINAL E LOOT
-        // ====================================================================
         if (mob.hpAtual <= 0) {
             mob.vivo = false; mob.hpAtual = 0;
             let todosMortos = inst.entidades.every(m => !m.vivo);
@@ -2550,7 +2591,6 @@ a.siclos += 5; // Bonus pro Last Hit
 
                 let xpFaseBase = Math.floor(((isBoss ? 1500 : 400 * inst.entidades.length) * multEvento) / divisao);
                 let galeoesFaseBase = Math.floor(((isBoss ? 800 : 100 * inst.entidades.length) * multEvento) / divisao);
-
                 let avaliacoesIndividuais = {};
 
                 for (let mId of recebedores) {
@@ -2558,7 +2598,6 @@ a.siclos += 5; // Bonus pro Last Hit
                     if (!membro) continue;
 
                     let p = inst.profiler[mId] || { danoCausado: 0, parriesPerfeitos: 0, maiorCombo: 0, explorouFraqueza: 0, ccAplicado: 0, magiasDiferentes: new Set(), elementosUsados: {}, tempoTotalReacao: 0, totalAcoes: 0, danoSofrido: 0, curaRealizada: 0 };
-                    
                     let mediaReacao = p.totalAcoes > 0 ? (p.tempoTotalReacao / p.totalAcoes) : 2000;
                     let bonusVelocidade = mediaReacao < 800 ? 50 : (mediaReacao < 1500 ? 20 : 0);
 
@@ -2574,7 +2613,6 @@ a.siclos += 5; // Bonus pro Last Hit
 
                     let elos = p.elementosUsados || {};
                     let elementoMaisUsado = Object.keys(elos).reduce((x, y) => elos[x] > elos[y] ? x : y, "");
-
                     let wAgressivo = (p.danoCausado || 0) + ((p.maiorCombo || 0) * 100) + bonusVelocidade;
                     let wDefensivo = ((p.parriesPerfeitos || 0) * 300) - (p.danoSofrido || 0);
                     let wTatico = ((p.explorouFraqueza || 0) * 400) + ((p.ccAplicado || 0) * 300);
@@ -2587,14 +2625,11 @@ a.siclos += 5; // Bonus pro Last Hit
                         if (elementoMaisUsado === 'fogo') tituloCombate = 'Piromante Furioso';
                         else if (elementoMaisUsado === 'trevas') tituloCombate = 'Executor das Sombras';
                         else tituloCombate = 'Agressor Implacável';
-                    } else if (estiloMax === wDefensivo && wDefensivo > 0) {
-                        tituloCombate = 'Muralha Intransponível';
-                    } else if (estiloMax === wTatico && wTatico > 0) {
+                    } else if (estiloMax === wDefensivo && wDefensivo > 0) { tituloCombate = 'Muralha Intransponível'; } 
+                    else if (estiloMax === wTatico && wTatico > 0) {
                         if (elementoMaisUsado === 'gelo') tituloCombate = 'Mago Glacial';
                         else tituloCombate = 'Mestre Tático';
-                    } else if (estiloMax === wSuporte && wSuporte > 0) {
-                        tituloCombate = 'Guardião da Luz';
-                    }
+                    } else if (estiloMax === wSuporte && wSuporte > 0) { tituloCombate = 'Guardião da Luz'; }
                     if (p.danoSofrido === 0 && p.danoCausado > 0) tituloCombate = 'Fantasma Intocável';
 
                     let grade = 'D', corRank = '#e74c3c';
@@ -2605,19 +2640,12 @@ a.siclos += 5; // Bonus pro Last Hit
                     else if (score >= 150) { grade = 'B'; meuXp = Math.floor(meuXp * 1.2); corRank = '#2ecc71'; }
                     else if (score >= 80) { grade = 'C'; corRank = '#f39c12'; }
 
-                    avaliacoesIndividuais[mId] = {
-                        rank: grade, cor: corRank, titulo: tituloCombate, score: score,
-                        detalhes: `APM: ${mediaReacao.toFixed(0)}ms | Dano: ${p.danoCausado || 0} | Parry: ${p.parriesPerfeitos || 0} | Max Combo: ${p.maiorCombo || 0}x`,
-                        xp: meuXp, gold: meuGold
-                    };
+                    avaliacoesIndividuais[mId] = { rank: grade, cor: corRank, titulo: tituloCombate, score: score, detalhes: `APM: ${mediaReacao.toFixed(0)}ms | Dano: ${p.danoCausado || 0} | Parry: ${p.parriesPerfeitos || 0} | Max Combo: ${p.maiorCombo || 0}x`, xp: meuXp, gold: meuGold };
 
                     if (inst.isForestNode) {
                         if (!membro.lootTemporario) membro.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
-                        membro.lootTemporario.galeoes += meuGold;
-                        membro.lootTemporario.xp += meuXp;
-                    } else {
-                        this._addXp(membro, meuXp); membro.galeoes += meuGold; 
-                    }
+                        membro.lootTemporario.galeoes += meuGold; membro.lootTemporario.xp += meuXp;
+                    } else { this._addXp(membro, meuXp); membro.galeoes += meuGold; }
                     
                     if(!membro.estatisticas) membro.estatisticas = { monstrosMortos: 0 };
                     membro.estatisticas.monstrosMortos += inst.entidades.length;
@@ -2627,22 +2655,14 @@ a.siclos += 5; // Bonus pro Last Hit
                         this.cerebroIA.gerarEquipamentoRPG(tipoRnd, membro.nivel).then(equipNovo => {
                             equipNovo.id = `eq_${crypto.randomBytes(4).toString('hex')}`;
                             equipNovo.raridade = ['Comum', 'Incomum', 'Raro', 'Épico', 'Lendário'][isBoss ? Math.floor(Math.random()*2+3) : Math.floor(Math.random()*3)];
-                            
-                            if (inst.isForestNode) {
-                                if(!membro.lootTemporario.itens) membro.lootTemporario.itens = [];
-                                membro.lootTemporario.itens.push(equipNovo);
-                            } else {
-                                if(!membro.inventario.armario) membro.inventario.armario = [];
-                                membro.inventario.armario.push(equipNovo);
-                            }
+                            if (inst.isForestNode) { if(!membro.lootTemporario.itens) membro.lootTemporario.itens = []; membro.lootTemporario.itens.push(equipNovo); } 
+                            else { if(!membro.inventario.armario) membro.inventario.armario = []; membro.inventario.armario.push(equipNovo); }
                             if(global.io) global.io.to(`priv_${membro.id}`).emit('nova_mensagem', { canal: 'zona', autor: '🎁 DROP', texto: `Obtiveste [${equipNovo.raridade}] ${equipNovo.nome}!` });
                         });
                     }
 
                     if (inst.isForestNode && global.io) {
-                        global.io.to(`priv_${membro.id}`).emit('forest_loot_update', { 
-                            gold: membro.lootTemporario.galeoes, xp: membro.lootTemporario.xp, itens: membro.lootTemporario.itens ? membro.lootTemporario.itens.length : 0 
-                        });
+                        global.io.to(`priv_${membro.id}`).emit('forest_loot_update', { gold: membro.lootTemporario.galeoes, xp: membro.lootTemporario.xp, itens: membro.lootTemporario.itens ? membro.lootTemporario.itens.length : 0 });
                     }
                 } 
 
@@ -2678,11 +2698,7 @@ a.siclos += 5; // Bonus pro Last Hit
         }
 
         if(global.io) {
-            global.io.to(inst.id).emit('mmo_combat_update', {
-                hpBoss: mob.hpAtual,
-                entidades: inst.entidades, 
-                atacanteNome: a.nome
-            });
+            global.io.to(inst.id).emit('mmo_combat_update', { hpBoss: mob.hpAtual, entidades: inst.entidades, atacanteNome: a.nome });
         } 
         
         this._salvarBancoDeDados();
@@ -2690,9 +2706,9 @@ a.siclos += 5; // Bonus pro Last Hit
          return { 
             bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, 
             danoAplicado: danoFinal, defendeu, relatoAcao, hpJogador: a.hpAtual, 
-            buffsJogador: a.buffs, 
-            interrompeu: interrompeu // 🔥 INJETA O SINAL DE INTERRUPÇÃO AQUI
+            buffsJogador: a.buffs, interrompeu: interrompeu
         };
+   
         }
 	// ==========================================
 // RECEITAS DE FORJA (CRAFTING)
@@ -2881,6 +2897,7 @@ a.siclos += 5; // Bonus pro Last Hit
     // ========================================================
     entrarFilaPvP(alunoId, ioGlobal) {
         const a = this.alunos[alunoId]; if (!a) return { erro: "Fantasma." };
+        if (!a.feitiçosEquipados || a.feitiçosEquipados.length !== 6) return { erro: "O teu Grimório de Combate deve ter ESTRITAMENTE 6 feitiços equipados para entrares num Duelo!" };
         if (this.pvpFila.includes(a.id)) return { erro: "Já estás na fila aguardando." };
         
         this.pvpFila.push(a.id);
@@ -2922,7 +2939,7 @@ a.siclos += 5; // Bonus pro Last Hit
     // 🔥 MOTOR DE PVP ABSOLUTO (DANO, ESCUDOS, CURAS E STATUS EFFECTS)
     // ====================================================================
 // ====================================================================
-    // 🔥 MOTOR DE PVP ABSOLUTO (ESCUDOS FÍSICOS E STATUS EM TEMPO REAL)
+    // 🔥 MOTOR DE PVP ABSOLUTO (COM SINERGIAS MTG)
     // ====================================================================
     processarAcaoPvP(atacanteId, instId, feiticoId, ioGlobal) {
         const partida = this.pvpPartidas[instId];
@@ -2935,7 +2952,6 @@ a.siclos += 5; // Bonus pro Last Hit
         
         const agora = Date.now();
         
-        // 1. LIMPA EFEITOS EXPIRADOS (Tempo Real Absoluto)
         if(!eu.efeitos) eu.efeitos = []; if(!inimigo.efeitos) inimigo.efeitos = [];
         if(!eu.buffs) eu.buffs = []; if(!inimigo.buffs) inimigo.buffs = [];
         eu.efeitos = eu.efeitos.filter(e => e.expiresAt > agora);
@@ -2943,42 +2959,70 @@ a.siclos += 5; // Bonus pro Last Hit
         inimigo.efeitos = inimigo.efeitos.filter(e => e.expiresAt > agora);
         inimigo.buffs = inimigo.buffs.filter(b => b.expiresAt > agora);
 
-        // 2. VERIFICA SE O JOGADOR ESTÁ INCAPACITADO ANTES DE ATACAR
         let incapacitado = eu.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
         if (incapacitado && feiticoId !== "protego_block_reflex" && feiticoId !== "dano_recebido") {
             return { erro: "Estás sob efeito de controlo mágico!", hpJogador: eu.hpAtual };
         }
 
         let dano = 0; let hpCurado = 0; let relatoAcao = "";
-        
         const fIdReal = feiticoId === "protego_block_reflex" ? "protego" : feiticoId;
         const f = this.livroDeFeiticos[fIdReal];
         let mecanica = f ? (f.tipoMecanica || (f.defende ? 'escudo' : 'ataque')) : 'ataque';
 
         if (f && feiticoId !== "dano_recebido") {
-            // 🔥 SE FOR ESCUDO (Cria uma barreira de HP extra)
             if (mecanica === 'escudo' || mecanica === 'defesa') {
                 let forcaEscudo = (f.poderBase || 300) + ((aEu.atributosTotais.defesa || 5) * 5);
                 eu.escudoHp = forcaEscudo; 
                 let duracaoMs = (f.duracaoBuff || 3) * 1000; 
-                
                 let bExist = eu.buffs.find(b => b.tipo === 'escudo_fisico');
                 if(bExist) bExist.expiresAt = agora + duracaoMs;
                 else eu.buffs.push({ tipo: 'escudo_fisico', expiresAt: agora + duracaoMs });
-                
                 relatoAcao = `Conjuração defensiva. Escudo com ${forcaEscudo} HP criado!`;
             }
-            // 🔥 SE FOR CURA
             else if (mecanica === 'cura') {
                 hpCurado = (f.poderBase || 150) + ((aEu.atributosTotais.pocoes || 5) * 5);
                 eu.hpAtual = Math.min(eu.hpMax, eu.hpAtual + hpCurado);
                 if (f.purificar) eu.efeitos = []; 
                 relatoAcao = `Curou ${hpCurado} HP.`;
             }
-            // 🔥 SE FOR ATAQUE OU DEBUFF
             else if (mecanica === 'ataque' || mecanica === 'maldicao' || mecanica === 'status') {
                 let dBase = (f.poderBase || 50) + ((aEu.atributosTotais.feiticos || 5) * 5);
                 if (inimigo.efeitos.some(e => e.tipo === 'vulneravel')) dBase *= 1.5;
+
+                // ====================================================================
+                // 🔮 SINERGIA MTG (NO PVP)
+                // ====================================================================
+                let multiplicador = 1.0;
+                let efeitosDoAlvo = (inimigo.efeitos || []).map(e => e.tipo);
+                
+                if (f.elemento === 'eletrico' && efeitosDoAlvo.includes('molhado')) {
+                    multiplicador *= 2.0;
+                    inimigo.efeitos.push({tipo: 'atordoar', expiresAt: agora + 1500, duracao: 1.5});
+                    relatoAcao += " ⚡ Água conduz eletricidade! (Paralisia) ";
+                }
+                if (f.elemento === 'fogo' && efeitosDoAlvo.includes('envenenar')) {
+                    multiplicador *= 2.5;
+                    inimigo.efeitos = inimigo.efeitos.filter(e => e.tipo !== 'envenenar');
+                    relatoAcao += " 💥 DETONAÇÃO TÓXICA! ";
+                }
+                if (f.elemento === 'cinetico' && efeitosDoAlvo.includes('congelado')) {
+                    multiplicador *= 3.0;
+                    inimigo.efeitos = inimigo.efeitos.filter(e => e.tipo !== 'congelado');
+                    relatoAcao += " 🧊🔨 SHATTER! Quebra de Gelo! ";
+                }
+                if (f.elemento === 'vento' && efeitosDoAlvo.includes('queimar')) {
+                    multiplicador *= 1.5;
+                    let burn = inimigo.efeitos.find(e => e.tipo === 'queimar');
+                    if(burn) { burn.expiresAt = agora + 4000; burn.duracao = 4.0; } 
+                    relatoAcao += " 🌪️🔥 Tempestade de Fogo! ";
+                }
+                if (f.elemento === 'trevas' && efeitosDoAlvo.includes('sangrar')) {
+                    let sifen = Math.floor(dBase * 0.5);
+                    eu.hpAtual = Math.min(eu.hpMax, eu.hpAtual + sifen); 
+                    relatoAcao += ` 🦇 Sifão de Sangue (+${sifen} HP)! `;
+                }
+
+                dBase = Math.floor(dBase * multiplicador);
 
                 // LÓGICA DE QUEBRA DE ESCUDO
                 let temEscudoVisual = inimigo.buffs.some(b => b.tipo === 'escudo_fisico');
@@ -2987,35 +3031,23 @@ a.siclos += 5; // Bonus pro Last Hit
                         dano = dBase - inimigo.escudoHp; 
                         inimigo.escudoHp = 0;
                         inimigo.buffs = inimigo.buffs.filter(b => b.tipo !== 'escudo_fisico');
-                        relatoAcao = `O escudo do adversário foi ESTILHAÇADO!`;
+                        relatoAcao += ` O escudo foi ESTILHAÇADO!`;
                     } else {
-                        inimigo.escudoHp -= dBase;
-                        dano = 0; 
-                        relatoAcao = `O escudo do inimigo absorveu o golpe.`;
+                        inimigo.escudoHp -= dBase; dano = 0; 
+                        relatoAcao += ` O escudo absorveu o golpe.`;
                     }
                 } else {
                     dano = Math.floor(dBase);
-                    relatoAcao = `Dano direto de ${dano}!`;
+                    relatoAcao += ` Dano de ${dano}!`;
                 }
 
                 if (dano > 0) inimigo.hpAtual -= dano;
 
-                // 🔥 BLOQUEIO AUTOMÁTICO - APLICA DEBUFF SEMPRE QUE ATINGE (Muitos feitiços de status causam 0 dano mas aplicam CC)
                 if (f.efeitoSecundario && (dano > 0 || mecanica === 'status')) {
-                    // Fixado em 1.2 segundos para qualquer controlo de massas (Anti-Stunlock longo)
                     let duracaoMs = 1200; 
-                    
                     let eExist = inimigo.efeitos.find(e => e.tipo === f.efeitoSecundario);
-                    if(eExist) {
-                        eExist.expiresAt = agora + duracaoMs;
-                        eExist.duracao = 1.2; 
-                    } else {
-                        inimigo.efeitos.push({ 
-                            tipo: f.efeitoSecundario, 
-                            expiresAt: agora + duracaoMs,
-                            duracao: 1.2
-                        });
-                    }
+                    if(eExist) { eExist.expiresAt = agora + duracaoMs; eExist.duracao = 1.2; } 
+                    else { inimigo.efeitos.push({ tipo: f.efeitoSecundario, expiresAt: agora + duracaoMs, duracao: 1.2 }); }
                 }
             }
         }
@@ -3023,7 +3055,6 @@ a.siclos += 5; // Bonus pro Last Hit
         if(inimigo.hpAtual < 0) inimigo.hpAtual = 0;
         if(eu.hpAtual < 0) eu.hpAtual = 0;
         
-        // AVISA A REDE COM OS TIMESTAMPS
         ioGlobal.to(`priv_${inimigo.id}`).emit('pvp_update', { meuHp: inimigo.hpAtual, meusEfeitos: inimigo.efeitos, meusBuffs: inimigo.buffs, inimigoHp: eu.hpAtual, inimigoEfeitos: eu.efeitos, inimigoBuffs: eu.buffs });
         ioGlobal.to(`priv_${eu.id}`).emit('pvp_update', { meuHp: eu.hpAtual, meusEfeitos: eu.efeitos, meusBuffs: eu.buffs, inimigoHp: inimigo.hpAtual, inimigoEfeitos: inimigo.efeitos, inimigoBuffs: inimigo.buffs });
 
@@ -3039,7 +3070,6 @@ a.siclos += 5; // Bonus pro Last Hit
             aPerd.elos.duelos = Math.max(0, aPerd.elos.duelos - 15);
             aVenc.galeoes += 50; this.ganharXp(aVenc, 500); 
             
-            // GANHA PONTOS PARA A CASA NO DUELO
             this.adicionarPontosCasa(aVenc.casa, 10);
             if (global.io) global.io.emit('pontuacao_atualizada', this.pontuacaoCasas);
             
@@ -3049,7 +3079,6 @@ a.siclos += 5; // Bonus pro Last Hit
             delete this.pvpPartidas[instId]; this._salvarBancoDeDados();
             return { sucesso: true, pvpFim: true }; 
         }
-
         return { sucesso: true, hpJogador: eu.hpAtual, relatoAcao }; 
     }
     tickServerGlobal() {
