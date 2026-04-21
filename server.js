@@ -178,43 +178,90 @@ async function inicializarServidor() {
         core.lojasBeco.floreios.push({ id: `l_${idCounter++}`, nome: `${mat.l} (Ano 1)`, tipo: "livro", preco: 25 });
     }
 
-   // =====================================================================
-    // 💾 2. MOTORES DE SALVAMENTO E BACKUP (PROTEÇÃO RENDER FREE)
+ // =====================================================================
+    // 💾 SISTEMA DE SALVAMENTO BLINDADO (MONGODB ATLAS)
     // =====================================================================
-    let precisaSalvar = false;
-    let salvandoAgora = false;
+    let salvandoNesteMomento = false;
+    let existeSalvamentoPendente = false;
 
-    core._salvarUrgente = () => { precisaSalvar = true; };
-    core._salvarBancoDeDados = () => { core._salvarUrgente(); };
-
-    // ⏱️ LOOP 1: Autosave Rápido (A cada 10 Segundos)
-    // Apenas salva se houver alterações (precisaSalvar) para poupar uso de rede
-    setInterval(async () => {
-        if (!precisaSalvar || salvandoAgora || !core.collection) return;
-        salvandoAgora = true;
+    const gravarDiretoNoAtlas = async () => {
+        if (!core.collection) {
+            console.log("⚠️ Base de dados não pronta. Salvamento ignorado.");
+            return; 
+        }
         
+        if (salvandoNesteMomento) {
+            existeSalvamentoPendente = true;
+            return;
+        }
+        
+        salvandoNesteMomento = true;
+        existeSalvamentoPendente = false;
+
+        // O pacote exato a ser enfiado no MongoDB
         const snapshot = { 
+            _id: 'MATRIZ_HOGWARTS', // Obrigatório incluir o ID aqui no replaceOne
             alunos: core.alunos, 
             mercadoJogadores: core.mercadoJogadores, 
-            logs: core.logs, 
             pontuacaoCasas: core.pontuacaoCasas, 
             gremios: core.gremios,
             livroDeFeiticos: core.livroDeFeiticos
         };
-        
+
         try {
-            await core.collection.updateOne(
+            // 🔥 A MÁGICA: replaceOne substitui o documento inteiro de forma limpa, 
+            // sem se confundir com arrays ou objetos internos do jogo.
+            await core.collection.replaceOne(
                 { _id: 'MATRIZ_HOGWARTS' }, 
-                { $set: snapshot }, 
+                snapshot, 
                 { upsert: true }
             );
-            precisaSalvar = false; // Sucesso! Limpa a flag.
-            // console.log("Autosave Rápido efetuado."); // (Descomenta se quiseres ver no terminal)
+            console.log(`💾 [ATLAS] Save efetuado com SUCESSO! (${new Date().toLocaleTimeString('pt-PT')})`);
         } catch(e) { 
-            console.error("❌ Erro no Autosave. Tentará novamente...", e.message); 
+            console.error("❌ ERRO CRÍTICO AO GRAVAR NO ATLAS:", e); 
+            existeSalvamentoPendente = true;
         }
-        salvandoAgora = false;
-    }, 10000); // 10 Segundos
+        
+        salvandoNesteMomento = false;
+        
+        // Se houve spam de ações (ex: 10 pessoas a comprar varinhas ao mesmo tempo)
+        // Ele agrupa tudo e faz 1 único save extra a seguir.
+        if (existeSalvamentoPendente) {
+            setTimeout(gravarDiretoNoAtlas, 2500); 
+        }
+    };
+
+    // Liga as engrenagens do Core do jogo a esta função
+    core._salvarBancoDeDados = gravarDiretoNoAtlas;
+    core._salvarUrgente = gravarDiretoNoAtlas;
+
+    // =====================================================================
+    // 🛡️ BLINDAGEM FINAL: QUANDO O RENDER DESLIGA
+    // =====================================================================
+    const DesligarServidorSeguro = async () => {
+        console.log("⚠️ Render a forçar o encerramento! A disparar Salvamento Final...");
+        if (core.collection) {
+            try {
+                await core.collection.replaceOne(
+                    { _id: 'MATRIZ_HOGWARTS' }, 
+                    { 
+                        _id: 'MATRIZ_HOGWARTS',
+                        alunos: core.alunos, 
+                        mercadoJogadores: core.mercadoJogadores, 
+                        pontuacaoCasas: core.pontuacaoCasas, 
+                        gremios: core.gremios,
+                        livroDeFeiticos: core.livroDeFeiticos
+                    }, 
+                    { upsert: true }
+                );
+                console.log("✅ Gravação final no Atlas bem sucedida! A desligar...");
+            } catch(e) { console.error("❌ Falha na gravação final:", e); }
+        }
+        process.exit(0);
+    };
+
+    process.on('SIGTERM', DesligarServidorSeguro);
+    process.on('SIGINT', DesligarServidorSeguro);
 
 
     // 📦 LOOP 2: Backup Físico Seguro (A cada 30 Minutos)
