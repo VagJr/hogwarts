@@ -90,35 +90,58 @@ async function inicializarServidor() {
 
     // 2. CONEXÃO BLINDADA AO MONGODB (Otimizada para o Render)
     // 2. CONEXÃO BLINDADA AO MONGODB (Otimizada para Render Free Tier)
+    // =====================================================================
+    // 🛡️ 1. CONEXÃO E AUTO-RESTAURAÇÃO (BOOT DO SERVIDOR)
+    // =====================================================================
     if (MONGO_URI) {
         try {
-            // O driver moderno do MongoDB já gere o keepAlive por defeito.
             const client = new MongoClient(MONGO_URI, {
                 maxPoolSize: 10,
                 minPoolSize: 2, 
                 serverSelectionTimeoutMS: 5000,
                 socketTimeoutMS: 45000
-            });
-            
-            // Ouvintes para detetar quebras de conexão no Render
-            client.on('error', (err) => console.error('❌ Erro Fatal no MongoDB:', err));
-            client.on('timeout', () => console.error('⚠️ Timeout na conexão do MongoDB'));
-            client.on('close', () => console.error('🔌 Conexão do MongoDB fechada!'));
+            }); 
 
             await client.connect();
             const db = client.db('hogwarts_db'); 
-            core.collection = db.collection('registos_escolares');
+            
+            // Coleções do Banco de Dados
+            core.collection = db.collection('registos_escolares'); // Save Principal
+            core.backup_collection = db.collection('backups_seguranca'); // Backups de 30min
             core.db_biblioteca = db.collection('biblioteca_oficial');
             
-            const doc = await core.collection.findOne({ _id: 'MATRIZ_HOGWARTS' });
-            if (doc) carregarDadosNaMemoria(doc);
-            console.log("📜 Registos escolares carregados com sucesso do Atlas!");
+            // 🔄 TENTATIVA DE AUTO-RESTAURAÇÃO
+            let doc = await core.collection.findOne({ _id: 'MATRIZ_HOGWARTS' });
+
+            // Se o save principal estiver vazio ou corrompido (ex: crashou durante a gravação)
+            if (!doc || !doc.alunos || Object.keys(doc.alunos).length === 0) {
+                console.log("⚠️ A Matriz Principal está vazia ou corrompida! A procurar último backup de segurança...");
+                
+                // Vai buscar o backup mais recente ordenando por data
+                const ultimoBackup = await core.backup_collection.find().sort({ timestamp: -1 }).limit(1).toArray();
+                
+                if (ultimoBackup.length > 0) {
+                    doc = ultimoBackup[0].dados; // Restaura os dados do backup!
+                    console.log(`✅ Sistema Restaurado automaticamente a partir do backup de: ${ultimoBackup[0].data_humana}`);
+                } else {
+                    console.log("⚠️ Nenhum backup encontrado. A iniciar um universo totalmente novo.");
+                }
+            } else {
+                console.log("📜 Registos escolares principais carregados com sucesso do Atlas!");
+            }
+
+            // Injeta os dados na RAM (Memória do Jogo)
+            if (doc) {
+                core.alunos = doc.alunos || {};
+                core.mercadoJogadores = doc.mercadoJogadores || [];
+                core.pontuacaoCasas = doc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate', fimCiclo: Date.now() + 604800000 };
+                core.gremios = doc.gremios || {};
+                core.livroDeFeiticos = doc.livroDeFeiticos || core.livroDeFeiticos;
+            }
 
         } catch (error) { 
-            console.error("❌ Falha na conexão a Gringotes!", error.message); 
+            console.error("❌ Falha crítica na conexão a Gringotes!", error.message); 
         }
-    } else {
-        console.log("⚠️ Nenhuma chave MongoDB detetada. A usar disco local (Efémero no Render!)...");
     }
 
     // 3. INJEÇÃO DOS LIVROS
@@ -139,7 +162,7 @@ async function inicializarServidor() {
     }
 
    // =====================================================================
-    // 🔥 4. NOVO SISTEMA DE SALVAMENTO (BLINDADO PARA O RENDER FREE TIER)
+    // 💾 2. MOTORES DE SALVAMENTO E BACKUP (PROTEÇÃO RENDER FREE)
     // =====================================================================
     let precisaSalvar = false;
     let salvandoAgora = false;
@@ -147,13 +170,13 @@ async function inicializarServidor() {
     core._salvarUrgente = () => { precisaSalvar = true; };
     core._salvarBancoDeDados = () => { core._salvarUrgente(); };
 
-    // Loop em background: Salva a cada 5 segundos SE houver alterações
+    // ⏱️ LOOP 1: Autosave Rápido (A cada 10 Segundos)
+    // Apenas salva se houver alterações (precisaSalvar) para poupar uso de rede
     setInterval(async () => {
         if (!precisaSalvar || salvandoAgora || !core.collection) return;
         salvandoAgora = true;
-        precisaSalvar = false; // Reset da flag
-
-        const data = { 
+        
+        const snapshot = { 
             alunos: core.alunos, 
             mercadoJogadores: core.mercadoJogadores, 
             logs: core.logs, 
@@ -165,16 +188,63 @@ async function inicializarServidor() {
         try {
             await core.collection.updateOne(
                 { _id: 'MATRIZ_HOGWARTS' }, 
-                { $set: data }, 
+                { $set: snapshot }, 
                 { upsert: true }
             );
-            console.log("💾 [AUTOSAVE] O progresso de Hogwarts foi gravado no Atlas de forma segura.");
+            precisaSalvar = false; // Sucesso! Limpa a flag.
+            // console.log("Autosave Rápido efetuado."); // (Descomenta se quiseres ver no terminal)
         } catch(e) { 
-            console.error("❌ ERRO AO SALVAR NO MONGODB:", e.message); 
-            precisaSalvar = true; // Tenta de novo no próximo ciclo para não perder dados!
+            console.error("❌ Erro no Autosave. Tentará novamente...", e.message); 
         }
         salvandoAgora = false;
-    }, 5000);
+    }, 10000); // 10 Segundos
+
+
+    // 📦 LOOP 2: Backup Físico Seguro (A cada 30 Minutos)
+    // Cria uma "fotografia" estanque do servidor para evitar perda por corrupção
+    setInterval(async () => {
+        if (!core.backup_collection) return;
+        
+        console.log("📦 A iniciar rotina de Backup de Segurança (30min)...");
+        
+        const snapshotBackup = { 
+            alunos: core.alunos, 
+            mercadoJogadores: core.mercadoJogadores, 
+            pontuacaoCasas: core.pontuacaoCasas, 
+            gremios: core.gremios,
+            livroDeFeiticos: core.livroDeFeiticos
+        };
+
+        try {
+            // Guarda uma cópia imutável com a hora exata
+            await core.backup_collection.insertOne({
+                timestamp: Date.now(),
+                data_humana: new Date().toLocaleString('pt-PT'),
+                dados: snapshotBackup
+            });
+
+            // 🧹 LIMPEZA INTELIGENTE: Mantém apenas os últimos 15 backups (aprox. 7h30 de histórico)
+            // Se não fizeres isto, o MongoDB grátis de 512MB vai encher rapidamente!
+            const backupsAntigos = await core.backup_collection.find().sort({ timestamp: -1 }).skip(15).toArray();
+            for (let b of backupsAntigos) {
+                await core.backup_collection.deleteOne({ _id: b._id });
+            }
+            
+            console.log("✅ Backup de Segurança guardado e limpo com sucesso no MongoDB Atlas.");
+            
+            // Opcional: Avisa os jogadores no jogo que o progresso está seguro
+            if (global.io) {
+                global.io.emit('nova_mensagem', { 
+                    canal: 'salaoPrincipal', 
+                    autor: '🛡️ Sistema', 
+                    texto: 'Os Arquivos Mágicos efetuaram um Backup de Segurança do castelo.' 
+                });
+            }
+
+        } catch (e) {
+            console.error("❌ Falha crítica ao gerar Backup de 30min:", e.message);
+        }
+    }, 1800000); // 1.800.000 ms = 30 Minutos
 
     // 🔥 PREVENÇÃO CONTRA O "SONO" DO RENDER (SIGTERM / SHUTDOWN ABSOLUTO)
     const desligarServidorEmSeguranca = async () => {
