@@ -3880,96 +3880,51 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
     // ==============================================================================
 // 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO COM SYNC MULTIPLAYER)
 // ==============================================================================
+// 1. Modifica a função `castPlayerLiveEngine` para iniciar o Cast em vez de disparar logo!
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
     if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
     
-    // 🔥 DUPLA BLINDAGEM: Lê o relógio absoluto do ecrã
     let agora = Date.now();
     let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
-    // Verifica se algum efeito impeditivo ainda não expirou
-    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
+    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
     
-    if (isStunned) {
+    // Se o jogador já estiver a castar outro feitiço, ignora o clique
+    if (isStunned || (playerHitbox.isCasting && playerHitbox.castTimer > 0)) {
         playSFX('error');
         document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-        return; // 🛑 CORTA AQUI. NENHUMA ANIMAÇÃO É GERADA E A MANA NÃO É GASTA.
+        return; 
     }
-        const feitico = servidorGlobal.livroDeFeiticos[sid];
-        if (!feitico) return;
-        
-        let maestria = (meuBruxo.maestriaFeiticos && meuBruxo.maestriaFeiticos[sid]) ? meuBruxo.maestriaFeiticos[sid].nivel : 1;
-        playSFX('magic');
-        arenaMana -= cMana;
-        
-        maoCombate[slotIndex] = null; 
-        renderizarCartasActionHog(); 
-        setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
+    
+    const feitico = servidorGlobal.livroDeFeiticos[sid];
+    if (!feitico) return;
 
-        playerHitbox.atkTimer = 1.0; 
-        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
-        const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff' };
-        let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+    playSFX('click');
+    arenaMana -= cMana;
+    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
+    
+    maoCombate[slotIndex] = null; 
+    renderizarCartasActionHog(); 
+    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
 
-        socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cfg: cfg, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
-
-        // 🔥 FIX 2: Inicializa a vida do Escudo (Evita o PROTEGO UNDEFINED)
-        if (mecanica === 'escudo' || mecanica === 'defesa') {
-            playerHitbox.mode = 'protego'; 
-            playerHitbox.timer = 1500 + (maestria * 100); // 1.5s base + upgrade
-            playerHitbox.escudoMax = (feitico.valorBase || 300) + (maestria * 40); 
-            playerHitbox.escudoHp = playerHitbox.escudoMax;
-            
-            atualizarHPUIVisual();
-            processarImpactoNoServidor("protego_block_reflex", true); 
-        } 
-      
-    // 🔥 3. SE FOR CURA (Expecto Patronum / Poções)
-    else if (mecanica === 'cura') {
-        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
-        criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
-        processarImpactoNoServidor(sid, false); 
-    } 
-    // 🔥 4. SE FOR ATAQUE OU STATUS (Projéteis, Raios, Meteoros)
-    else {
-        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
-        let qt = cfg.quantity || 1;
-        let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
-        
-        for(let i = 0; i < qt; i++) {
-            setTimeout(() => {
-                let sX = corePlayerOffs.x;
-                let sY = corePlayerOffs.y + (Math.random()*40-20);
-                let tY = playerHitbox.y - 20;
-                let spX = cfg.speed || 25;
-                let spY = 0;
-
-                if (isMeteor) {
-                    sX = 200 + (Math.random() * 500); 
-                    sY = -100 - (Math.random() * 150); 
-                    tY = 280 + (Math.random() * 80); 
-                    spX = 10 + (Math.random() * 10); 
-                    spY = (cfg.speed || 20) + (Math.random() * 5); 
-                }
-                else if (cfg.shape === 'slash') { spX = (cfg.speed || 30); spY = 0; }
-                else if (cfg.shape === 'wave') { spX = (cfg.speed || 15); spY = 0; }
-
-                projeteis.push({ 
-                    x: sX, y: sY, ty: tY, 
-                    speed: spX, vy: spY, 
-                    pBoss: false, 
-                    scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
-                    cor: cfg.color, shape: cfg.shape, glow: cfg.glow,
-                    trailLen: cfg.trailSize || 15,
-                    mov: cfg.movement || 'linear', 
-                    pStyle: cfg.particleStyle || 'sparks', 
-                    impact: cfg.impactEffect || 'explosion', 
-                    faseM: Math.random() * Math.PI * 2, 
-                    idFeiticoSalvo: sid 
-                });
-            }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
-        }
-    }
+    // 🔥 NOVO: ENTRAR EM ESTADO DE CASTING
+    let tempoDeCast = feitico.tempoCasting || 1000;
+    
+    playerHitbox.isCasting = true;
+    playerHitbox.castTimer = tempoDeCast;
+    playerHitbox.castTimerMax = tempoDeCast;
+    playerHitbox.castSpellId = sid;
+    playerHitbox.castSpellName = feitico.nome;
+    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
+    
+    // Avisa o servidor e os inimigos que começaste a carregar a magia!
+    socket.emit('iniciar_casting_magia', {
+        instId: combatInstId,
+        feiticoId: sid,
+        tempoCast: tempoDeCast
+    });
 };
+
+
     
     window.fugirCombate = async function() { 
         playSFX('error'); combatEngineAtivo = false; clearInterval(arenaLoop); 
@@ -4119,95 +4074,7 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
         floatingTexts.push({ x, y, text, color, font, life: 1.0, vy: -1.5 });
     };
 	
-   window.runTickArenaMatematica_E_Desenhar = function() {
-        if(!combatEngineAtivo) return;
 
-        let agora = Date.now();
-
-        // 🔥 1. CONTAGEM REGRESSIVA DOS EFEITOS E SINCRONIZAÇÃO ABSOLUTA
-        if (meuBruxo.efeitos && meuBruxo.efeitos.length > 0) {
-            meuBruxo.efeitos = meuBruxo.efeitos.filter(ef => {
-                if (ef.expiresAt) {
-                    ef.duracao = (ef.expiresAt - agora) / 1000;
-                } else {
-                    ef.duracao -= 0.016; // Matemática segura de frames (16ms)
-                }
-                return ef.duracao > 0;
-            });
-            atualizarHPUIVisual(); // Apaga os ícones no ecrã e tira a vermelhidão na mesma frame!
-        }
-
-        // 🔥 2. VERIFICA SE O JOGADOR ESTÁ SOB EFEITO DE CROWD CONTROL (CC)
-        let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
-        let ccAtivo = statusArray.find(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
-
-        const hotbar = document.getElementById('ca-hotbar');
-        const infoBar = document.getElementById('ca-dungeon-info');
-
-        if (ccAtivo) {
-            // TRAVA TUDO! Interface vermelha e contagem regressiva
-            let tempoRestante = Math.max(0, ccAtivo.duracao).toFixed(1);
-            
-            infoBar.classList.remove('oculto');
-            infoBar.style.color = "#e74c3c";
-            infoBar.style.textShadow = "0 0 10px #e74c3c";
-            infoBar.innerText = `⚠️ INCAPACITADO: ${ccAtivo.tipo.toUpperCase()} (${tempoRestante}s) ⚠️`;
-            
-            // Bloqueio físico dos cliques para impedir a animação!
-            if(hotbar) {
-                hotbar.style.pointerEvents = "none";
-                hotbar.style.filter = "grayscale(100%) brightness(0.5) sepia(1) hue-rotate(-50deg) saturate(5)";
-            }
-        } else {
-            // RESTAURA A INTERFACE AO NORMAL
-            if(hotbar) {
-                hotbar.style.pointerEvents = "auto";
-                hotbar.style.filter = "none";
-            }
-            
-            // Restaura o texto original do Info Bar
-            infoBar.style.color = "var(--hp-gold-glow)";
-            infoBar.style.textShadow = "1px 1px 3px #000, 0 0 10px rgba(229,184,46,0.5)";
-            if(isPvP) infoBar.innerText = `Duelo Mágico: ${arenaInimigoPvP ? arenaInimigoPvP.nome : 'Adversário'}`;
-            else infoBar.innerText = `Nível de Ameaça: Fase ${faseAtualArena}`;
-        }
-
-        // Regeneração de Mana
-        if(arenaMana < arenaMaxMana) arenaMana += 0.055; 
-        document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`; 
-        safeSet('ca-mana-text', `${Math.floor(arenaMana)} M`); 
-        
-        // Atualização visual dos botões de magia (Cooldown/Mana normal)
-        if (!ccAtivo) {
-            maoCombate.forEach((fId, slotIndex) => { 
-                const slotEl = document.getElementById(`slot_${slotIndex}`); 
-                if(slotEl && fId) { 
-                    const feiticoObj = servidorGlobal.livroDeFeiticos[fId];
-                    if (!feiticoObj) return; 
-                    let csX = Number(feiticoObj.custoMana) || Number(feiticoObj.custoFocoBase) || 3; 
-                    
-                    if(arenaMana >= csX) {
-                        slotEl.style.filter = "none"; 
-                        slotEl.style.opacity = "1";
-                    } else {
-                        slotEl.style.filter = "grayscale(100%) opacity(0.5)"; 
-                    }
-                } 
-            });
-        }
-
-        const canvas = document.getElementById('engine-combate');
-        if (!canvas) return; 
-        const ctx = canvas.getContext('2d');
-        const timestamp = performance.now();
-
-        if (typeof window.ultimoTempoAtaque === 'undefined') window.ultimoTempoAtaque = 0;
-        const tempoDesdeAtaque = Date.now() - window.ultimoTempoAtaque;
-        const isAtk = tempoDesdeAtaque < 400; 
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawCombatScene(ctx, timestamp, isAtk); 
-    };
 
 window.lançarFeiticoFloresta = function(feiticoId) {
     // 1. Gatilho visual imediato! O braço mexe na hora.
@@ -4854,160 +4721,248 @@ let arenaOndasEspeciais = []; // Fila leve de efeitos
         }
     };
 
-    // 🔥 AQUI COMEÇA A FUNÇÃO DO DECK E COMBATE QUE ESTAVA A FALTAR O INÍCIO!
-   // ==============================================================================
-// 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO)
+ // ==============================================================================
+// 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (ACTION COMBAT COM CASTING E INTERRUPÇÃO)
 // ==============================================================================
 window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
     if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
     
-    // 🔥 DUPLA BLINDAGEM: Se de alguma forma conseguir clicar, bloqueia a animação!
+    let agora = Date.now();
     let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
-    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
+    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
     
-    if (isStunned) {
+    // Impede conjurar se estiver atordoado ou se JÁ estiver a carregar um feitiço
+    if (isStunned || (playerHitbox.isCasting && playerHitbox.castTimer > 0)) {
         playSFX('error');
         document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-        return; // 🛑 CORTA AQUI. NENHUMA ANIMAÇÃO É GERADA.
+        return; 
     }
     
-    window.ultimoTempoAtaque = Date.now(); // Regista o ataque para a animação do braço
     const feitico = servidorGlobal.livroDeFeiticos[sid];
     if (!feitico) return;
 
+    playSFX('click');
+    arenaMana -= cMana;
+    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
+    
+    maoCombate[slotIndex] = null; 
+    renderizarCartasActionHog(); 
+    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
 
+    // 🔥 O INÍCIO DO CHANTING!
+    let tempoDeCast = feitico.tempoCasting || 1000;
+    
+    playerHitbox.isCasting = true;
+    playerHitbox.castTimer = tempoDeCast;
+    playerHitbox.castTimerMax = tempoDeCast;
+    playerHitbox.castSpellId = sid;
+    playerHitbox.castSpellName = feitico.nome;
+    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
+    
+    // Avisa os outros jogadores na arena que começaste a conjurar
+    socket.emit('iniciar_casting_magia', {
+        instId: combatInstId,
+        feiticoId: sid,
+        tempoCast: tempoDeCast
+    });
+};
 
-        // Calcula a Maestria deste feitiço em específico
-        let maestria = (meuBruxo.maestriaFeiticos && meuBruxo.maestriaFeiticos[sid]) ? meuBruxo.maestriaFeiticos[sid].nivel : 1;
+// 🔥 FUNÇÃO QUE DISPARA QUANDO A PALAVRA ESTÁ FORMADA E O CAST ACABA
+window.dispararFeiticoConcluido = function(sid) {
+    playerHitbox.isCasting = false;
+    window.ultimoTempoAtaque = Date.now(); // Faz o braço atacar fisicamente!
+    
+    const feitico = servidorGlobal.livroDeFeiticos[sid];
+    if (!feitico) return;
 
-        playSFX('magic');
-        arenaMana -= cMana;
-        document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
+    let maestria = (meuBruxo.maestriaFeiticos && meuBruxo.maestriaFeiticos[sid]) ? meuBruxo.maestriaFeiticos[sid].nivel : 1;
+    playSFX('magic');
+
+    const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
+    let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
+    let mecanica = feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+
+    socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
+
+    if (mecanica === 'escudo' || mecanica === 'defesa') {
+        let tempoEscudoCalculado = 1500 + (maestria * 100); 
+        let hpEscudoCalculado = (feitico.valorBase || 300) + (maestria * 40); 
+
+        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
+        playerHitbox.mode = 'protego'; 
+        playerHitbox.timer = tempoEscudoCalculado; 
+        playerHitbox.escudoMax = hpEscudoCalculado; 
+        playerHitbox.escudoHp = hpEscudoCalculado;
+        atualizarHPUIVisual(); 
         
-        maoCombate[slotIndex] = null; 
-        renderizarCartasActionHog(); 
-        setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
-
-        playerHitbox.atkTimer = 1.0; 
-        playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
-        const cfg = feitico.visualConfig || { shape: 'sphere', color: '#fff', glow: '#fff', quantity: 1, speed: 25, trailSize: 15, movement: 'linear', particleStyle: 'sparks', impactEffect: 'explosion' };
+        criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
+        processarImpactoNoServidor("protego_block_reflex", true); 
+    } 
+    else if (mecanica === 'cura') {
+        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
+        criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
+        processarImpactoNoServidor(sid, false); 
+    } 
+    else {
+        gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
+        let qt = cfg.quantity || 1;
+        let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
         
-        let corePlayerOffs = {x: playerHitbox.x + 40, y: playerHitbox.y - 40 + Math.sin(atTick*1.5)*10}; 
-        let mecanica = mecanicaVindaDoBotao || feitico.tipoMecanica || (feitico.defende ? 'escudo' : 'ataque');
+        for(let i = 0; i < qt; i++) {
+            setTimeout(() => {
+                let sX = corePlayerOffs.x; let sY = corePlayerOffs.y + (Math.random()*40-20);
+                let tY = playerHitbox.y - 20; let spX = cfg.speed || 25; let spY = 0;
 
-        socket.emit('multiplayer_spell', { instId: combatInstId, mecanica: mecanica, cor: cfg.color, nome: meuBruxo.nome, shooterId: meuBruxo.id, feiticoId: sid });
+                if (isMeteor) {
+                    sX = 200 + (Math.random() * 500); sY = -100 - (Math.random() * 150); tY = 280 + (Math.random() * 80); 
+                    spX = 10 + (Math.random() * 10); spY = (cfg.speed || 20) + (Math.random() * 5); 
+                } else if (cfg.shape === 'slash') { spX = (cfg.speed || 30); spY = 0; 
+                } else if (cfg.shape === 'wave') { spX = (cfg.speed || 15); spY = 0; }
 
-        // 1. SE FOR ESCUDO / DEFESA
-        if (mecanica === 'escudo' || mecanica === 'defesa') {
-            // 🔥 FÓRMULAS DE COMBATE RÁPIDO PARA ESCUDOS:
-            // Duração: 1.5s base + 0.1s por nível (Action Reaction)
-            let tempoEscudoCalculado = 1500 + (maestria * 100); 
-            // Vida da Barreira: 300 base + 40 por nível
-            let hpEscudoCalculado = (feitico.valorBase || 300) + (maestria * 40); 
-
-            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 40);
-            playerHitbox.mode = 'protego'; 
-            playerHitbox.timer = tempoEscudoCalculado; 
-            playerHitbox.escudoMax = hpEscudoCalculado; 
-            playerHitbox.escudoHp = hpEscudoCalculado;
-            atualizarHPUIVisual(); 
-            
-            criarOndaDeChoqueVisual(corePlayerOffs.x, corePlayerOffs.y, cfg.glow || cfg.color);
-            processarImpactoNoServidor("protego_block_reflex", true); 
-        } 
-        // 2. SE FOR CURA
-        else if (mecanica === 'cura') {
-            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 60, 'stars');
-            criarImpactoEspecial(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 'implosion');
-            processarImpactoNoServidor(sid, false); 
-        } 
-        // 3. SE FOR ATAQUE OU STATUS
-        else {
-            gerarSparksEmCombate(corePlayerOffs.x, corePlayerOffs.y, cfg.color, 20, cfg.particleStyle);
-            let qt = cfg.quantity || 1;
-            let isMeteor = cfg.shape === 'meteor' || cfg.shape === 'rain';
-            
-            for(let i = 0; i < qt; i++) {
-                setTimeout(() => {
-                    let sX = corePlayerOffs.x;
-                    let sY = corePlayerOffs.y + (Math.random()*40-20);
-                    let tY = playerHitbox.y - 20;
-                    let spX = cfg.speed || 25;
-                    let spY = 0;
-
-                    if (isMeteor) {
-                        sX = 200 + (Math.random() * 500); sY = -100 - (Math.random() * 150); tY = 280 + (Math.random() * 80); 
-                        spX = 10 + (Math.random() * 10); spY = (cfg.speed || 20) + (Math.random() * 5); 
-                    } else if (cfg.shape === 'slash') { spX = (cfg.speed || 30); spY = 0; 
-                    } else if (cfg.shape === 'wave') { spX = (cfg.speed || 15); spY = 0; }
-
-                    projeteis.push({ 
-                        x: sX, y: sY, ty: tY, speed: spX, vy: spY, pBoss: false, 
-                        scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
-                        cor: cfg.color, shape: cfg.shape, glow: cfg.glow, trailLen: cfg.trailSize || 15,
-                        mov: cfg.movement || 'linear', pStyle: cfg.particleStyle || 'sparks', 
-                        impact: cfg.impactEffect || 'explosion', faseM: Math.random() * Math.PI * 2, idFeiticoSalvo: sid 
-                    });
-                }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
-            }
+                projeteis.push({ 
+                    x: sX, y: sY, ty: tY, speed: spX, vy: spY, pBoss: false, 
+                    scale: isMeteor ? (20 + Math.random()*15) : (cfg.shape === 'wave' ? 30 : 12), 
+                    cor: cfg.color, shape: cfg.shape, glow: cfg.glow, trailLen: cfg.trailSize || 15,
+                    mov: cfg.movement || 'linear', pStyle: cfg.particleStyle || 'sparks', 
+                    impact: cfg.impactEffect || 'explosion', faseM: Math.random() * Math.PI * 2, idFeiticoSalvo: sid 
+                });
+            }, i * (isMeteor ? 150 : (cfg.shape === 'beam' ? 20 : 80))); 
         }
-    };
-	
-    window.runTickArenaMatematica_E_Desenhar = function() {
+    }
+};
+
+window.runTickArenaMatematica_E_Desenhar = function() {
     if(!combatEngineAtivo) return;
 
-    // --- 1. MATEMÁTICA E LÓGICA DE ESTADO ---
+    let agora = Date.now();
+    let tempoFrames = 16; 
 
-    // Regeneração de Mana
+    let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
+    let ccAtivo = statusArray.find(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
+
+    const hotbar = document.getElementById('ca-hotbar');
+    const infoBar = document.getElementById('ca-dungeon-info');
+
+    if (ccAtivo) {
+        let tempoRestante = Math.max(0, (ccAtivo.expiresAt - agora)/1000).toFixed(1);
+        infoBar.classList.remove('oculto');
+        infoBar.style.color = "#e74c3c"; infoBar.style.textShadow = "0 0 10px #e74c3c";
+        infoBar.innerText = `⚠️ INCAPACITADO: ${ccAtivo.tipo.toUpperCase()} (${tempoRestante}s) ⚠️`;
+        if(hotbar) { hotbar.style.pointerEvents = "none"; hotbar.style.filter = "grayscale(100%) brightness(0.5) sepia(1) hue-rotate(-50deg) saturate(5)"; }
+    } else {
+        if(hotbar) { hotbar.style.pointerEvents = "auto"; hotbar.style.filter = "none"; }
+        infoBar.style.color = "var(--hp-gold-glow)"; infoBar.style.textShadow = "1px 1px 3px #000, 0 0 10px rgba(229,184,46,0.5)";
+        if(isPvP) infoBar.innerText = `Duelo Mágico: ${arenaInimigoPvP ? arenaInimigoPvP.nome : 'Adversário'}`;
+        else infoBar.innerText = `Nível de Ameaça: Fase ${faseAtualArena}`;
+    }
+
+    // 🔥 GESTÃO DA INTERRUPÇÃO (O CORAÇÃO DO ACTION COMBAT)
+    if (playerHitbox.isCasting) {
+        if (ccAtivo) {
+            // Foste interrompido pelo inimigo antes do teu feitiço sair!
+            playerHitbox.isCasting = false; playerHitbox.castTimer = 0;
+            spawnFloatingText(playerHitbox.x + 40, playerHitbox.y - 80, "INTERROMPIDO!", "#e74c3c", "35px");
+            criarImpactoEspecial(playerHitbox.x + 40, playerHitbox.y - 20, "#e74c3c", 'shatter');
+            playSFX('error');
+        } else {
+            playerHitbox.castTimer -= tempoFrames;
+            // Se o timer acabou, a palavra foi dita com sucesso! FOGO!
+            if (playerHitbox.castTimer <= 0) dispararFeiticoConcluido(playerHitbox.castSpellId);
+        }
+    }
+
+    if (arenaInimigoPvP && arenaInimigoPvP.isCasting) {
+        let inimigoStunned = arenaInimigoPvP.efeitos && arenaInimigoPvP.efeitos.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
+        if (inimigoStunned) {
+            arenaInimigoPvP.isCasting = false;
+            spawnFloatingText(arenaInimigoPvP.combatX || 800, (arenaInimigoPvP.combatY || 300) - 80, "INTERROMPIDO!", "#e74c3c", "30px");
+        } else {
+            arenaInimigoPvP.castTimer -= tempoFrames;
+            if (arenaInimigoPvP.castTimer <= 0) arenaInimigoPvP.isCasting = false;
+        }
+    }
+    
+    if (arenaAliados) {
+        arenaAliados.forEach(al => {
+            if (al.isCasting) {
+                al.castTimer -= tempoFrames;
+                if (al.castTimer <= 0) al.isCasting = false;
+            }
+        });
+    }
+
     if(arenaMana < arenaMaxMana) arenaMana += 0.055; 
     document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`; 
     safeSet('ca-mana-text', `${Math.floor(arenaMana)} M`); 
     
-    // Atualização visual dos botões de magia (Cooldown/Mana)
-    meuBruxo.feitiçosEquipados.forEach(eFXId => { 
-        const baseUIBtnM = document.getElementById(`ccrd_${eFXId}`); 
-        if(baseUIBtnM) { 
-            // 🔥 BLINDAGEM ANTI-CRASH: Verifica se o feitiço realmente existe no servidor
-            const feiticoObj = servidorGlobal.livroDeFeiticos[eFXId];
-            
-            // Se o feitiço foi apagado ou não existir, salta fora e não quebra o jogo!
-            if (!feiticoObj) return; 
-
-            // Lê o custo de mana (Suporta a versão antiga custoFocoBase e a nova custoMana)
-            let csX = Number(feiticoObj.custoMana) || Number(feiticoObj.custoFocoBase) || 3; 
-            
-            if(arenaMana >= csX) {
-                baseUIBtnM.style.filter = "none"; 
-            } else {
-                baseUIBtnM.style.filter = "grayscale(100%) opacity(0.5)"; 
-            }
-        } 
-    });
-    
-    // --- 2. RENDERIZAÇÃO GRÁFICA (Patch 3.0 Anime Kinematic) ---
+    if (!ccAtivo) {
+        maoCombate.forEach((fId, slotIndex) => { 
+            const slotEl = document.getElementById(`slot_${slotIndex}`); 
+            if(slotEl && fId) { 
+                const feiticoObj = servidorGlobal.livroDeFeiticos[fId];
+                if (!feiticoObj) return; 
+                let csX = Number(feiticoObj.custoMana) || Number(feiticoObj.custoFocoBase) || 3; 
+                if(arenaMana >= csX) { slotEl.style.filter = "none"; slotEl.style.opacity = "1"; } 
+                else { slotEl.style.filter = "grayscale(100%) opacity(0.5)"; }
+            } 
+        });
+    }
 
     const canvas = document.getElementById('engine-combate');
-    if (!canvas) return; // Proteção de segurança
+    if (!canvas) return; 
     const ctx = canvas.getContext('2d');
-
-    // Criar o timestamp manualmente (Já que estamos num setInterval)
-    // O performance.now() é perfeito para animações suaves
-    const timestamp = performance.now();
-
-    // Calcular o estado de ataque (isAtk)
-    // Garante que a variável existe, mesmo se for a primeira vez
-    if (typeof window.ultimoTempoAtaque === 'undefined') {
-        window.ultimoTempoAtaque = 0;
-    }
-    const tempoDesdeAtaque = Date.now() - window.ultimoTempoAtaque;
-    const isAtk = tempoDesdeAtaque < 400; // A animação de ataque dura 400ms
-
-    // Limpar o canvas antes de desenhar o novo frame
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Chamar a função que desenha a cena (meteoros, monstros, lasers e os braços animados!)
+    const timestamp = performance.now();
+    const tempoDesdeAtaque = Date.now() - (window.ultimoTempoAtaque || 0);
+    const isAtk = tempoDesdeAtaque < 400; 
+
     drawCombatScene(ctx, timestamp, isAtk); 
+
+    // 🔥 O VISUAL DA BARRA DE CONJURAÇÃO (CHANTING) A CRESCER!
+    function desenharCastingUI(jogador, x, y) {
+        if (!jogador.isCasting) return;
+        let pct = 1 - Math.max(0, jogador.castTimer / jogador.castTimerMax);
+        let numLetras = Math.ceil(pct * jogador.castSpellName.length);
+        let soletracao = jogador.castSpellName.substring(0, numLetras).toUpperCase().split('').join('..');
+        
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(x - 40, y - 90, 80, 8);
+        ctx.fillStyle = jogador.atkColor || "#3498db"; ctx.shadowColor = jogador.atkColor; ctx.shadowBlur = 10;
+        ctx.fillRect(x - 40, y - 90, 80 * pct, 8);
+        ctx.beginPath(); ctx.arc(x - 40 + (80 * pct), y - 86, 5 + (Math.random() * 5), 0, Math.PI*2); ctx.fill();
+        ctx.font = "bold 16px Cinzel"; ctx.textAlign = "center"; ctx.fillStyle = "#fff";
+        ctx.fillText(soletracao, x, y - 105);
+        ctx.restore();
+    }
+
+    desenharCastingUI(playerHitbox, playerHitbox.x + 20, playerHitbox.y);
+    if (arenaInimigoPvP && arenaInimigoPvP.isCasting) desenharCastingUI(arenaInimigoPvP, arenaInimigoPvP.combatX || 800, arenaInimigoPvP.combatY || 300);
+    if (arenaAliados) arenaAliados.forEach(al => { if (al.id !== meuBruxo.id) desenharCastingUI(al, al.combatX + 20, al.combatY); });
 };
+
+// RECEBE O AVISO DE QUE O INIMIGO ESTÁ A CONJURAR UM FEITIÇO (PVP / PVE COOP)
+socket.on('oponente_iniciou_casting', (dados) => {
+    if(!combatEngineAtivo) return;
+    if (arenaInimigoPvP && arenaInimigoPvP.id === dados.shooterId) {
+        arenaInimigoPvP.isCasting = true;
+        arenaInimigoPvP.castTimer = dados.tempoCast;
+        arenaInimigoPvP.castTimerMax = dados.tempoCast;
+        let feitico = servidorGlobal.livroDeFeiticos[dados.feiticoId];
+        arenaInimigoPvP.castSpellName = feitico ? feitico.nome : "Magia";
+        arenaInimigoPvP.atkColor = feitico ? (feitico.visualConfig.color || '#e74c3c') : '#e74c3c';
+    } else if (arenaAliados) {
+        let aliado = arenaAliados.find(a => a.id === dados.shooterId);
+        if (aliado) {
+            aliado.isCasting = true;
+            aliado.castTimer = dados.tempoCast;
+            aliado.castTimerMax = dados.tempoCast;
+            let f = servidorGlobal.livroDeFeiticos[dados.feiticoId];
+            aliado.castSpellName = f ? f.nome : "Magia";
+            aliado.atkColor = f ? (f.visualConfig.color || '#3498db') : '#3498db';
+        }
+    }
+});
 
     // ==============================================================================
     // SOCKETS GLOBAIS (OUVINTES DE REDE)
@@ -5042,7 +4997,7 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
             pomo.style.display = 'none'; 
         }
     });
-	
+
 	// =====================================
 // REAÇÕES COOPERATIVAS (ALIADOS ASSISTEM ÀS MORTES)
 // =====================================

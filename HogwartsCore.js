@@ -1202,17 +1202,34 @@ class HogwartsCore {
             'repello_inimicum': { nome: "Repello Inimicum", tipoMecanica: 'escudo', elemento: 'escudo', custoFocoBase: 5, poderBase: 400, defende: true, lore: "Desintegra trevas que tentem passar.", visualConfig: { shape: 'slash', color: '#ffffdd' } }
         };
 
-        this.receitasPocoes = {
+    this.receitasPocoes = {
             'wiggenweld': { nome: 'Poção Wiggenweld', ingredientes: ['ditamno', 'muco'], cura: 500, visual: { corPrincipal: "#0f5", tipo: "pocao" } },
             'antidoto': { nome: 'Antídoto Universal', ingredientes: ['bezoar', 'ditamno'], cura: 200, visual: { corPrincipal: "#fff", tipo: "pocao" } },
-           'restauradora': { nome: 'Poção Restauradora', ingredientes: ['mandragora', 'asfodelo'], cura: 1000, visual: { corPrincipal: "#8b4513", tipo: "pocao" } },
-            // 🔥 NOVA POÇÃO DO ECOSSISTEMA
+            'restauradora': { nome: 'Poção Restauradora', ingredientes: ['mandragora', 'asfodelo'], cura: 1000, visual: { corPrincipal: "#8b4513", tipo: "pocao" } },
             'foco_lucido': { nome: 'Elixir do Foco Lúcido', ingredientes: ['mandragora', 'veneno_aranha'], cura: 100, foca: 15, visual: { corPrincipal: "#40a0ff", tipo: "pocao" } }
-			};
-		
+        };
+
+        // 🔥 FÓRMULA MÁGICA: CALCULAR O TEMPO DE CASTING DE CADA FEITIÇO (Sem erros de sintaxe!)
+        for (let k in this.livroDeFeiticos) {
+            let f = this.livroDeFeiticos[k];
+            
+            // Defesas são instantâneas (reflexo)
+            if (f.defende || f.tipoMecanica === 'escudo') {
+                f.tempoCasting = 200; 
+                continue;
+            }
+
+            let tempoBase = 400; // Mínimo absoluto 400ms
+            let pesoMana = (f.custoMana || f.custoFocoBase || 1) * 80;
+            let pesoDano = (f.poderBase || 10) * 1.5;
+            let pesoCC = (f.efeitoSecundario) ? 200 : 0; // Feitiços de status demoram mais
+
+            // Fórmula: Base + Custo + Dano + CC (Limitado entre 500ms e 2500ms)
+            f.tempoCasting = Math.min(2500, Math.max(500, Math.floor(tempoBase + pesoMana + pesoDano + pesoCC)));
+        }
 
         this._salvarBancoDeDados = () => {}; 
-    }
+    } 
   // 🔥 ENCERRAMENTO ÉPICO DA TAÇA DAS CASAS
     encerrarTacaDasCasas() {
         let sort = [ 

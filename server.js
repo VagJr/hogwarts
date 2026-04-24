@@ -1340,7 +1340,16 @@ io.on('connection', (socket) => {
     socket.emit('pontuacao_atualizada', core.pontuacaoCasas);
 	// PROCURA ESTA LINHA:
 
-
+ // 🔥 SYNC DO TEMPO DE CASTING PARA O OPONENTE VER A PALAVRA A FORMAR-SE
+    socket.on('iniciar_casting_magia', (dados) => {
+        // dados: { instId, feiticoId, tempoCast }
+        // Emite para a sala da Masmorra ou Arena PvP para que os outros vejam a animação
+        socket.to(dados.instId).emit('oponente_iniciou_casting', {
+            shooterId: socket.alunoId,
+            feiticoId: dados.feiticoId,
+            tempoCast: dados.tempoCast
+        });
+    });
 // 🔥 Lidar com ataques iniciados via clique no mapa da Floresta
     socket.on('forest_attack_mob', (dados) => {
         let inst = core.florestaEngine.instancias[dados.instId];
