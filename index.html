@@ -4058,34 +4058,7 @@ if (efeitoBloqueio) {
     socket.emit('pve_acao', { id: meuBruxo.id, acao: feiticoId });
 }
 
-// ==============================================================================
-// 🔥 SISTEMA DE MIRA POR ARRASTE E CARTAS (DRAG-TO-AIM)
-// ==============================================================================
-let dragAim = { active: false, fId: null, cMana: 0, tElement: null, mecanica: null, slotIdx: null, targetType: null, mouseX: 0, mouseY: 0, selectedTarget: null };
 
-window.renderizarCartasActionHog = function() {
-    if(!servidorGlobal || !servidorGlobal.livroDeFeiticos) return;
-
-    document.getElementById('ca-hotbar').innerHTML = maoCombate.map((f, slotIndex) => {
-        if (!f) return `<div class="spell-card" style="opacity:0.3; background:#000;"></div>`;
-
-        const obj = servidorGlobal.livroDeFeiticos[f] || {nome:"Fogo", custoFocoBase:3, elemento:'cinetico'};
-        let custoMana = obj.custoMana || obj.custoFocoBase || 3;
-        let mecanica = obj.tipoMecanica || (obj.defende ? 'escudo' : 'ataque');
-        
-        let colorB = obj.elemento === 'fogo' ? '#8a0303' : (mecanica === 'escudo' ? '#11bbbb' : (mecanica === 'cura' ? '#2ecc71' : (mecanica === 'status' ? '#8e44ad' : '#111')));
-        let icon = mecanica === 'escudo' ? '🛡️' : (mecanica === 'cura' ? '💚' : (mecanica === 'status' ? '🔮' : '💫'));
-
-        // O SEGREDO DO DRAG: Eventos onmousedown e ontouchstart ativam a mira
-        return `<div class="spell-card" id="slot_${slotIndex}" 
-            onmousedown="iniciarMira(event, '${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" 
-            ontouchstart="iniciarMira(event, '${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" 
-            style="background:linear-gradient(to bottom, ${colorB}, #050505); cursor: grab; touch-action: none;">
-            <div style="font-weight:bold; color:var(--hp-gold); font-size:0.75em; text-shadow:0 0 4px #000; line-height:1.2;">${icon} ${obj.nome}</div>
-            <div style="color:#3498db; font-weight:900; background:rgba(0,0,0,0.8); padding:5px 0; font-size:0.8em;">Mana ${custoMana}💧</div>
-        </div>`;
-    }).join('');
-};
 
 window.renderizarAlvos = function(entidades) {
     arenaInimigos = entidades;
@@ -4102,69 +4075,131 @@ window.renderizarAlvos = function(entidades) {
     }
 };
 
+
+
+// ==============================================================================
+// 🔥 SISTEMA AVANÇADO: TAP-TO-CAST E FLICK-TO-AIM (DESLIZE SUAVE)
+// ==============================================================================
+let dragAim = { 
+    active: false, isDragging: false, startTime: 0,
+    fId: null, cMana: 0, tElement: null, mecanica: null, slotIdx: null, 
+    targetType: null, startY: 0, anchorY: 0, 
+    targetList: [], currentIndex: 0, selectedTargetId: null 
+};
+
+window.renderizarCartasActionHog = function() {
+    if(!servidorGlobal || !servidorGlobal.livroDeFeiticos) return;
+
+    document.getElementById('ca-hotbar').innerHTML = maoCombate.map((f, slotIndex) => {
+        if (!f) return `<div class="spell-card" style="opacity:0.3; background:#000;"></div>`;
+
+        const obj = servidorGlobal.livroDeFeiticos[f] || {nome:"Fogo", custoFocoBase:3, elemento:'cinetico'};
+        let custoMana = obj.custoMana || obj.custoFocoBase || 3;
+        let mecanica = obj.tipoMecanica || (obj.defende ? 'escudo' : 'ataque');
+        
+        let colorB = obj.elemento === 'fogo' ? '#8a0303' : (mecanica === 'escudo' ? '#11bbbb' : (mecanica === 'cura' ? '#2ecc71' : (mecanica === 'status' ? '#8e44ad' : '#111')));
+        let icon = mecanica === 'escudo' ? '🛡️' : (mecanica === 'cura' ? '💚' : (mecanica === 'status' ? '🔮' : '💫'));
+
+        // 🔥 Os eventos de toque/rato iniciam o sistema híbrido
+        return `<div class="spell-card" id="slot_${slotIndex}" 
+            onmousedown="iniciarMira(event, '${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" 
+            ontouchstart="iniciarMira(event, '${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" 
+            style="background:linear-gradient(to bottom, ${colorB}, #050505); cursor: grab; touch-action: none;">
+            <div style="font-weight:bold; color:var(--hp-gold); font-size:0.75em; text-shadow:0 0 4px #000; line-height:1.2;">${icon} ${obj.nome}</div>
+            <div style="color:#3498db; font-weight:900; background:rgba(0,0,0,0.8); padding:5px 0; font-size:0.8em;">Mana ${custoMana}💧</div>
+        </div>`;
+    }).join('');
+};
+
 window.iniciarMira = function(e, fId, cMana, tElement, mecanica, slotIdx) {
-    e.preventDefault();
+    // Não usar preventDefault() aqui para permitir que o click/tap flua naturalmente
     if (arenaMana < cMana || (playerHitbox.isCasting && playerHitbox.castTimer > 0)) { playSFX('error'); return; }
     
     let isStunned = meuBruxo.efeitos && meuBruxo.efeitos.some(ef => ['atordoar', 'congelado', 'desarmar'].includes(ef.tipo));
     if (isStunned) return;
 
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
     dragAim.active = true;
+    dragAim.isDragging = false; // Começa como Tap
+    dragAim.startTime = Date.now();
+    dragAim.startY = clientY;
+    dragAim.anchorY = clientY; // Ponto base para o deslize (flick)
+    
     dragAim.fId = fId; dragAim.cMana = cMana; dragAim.tElement = tElement;
     dragAim.mecanica = mecanica; dragAim.slotIdx = slotIdx;
     
-    // Define se o alvo da mira devem ser Inimigos ou Aliados (Curas/Escudos)
+    // Carrega a lista de alvos possíveis
     dragAim.targetType = (mecanica === 'cura' || mecanica === 'escudo' || mecanica === 'defesa') ? 'ally' : 'enemy';
-    atualizarPosicaoMira(e);
+    
+    if (dragAim.targetType === 'enemy') {
+        dragAim.targetList = isPvP ? [arenaInimigoPvP] : (arenaInimigos || []).filter(m => m.vivo);
+        // Tenta focar no inimigo que já estava selecionado
+        let currentIdx = dragAim.targetList.findIndex(m => m.idx === alvoAtualIdx);
+        dragAim.currentIndex = currentIdx !== -1 ? currentIdx : 0;
+    } else {
+        dragAim.targetList = arenaAliados ? [...arenaAliados] : [];
+        // Tenta focar em ti mesmo por defeito
+        let currentIdx = dragAim.targetList.findIndex(a => a.id === meuBruxo.id);
+        dragAim.currentIndex = currentIdx !== -1 ? currentIdx : 0;
+    }
+    
+    // Alvo base ao tocar
+    let t = dragAim.targetList[dragAim.currentIndex];
+    dragAim.selectedTargetId = t ? (t.id || t.idx) : null;
 };
 
 function atualizarPosicaoMira(e) {
-    if (!dragAim.active) return;
-    const canvas = document.getElementById('engine-combate');
-    const rect = canvas.getBoundingClientRect();
-    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    if (!dragAim.active || dragAim.targetList.length === 0) return;
+    
     let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    let distTotal = Math.abs(clientY - dragAim.startY);
+    let deltaY = clientY - dragAim.anchorY;
 
-    dragAim.mouseX = (clientX - rect.left) * (canvas.width / rect.width);
-    dragAim.mouseY = (clientY - rect.top) * (canvas.height / rect.height);
+    // Se moveu mais de 10px, ativa a mira visual (Deixa de ser um Tap)
+    if (distTotal > 10) dragAim.isDragging = true;
 
-    let bestTarget = null;
-    let minDist = 9999;
-
-    if (dragAim.targetType === 'enemy') {
-        let alvos = isPvP ? [arenaInimigoPvP] : (arenaInimigos || []).filter(m => m.vivo);
-        alvos.forEach(m => {
-            let mX = isPvP ? (m.combatX || 800) : ((stateBossHitbox.x - 80) + ((arenaInimigos.indexOf(m) * 140) - ((alvos.length - 1) * 70)));
-            let mY = isPvP ? (m.combatY || 300) : (stateBossHitbox.y + ((arenaInimigos.indexOf(m) % 2 !== 0) ? -35 : 15));
-            
-            // Dá um pouco mais de peso ao eixo Y para facilitar a mira no telemóvel
-            let dist = Math.abs(dragAim.mouseY - mY)*1.5 + Math.abs(dragAim.mouseX - mX)*0.5;
-            if (dist < minDist) { minDist = dist; bestTarget = isPvP ? 'pvp_enemy' : m.idx; }
-        });
-    } else {
-        // Mira de Suporte (Cura o próprio jogador ou os aliados)
-        let alvos = arenaAliados ? [...arenaAliados] : [];
-        alvos.forEach((a, i) => {
-            let mX = a.combatX + 20; let mY = a.combatY;
-            let dist = Math.abs(dragAim.mouseY - mY)*1.5 + Math.abs(dragAim.mouseX - mX)*0.5;
-            if (dist < minDist) { minDist = dist; bestTarget = a.id; }
-        });
+    // 🔥 O "FLICK" (Se arrastar 40px para CIMA ou BAIXO, muda de alvo)
+    if (Math.abs(deltaY) > 40) {
+        if (deltaY < 0) { // Arrasto para CIMA
+            dragAim.currentIndex++;
+            if (dragAim.currentIndex >= dragAim.targetList.length) dragAim.currentIndex = 0;
+        } else { // Arrasto para BAIXO
+            dragAim.currentIndex--;
+            if (dragAim.currentIndex < 0) dragAim.currentIndex = dragAim.targetList.length - 1;
+        }
+        
+        // Ponto de âncora reinicia para exigir novo arrasto
+        dragAim.anchorY = clientY;
+        playSFX('click'); // Dá um estalinho subtil a cada mudança de alvo
+        
+        let t = dragAim.targetList[dragAim.currentIndex];
+        dragAim.selectedTargetId = t ? (t.id || t.idx) : null;
     }
-    dragAim.selectedTarget = bestTarget;
 }
 
 function dispararMira(e) {
     if(!dragAim.active) return;
     dragAim.active = false;
-    if (dragAim.selectedTarget !== null) {
-        if (dragAim.targetType === 'enemy' && !isPvP) alvoAtualIdx = dragAim.selectedTarget;
-        
-        // Passa o selectedTarget para que o servidor saiba quem curar/atacar
-        castPlayerLiveEngine(dragAim.fId, dragAim.cMana, dragAim.tElement, dragAim.mecanica, dragAim.slotIdx, dragAim.selectedTarget);
+    
+    let tempoDecorrido = Date.now() - dragAim.startTime;
+
+    // SE FOI SÓ UM TOQUE (TAP):
+    if (!dragAim.isDragging && tempoDecorrido < 350) {
+        // No Tap, envia logo para o alvo predefinido (Sem abrir mira)
+        let defaultTarget = dragAim.targetType === 'enemy' ? alvoAtualIdx : meuBruxo.id;
+        castPlayerLiveEngine(dragAim.fId, dragAim.cMana, dragAim.tElement, dragAim.mecanica, dragAim.slotIdx, defaultTarget);
+    } 
+    // SE FOI UM ARRASTE (DRAG/FLICK):
+    else if (dragAim.isDragging && dragAim.selectedTargetId !== null) {
+        if (dragAim.targetType === 'enemy' && !isPvP) {
+            alvoAtualIdx = dragAim.selectedTargetId; // Tranca o novo alvo selecionado
+        }
+        castPlayerLiveEngine(dragAim.fId, dragAim.cMana, dragAim.tElement, dragAim.mecanica, dragAim.slotIdx, dragAim.selectedTargetId);
     }
 }
 
-// Listeners globais para manter o rasto do rato/dedo na tela inteira
+// Limpeza de Eventos e Registo Global
 document.addEventListener('mousemove', atualizarPosicaoMira);
 document.addEventListener('touchmove', atualizarPosicaoMira, {passive: false});
 document.addEventListener('mouseup', dispararMira);
@@ -4603,53 +4638,49 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         }
     }
 
-    // --- MIRA VISUAL DRAG-TO-AIM (RETÍCULA E LINHA) ---
-    if (dragAim.active) {
+   // ==========================================
+    // 🔥 DESENHO DA MIRA RÁPIDA (RETÍCULA FLICK-TO-AIM)
+    // ==========================================
+    if (dragAim.active && dragAim.isDragging && dragAim.selectedTargetId !== null) {
         ctxCombat.globalCompositeOperation = 'source-over';
-        let startX = playerHitbox.x + 30;
-        let startY = playerHitbox.y - 30;
-        let corMira = dragAim.targetType === 'ally' ? "rgba(46, 204, 113, 0.8)" : "rgba(231, 76, 60, 0.8)";
+        let corMira = dragAim.targetType === 'ally' ? "rgba(46, 204, 113, 0.9)" : "rgba(231, 76, 60, 0.9)";
 
-        // Linha Curvada Mágica
-        ctxCombat.beginPath();
-        ctxCombat.moveTo(startX, startY);
-        ctxCombat.quadraticCurveTo(startX + (dragAim.mouseX - startX)/2, startY - 100, dragAim.mouseX, dragAim.mouseY);
-        ctxCombat.strokeStyle = corMira;
-        ctxCombat.lineWidth = 3;
-        ctxCombat.setLineDash([10, 15]); 
-        ctxCombat.lineDashOffset = -atTick * 30; 
-        ctxCombat.shadowColor = corMira; ctxCombat.shadowBlur = 10;
-        ctxCombat.stroke();
-        ctxCombat.setLineDash([]); ctxCombat.shadowBlur = 0;
-
-        // Retícula Giratória no Alvo Selecionado
-        if (dragAim.selectedTarget !== null) {
-            let rx = dragAim.mouseX, ry = dragAim.mouseY;
-            
-            if (dragAim.targetType === 'enemy') {
-                if (isPvP) { rx = arenaInimigoPvP.combatX; ry = arenaInimigoPvP.combatY; }
-                else {
-                    let m = arenaInimigos.find(mob => mob.idx === dragAim.selectedTarget);
-                    if (m) {
-                        let mIndex = arenaInimigos.indexOf(m);
-                        rx = (stateBossHitbox.x - 80) + ((mIndex * 140) - ((arenaInimigos.length - 1) * 70));
-                        ry = stateBossHitbox.y + ((mIndex % 2 !== 0) ? -35 : 15);
-                    }
-                }
+        let rx = playerHitbox.x, ry = playerHitbox.y;
+        
+        // Tranca a retícula diretamente em cima do alvo selecionado!
+        if (dragAim.targetType === 'enemy') {
+            if (isPvP) { 
+                rx = arenaInimigoPvP.combatX; ry = arenaInimigoPvP.combatY; 
             } else {
-                let a = arenaAliados.find(al => al.id === dragAim.selectedTarget);
-                if(a) { rx = a.combatX; ry = a.combatY; }
+                let m = arenaInimigos.find(mob => mob.idx === dragAim.selectedTargetId);
+                if (m) {
+                    let mIndex = arenaInimigos.indexOf(m);
+                    rx = (stateBossHitbox.x - 80) + ((mIndex * 140) - ((arenaInimigos.length - 1) * 70));
+                    ry = stateBossHitbox.y + ((mIndex % 2 !== 0) ? -35 : 15);
+                }
             }
-
-            ctxCombat.save();
-            ctxCombat.translate(rx, ry);
-            ctxCombat.rotate(atTick * 2); 
-            ctxCombat.strokeStyle = corMira; ctxCombat.lineWidth = 2;
-            ctxCombat.beginPath(); ctxCombat.arc(0, 0, 40, 0, Math.PI * 1.5); ctxCombat.stroke();
-            ctxCombat.rotate(-atTick * 4); 
-            ctxCombat.beginPath(); ctxCombat.arc(0, 0, 30, 0, Math.PI * 1.5); ctxCombat.stroke();
-            ctxCombat.restore();
+        } else {
+            let a = arenaAliados.find(al => al.id === dragAim.selectedTargetId);
+            if(a) { rx = a.combatX + 20; ry = a.combatY; } // Aliados tem offset
         }
+
+        ctxCombat.save();
+        ctxCombat.translate(rx, ry);
+        
+        // Efeito de Foco (Aura em volta do alvo que estás a mirar)
+        ctxCombat.fillStyle = dragAim.targetType === 'ally' ? "rgba(46, 204, 113, 0.15)" : "rgba(231, 76, 60, 0.15)";
+        ctxCombat.beginPath(); ctxCombat.arc(0, 0, 60, 0, Math.PI * 2); ctxCombat.fill();
+
+        // Duas retículas a rodar em direções opostas
+        ctxCombat.rotate(atTick * 2); 
+        ctxCombat.strokeStyle = corMira; ctxCombat.lineWidth = 3;
+        ctxCombat.shadowColor = corMira; ctxCombat.shadowBlur = 15;
+        
+        ctxCombat.beginPath(); ctxCombat.arc(0, 0, 45, 0, Math.PI * 1.5); ctxCombat.stroke();
+        
+        ctxCombat.rotate(-atTick * 4); 
+        ctxCombat.beginPath(); ctxCombat.arc(0, 0, 35, 0, Math.PI * 1.5); ctxCombat.stroke();
+        ctxCombat.restore();
     }
 
     // --- PARTÍCULAS E TEXTOS FLUTUANTES ---
