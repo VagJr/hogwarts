@@ -5000,17 +5000,19 @@ socket.on('oponente_iniciou_casting', (dados) => {
         }
     });
 
-	// =====================================
+// =====================================
 // REAÇÕES COOPERATIVAS (ALIADOS ASSISTEM ÀS MORTES)
 // =====================================
 socket.on('mmo_boss_morto_coop', (dataBackend) => {
-    if (dataBackend.atiradorId === meuBruxo.id) return; // O atacante já fez a tela via resposta HTTP
+    if (dataBackend.atiradorId === meuBruxo.id) return; // O atacante já abriu a tela via resposta HTTP
     
     gerarSparksEmCombate(stateBossHitbox.x, stateBossHitbox.y, "#f1c40f", 200, "stars");
     document.getElementById('ca-boss-hp').style.width = `0%`; safeSet('ca-boss-hp-txt', "0");
     
-    if (dataBackend.avaliacao) {
-        const aval = dataBackend.avaliacao;
+    // 🔥 CORREÇÃO 1: Procurar a avaliação ESPECÍFICA deste jogador no dicionário!
+    if (dataBackend.avaliacoes && dataBackend.avaliacoes[meuBruxo.id]) {
+        const aval = dataBackend.avaliacoes[meuBruxo.id];
+        
         document.getElementById('modal-recompensa').classList.remove('oculto');
         document.getElementById('recompensa-conteudo').innerHTML = `
         <div style="display:flex; flex-direction:column; align-items:center;">
@@ -5025,12 +5027,18 @@ socket.on('mmo_boss_morto_coop', (dataBackend) => {
                 </div>
             </div>
             <div style="margin-top:15px; font-size:0.8em; color:#aaa; font-family:monospace; background:rgba(255,255,255,0.05); padding:10px; border-radius:4px; width:100%;">
-                <div style="color:#f1c40f;">Pontuação Tática Coletiva: ${aval.score}</div>
+                <div style="color:#f1c40f;">Pontuação Tática: ${aval.score}</div>
+                <div style="margin-top:5px;">${aval.detalhes}</div>
+                <div style="margin-top:10px; color:#3498db; font-weight:bold;">+${aval.xp} XP | +${aval.gold} Galeões</div>
             </div>
             <div style="margin-top:15px; color:#3498db;">${dataBackend.relatoAcao}</div>
         </div>`;
     }
-    playSFX('magic'); finalizarArena(true);
+    
+    playSFX('magic'); 
+    
+    // 🔥 CORREÇÃO 2: REMOVIDA a função finalizarArena(true) daqui! 
+    // Agora o aliado fica a olhar para o modal até clicar no botão "Guardar no Baú", tal como o líder.
 });
 
 socket.on('mmo_fase_update', (dataBackend) => {
