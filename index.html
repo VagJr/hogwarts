@@ -3726,28 +3726,6 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
     // Atualizar UI de Progresso no Sync
 
 
-   // 1. Função que Renderiza as Cartas e Extrai a Mecânica Correta
-    window.renderizarCartasActionHog = function() {
-        if(!servidorGlobal || !servidorGlobal.livroDeFeiticos) return;
-
-        // Renderiza apenas os IDs que estão atualmente na maoCombate
-        document.getElementById('ca-hotbar').innerHTML = maoCombate.map((f, slotIndex) => {
-            if (!f) return `<div class="spell-card" style="opacity:0.3; background:#000;"></div>`; // Slot vazio durante a compra
-
-            const obj = servidorGlobal.livroDeFeiticos[f] || {nome:"Fogo", custoFocoBase:3, elemento:'cinetico'};
-            let custoMana = obj.custoMana || obj.custoFocoBase || 3;
-            let mecanica = obj.tipoMecanica || (obj.defende ? 'escudo' : 'ataque');
-            
-            let colorB = obj.elemento === 'fogo' ? '#8a0303' : (mecanica === 'escudo' ? '#11bbbb' : (mecanica === 'cura' ? '#2ecc71' : (mecanica === 'status' ? '#8e44ad' : '#111')));
-            let icon = mecanica === 'escudo' ? '🛡️' : (mecanica === 'cura' ? '💚' : (mecanica === 'status' ? '🔮' : '💫'));
-
-            // Agora passamos o slotIndex para saber qual carta remover da mão
-            return `<div class="spell-card" id="slot_${slotIndex}" onclick="window.castPlayerLiveEngine('${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" style="background:linear-gradient(to bottom, ${colorB}, #050505);">
-                <div style="font-weight:bold; color:var(--hp-gold); font-size:0.75em; text-shadow:0 0 4px #000; line-height:1.2;">${icon} ${obj.nome}</div>
-                <div style="color:#3498db; font-weight:900; background:rgba(0,0,0,0.8); padding:5px 0; font-size:0.8em;">Mana ${custoMana}💧</div>
-            </div>`;
-        }).join('');
-    };
 
     // 2. A Função que Inicia a Arena
     // 2. A Função que Inicia a Arena (AGORA COM FORMAÇÃO DE BATALHA!)
@@ -3881,48 +3859,7 @@ let btnVender = (qtdCartas > 1) ? `<button onclick="empacotarCartaDuplicada('${b
 // 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (BLINDADO COM SYNC MULTIPLAYER)
 // ==============================================================================
 // 1. Modifica a função `castPlayerLiveEngine` para iniciar o Cast em vez de disparar logo!
-window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
-    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
-    
-    let agora = Date.now();
-    let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
-    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo));
-    
-    // Se o jogador já estiver a castar outro feitiço, ignora o clique
-    if (isStunned || (playerHitbox.isCasting && playerHitbox.castTimer > 0)) {
-        playSFX('error');
-        document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-        return; 
-    }
-    
-    const feitico = servidorGlobal.livroDeFeiticos[sid];
-    if (!feitico) return;
 
-    playSFX('click');
-    arenaMana -= cMana;
-    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
-    
-    maoCombate[slotIndex] = null; 
-    renderizarCartasActionHog(); 
-    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
-
-    // 🔥 NOVO: ENTRAR EM ESTADO DE CASTING
-    let tempoDeCast = feitico.tempoCasting || 1000;
-    
-    playerHitbox.isCasting = true;
-    playerHitbox.castTimer = tempoDeCast;
-    playerHitbox.castTimerMax = tempoDeCast;
-    playerHitbox.castSpellId = sid;
-    playerHitbox.castSpellName = feitico.nome;
-    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
-    
-    // Avisa o servidor e os inimigos que começaste a carregar a magia!
-    socket.emit('iniciar_casting_magia', {
-        instId: combatInstId,
-        feiticoId: sid,
-        tempoCast: tempoDeCast
-    });
-};
 
 
     
@@ -4007,40 +3944,71 @@ window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVind
         }
     };
 
-    // Renderiza os botões de alvo na tela (Se não existir, cola-a)
-    window.renderizarAlvos = function(entidades) {
-        arenaInimigos = entidades;
-        const selector = document.getElementById('ca-target-selector');
-        let ht = '';
-        
-        // Dicionário de Efeitos Visuais
-        const iconesEfeitos = { 'queimar': '🔥', 'sangrar': '🩸', 'atordoar': '💫', 'congelado': '❄️', 'fragil': '💔', 'molhado': '💧' };
-
-        entidades.forEach(m => {
-            if(!m.vivo) return;
-            let act = (m.idx === alvoAtualIdx) ? 'border: 2px solid #0f5; background:#114422;' : 'border: 1px solid #555; background:#222;';
-            
-            // Desenha os ícones de status ao lado do nome do monstro!
-            let statusHtml = '';
-            if (m.efeitos && m.efeitos.length > 0) {
-                m.efeitos.forEach(e => {
-                    statusHtml += `<span style="font-size:0.8em; margin-left:3px;" title="${e.tipo} (${e.duracao}t)">${iconesEfeitos[e.tipo] || '⚡'}</span>`;
-                });
-            }
-
-            ht += `<button onclick="alvoAtualIdx = ${m.idx}; renderizarAlvos(arenaInimigos);" style="font-family:'Cinzel'; color:#fff; padding:2px 8px; font-size:0.7em; margin:2px; cursor:pointer; ${act}">${m.nome} ${statusHtml}</button>`;
-        });
-        if(selector) selector.innerHTML = ht;
-        
-        let target = entidades.find(m => m.idx === alvoAtualIdx && m.vivo) || entidades.find(m => m.vivo);
-        if(target) {
-            alvoAtualIdx = target.idx;
-            bossMaxHp = target.hpMax; bossCurrentHp = target.hpAtual;
-            safeSet('ca-boss-name', target.nome);
-            atualizarHPUIVisual();
-        }
+   window.renderizarAlvos = function(entidades) {
+    arenaInimigos = entidades;
+    // 🔥 Escondemos os botões HTML antigos, pois agora a mira é na tela!
+    const selector = document.getElementById('ca-target-selector');
+    if(selector) selector.innerHTML = `<span style="color:#888; font-size:0.8em; font-family:'Cinzel';">Arrasta o feitiço para mirar...</span>`;
+    
+    // Atualiza o HP do boss principal focado
+    let target = entidades.find(m => m.idx === alvoAtualIdx && m.vivo) || entidades.find(m => m.vivo);
+    if(target) {
+        bossMaxHp = target.hpMax; bossCurrentHp = target.hpAtual;
+        safeSet('ca-boss-name', target.nome);
+        atualizarHPUIVisual();
     }
+};
 
+
+function atualizarPosicaoMira(e) {
+    if (!dragAim.active) return;
+    const canvas = document.getElementById('engine-combate');
+    const rect = canvas.getBoundingClientRect();
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    dragAim.mouseX = (clientX - rect.left) * (canvas.width / rect.width);
+    dragAim.mouseY = (clientY - rect.top) * (canvas.height / rect.height);
+
+    let bestTarget = null;
+    let minDist = 9999;
+
+    if (dragAim.targetType === 'enemy') {
+        let alvos = isPvP ? [arenaInimigoPvP] : (arenaInimigos || []).filter(m => m.vivo);
+        alvos.forEach(m => {
+            let mX = isPvP ? (m.combatX || 800) : ((stateBossHitbox.x - 80) + ((arenaInimigos.indexOf(m) * 140) - ((alvos.length - 1) * 70)));
+            let mY = isPvP ? (m.combatY || 300) : (stateBossHitbox.y + ((arenaInimigos.indexOf(m) % 2 !== 0) ? -35 : 15));
+            
+            // Dá mais peso ao eixo Y para facilitar escolher quem está em cima ou embaixo
+            let dist = Math.abs(dragAim.mouseY - mY)*1.5 + Math.abs(dragAim.mouseX - mX)*0.5;
+            if (dist < minDist) { minDist = dist; bestTarget = isPvP ? 'pvp_enemy' : m.idx; }
+        });
+    } else {
+        let alvos = arenaAliados ? [...arenaAliados] : [];
+        alvos.forEach((a, i) => {
+            let mX = a.combatX + 20; let mY = a.combatY;
+            let dist = Math.abs(dragAim.mouseY - mY)*1.5 + Math.abs(dragAim.mouseX - mX)*0.5;
+            if (dist < minDist) { minDist = dist; bestTarget = a.id; }
+        });
+    }
+    dragAim.selectedTarget = bestTarget;
+}
+
+function dispararMira(e) {
+    if(!dragAim.active) return;
+    dragAim.active = false;
+    if (dragAim.selectedTarget !== null) {
+        if (dragAim.targetType === 'enemy' && !isPvP) alvoAtualIdx = dragAim.selectedTarget;
+        
+        // Dispara passando o alvo correto! (Para suporte a curas multiplayer no backend)
+        castPlayerLiveEngine(dragAim.fId, dragAim.cMana, dragAim.tElement, dragAim.mecanica, dragAim.slotIdx, dragAim.selectedTarget);
+    }
+}
+
+document.addEventListener('mousemove', atualizarPosicaoMira);
+document.addEventListener('touchmove', atualizarPosicaoMira, {passive: false});
+document.addEventListener('mouseup', dispararMira);
+document.addEventListener('touchend', dispararMira);
     
 
     
@@ -4090,139 +4058,247 @@ if (efeitoBloqueio) {
     socket.emit('pve_acao', { id: meuBruxo.id, acao: feiticoId });
 }
 
+// ==============================================================================
+// 🔥 SISTEMA DE MIRA POR ARRASTE E CARTAS (DRAG-TO-AIM)
+// ==============================================================================
+let dragAim = { active: false, fId: null, cMana: 0, tElement: null, mecanica: null, slotIdx: null, targetType: null, mouseX: 0, mouseY: 0, selectedTarget: null };
+
+window.renderizarCartasActionHog = function() {
+    if(!servidorGlobal || !servidorGlobal.livroDeFeiticos) return;
+
+    document.getElementById('ca-hotbar').innerHTML = maoCombate.map((f, slotIndex) => {
+        if (!f) return `<div class="spell-card" style="opacity:0.3; background:#000;"></div>`;
+
+        const obj = servidorGlobal.livroDeFeiticos[f] || {nome:"Fogo", custoFocoBase:3, elemento:'cinetico'};
+        let custoMana = obj.custoMana || obj.custoFocoBase || 3;
+        let mecanica = obj.tipoMecanica || (obj.defende ? 'escudo' : 'ataque');
+        
+        let colorB = obj.elemento === 'fogo' ? '#8a0303' : (mecanica === 'escudo' ? '#11bbbb' : (mecanica === 'cura' ? '#2ecc71' : (mecanica === 'status' ? '#8e44ad' : '#111')));
+        let icon = mecanica === 'escudo' ? '🛡️' : (mecanica === 'cura' ? '💚' : (mecanica === 'status' ? '🔮' : '💫'));
+
+        // O SEGREDO DO DRAG: Eventos onmousedown e ontouchstart ativam a mira
+        return `<div class="spell-card" id="slot_${slotIndex}" 
+            onmousedown="iniciarMira(event, '${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" 
+            ontouchstart="iniciarMira(event, '${f}', ${custoMana}, '${obj.elemento}', '${mecanica}', ${slotIndex})" 
+            style="background:linear-gradient(to bottom, ${colorB}, #050505); cursor: grab; touch-action: none;">
+            <div style="font-weight:bold; color:var(--hp-gold); font-size:0.75em; text-shadow:0 0 4px #000; line-height:1.2;">${icon} ${obj.nome}</div>
+            <div style="color:#3498db; font-weight:900; background:rgba(0,0,0,0.8); padding:5px 0; font-size:0.8em;">Mana ${custoMana}💧</div>
+        </div>`;
+    }).join('');
+};
+
+window.renderizarAlvos = function(entidades) {
+    arenaInimigos = entidades;
+    // Removemos os botões HTML antigos, o jogador agora mira puxando a carta
+    const selector = document.getElementById('ca-target-selector');
+    if(selector) selector.innerHTML = `<span style="color:#888; font-size:0.8em; font-family:'Cinzel';">Arrasta o feitiço para mirar...</span>`;
+    
+    // Atualiza o HP do boss principal/alvo
+    let target = entidades.find(m => m.idx === alvoAtualIdx && m.vivo) || entidades.find(m => m.vivo);
+    if(target) {
+        bossMaxHp = target.hpMax; bossCurrentHp = target.hpAtual;
+        safeSet('ca-boss-name', target.nome);
+        atualizarHPUIVisual();
+    }
+};
+
+window.iniciarMira = function(e, fId, cMana, tElement, mecanica, slotIdx) {
+    e.preventDefault();
+    if (arenaMana < cMana || (playerHitbox.isCasting && playerHitbox.castTimer > 0)) { playSFX('error'); return; }
+    
+    let isStunned = meuBruxo.efeitos && meuBruxo.efeitos.some(ef => ['atordoar', 'congelado', 'desarmar'].includes(ef.tipo));
+    if (isStunned) return;
+
+    dragAim.active = true;
+    dragAim.fId = fId; dragAim.cMana = cMana; dragAim.tElement = tElement;
+    dragAim.mecanica = mecanica; dragAim.slotIdx = slotIdx;
+    
+    // Define se o alvo da mira devem ser Inimigos ou Aliados (Curas/Escudos)
+    dragAim.targetType = (mecanica === 'cura' || mecanica === 'escudo' || mecanica === 'defesa') ? 'ally' : 'enemy';
+    atualizarPosicaoMira(e);
+};
+
+function atualizarPosicaoMira(e) {
+    if (!dragAim.active) return;
+    const canvas = document.getElementById('engine-combate');
+    const rect = canvas.getBoundingClientRect();
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    dragAim.mouseX = (clientX - rect.left) * (canvas.width / rect.width);
+    dragAim.mouseY = (clientY - rect.top) * (canvas.height / rect.height);
+
+    let bestTarget = null;
+    let minDist = 9999;
+
+    if (dragAim.targetType === 'enemy') {
+        let alvos = isPvP ? [arenaInimigoPvP] : (arenaInimigos || []).filter(m => m.vivo);
+        alvos.forEach(m => {
+            let mX = isPvP ? (m.combatX || 800) : ((stateBossHitbox.x - 80) + ((arenaInimigos.indexOf(m) * 140) - ((alvos.length - 1) * 70)));
+            let mY = isPvP ? (m.combatY || 300) : (stateBossHitbox.y + ((arenaInimigos.indexOf(m) % 2 !== 0) ? -35 : 15));
+            
+            // Dá um pouco mais de peso ao eixo Y para facilitar a mira no telemóvel
+            let dist = Math.abs(dragAim.mouseY - mY)*1.5 + Math.abs(dragAim.mouseX - mX)*0.5;
+            if (dist < minDist) { minDist = dist; bestTarget = isPvP ? 'pvp_enemy' : m.idx; }
+        });
+    } else {
+        // Mira de Suporte (Cura o próprio jogador ou os aliados)
+        let alvos = arenaAliados ? [...arenaAliados] : [];
+        alvos.forEach((a, i) => {
+            let mX = a.combatX + 20; let mY = a.combatY;
+            let dist = Math.abs(dragAim.mouseY - mY)*1.5 + Math.abs(dragAim.mouseX - mX)*0.5;
+            if (dist < minDist) { minDist = dist; bestTarget = a.id; }
+        });
+    }
+    dragAim.selectedTarget = bestTarget;
+}
+
+function dispararMira(e) {
+    if(!dragAim.active) return;
+    dragAim.active = false;
+    if (dragAim.selectedTarget !== null) {
+        if (dragAim.targetType === 'enemy' && !isPvP) alvoAtualIdx = dragAim.selectedTarget;
+        
+        // Passa o selectedTarget para que o servidor saiba quem curar/atacar
+        castPlayerLiveEngine(dragAim.fId, dragAim.cMana, dragAim.tElement, dragAim.mecanica, dragAim.slotIdx, dragAim.selectedTarget);
+    }
+}
+
+// Listeners globais para manter o rasto do rato/dedo na tela inteira
+document.addEventListener('mousemove', atualizarPosicaoMira);
+document.addEventListener('touchmove', atualizarPosicaoMira, {passive: false});
+document.addEventListener('mouseup', dispararMira);
+document.addEventListener('touchend', dispararMira);
+
+// ==============================================================================
+// 🔥 ACTION COMBAT: CASTING ENGINE (AGORA COM ALVO EXTRA)
+// ==============================================================================
+window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex, alvoExtraId = null) {
+    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
+    
+    let agora = Date.now();
+    let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
+    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
+    
+    if (isStunned || (playerHitbox.isCasting && playerHitbox.castTimer > 0)) {
+        playSFX('error');
+        document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
+        return; 
+    }
+    
+    const feitico = servidorGlobal.livroDeFeiticos[sid];
+    if (!feitico) return;
+
+    playSFX('click');
+    arenaMana -= cMana;
+    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
+    
+    maoCombate[slotIndex] = null; 
+    renderizarCartasActionHog(); 
+    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
+
+    let tempoDeCast = feitico.tempoCasting || 1000;
+    
+    playerHitbox.isCasting = true;
+    playerHitbox.castTimer = tempoDeCast;
+    playerHitbox.castTimerMax = tempoDeCast;
+    playerHitbox.castSpellId = sid;
+    playerHitbox.castSpellName = feitico.nome;
+    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
+    
+    // Avisa os outros que o feitiço começou, e foca o alvo obtido pelo Drag-to-Aim!
+    socket.emit('iniciar_casting_magia', {
+        instId: combatInstId,
+        feiticoId: sid,
+        alvoIdx: alvoExtraId !== null ? alvoExtraId : alvoAtualIdx,
+        tempoCast: tempoDeCast
+    });
+};
+
+// ==============================================================================
+// 🔥 RENDERIZADOR 2D DO COMBATE (COM BEAM STRUGGLES E MIRA VISUAL)
+// ==============================================================================
 window.drawCombatScene = function(ctx, timestamp, isAtk) { 
     if (!combatEngineAtivo) return; 
     
-    // O atTick controla o balanço dos monstros e projéteis
     atTick += 0.05;
-
-    // 🔥 FIX: Removemos as variáveis globais de ctx.rotate() que giravam o ecrã inteiro!
-    // As animações do jogador acontecem de forma segura DENTRO do drawAnimeWizard.
 
     let isMobile = window.innerWidth <= 768;
     if(isMobile && effectParticles.length > 30) effectParticles.splice(0, effectParticles.length - 30); 
     
-    // Desenha o Fundo Escuro (Cenário da Floresta/Boss)
     let bgIdx = Math.min(faseAtualArena - 1, bgGradients.length - 1);
     let grd = ctx.createLinearGradient(0, 0, 0, cvs.height); 
     grd.addColorStop(0, bgGradients[bgIdx][0]); grd.addColorStop(1, bgGradients[bgIdx][1]);
     ctx.fillStyle = grd; 
     ctx.fillRect(0, 0, cvs.width, cvs.height);
     
-    // Chão Mágico
     ctx.fillStyle = "rgba(100, 255, 100, 0.03)"; 
     ctx.beginPath(); 
     ctx.arc(200, cvs.height, cvs.width/1.5 + Math.sin(atTick)*20, 0, Math.PI, true); 
     ctx.fill();
 
-    // ==========================================
-    // 1. JOGADORES ALIADOS E PVP (MULTILAYER SYNC)
-    // ==========================================
-    
-    // Anima a queda do cooldown dos ataques dos aliados para a varinha deles mexer suavemente
+    // --- DESENHA ALIADOS ---
     if (arenaAliados) {
         arenaAliados.forEach(al => {
             if (al.atkProgress > 0) al.atkProgress = Math.max(0, al.atkProgress - 0.04);
-        });
-    }
-    if (arenaInimigoPvP && arenaInimigoPvP.atkProgress > 0) {
-        arenaInimigoPvP.atkProgress = Math.max(0, arenaInimigoPvP.atkProgress - 0.04);
-    }
-
-    // 🔥 ATUALIZAÇÃO: DESENHA OS ALIADOS (COOP) COM OS ESCUDOS
-    if (arenaAliados && arenaAliados.length > 1) {
-        arenaAliados.forEach(al => {
             if (al.id !== meuBruxo.id) {
                 if (al.timer > 0) al.timer -= 16;
-                
-                // Sombra no chão do Aliado
                 ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
                 ctx.beginPath(); ctx.ellipse(al.combatX + 20, al.combatY + 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
-
                 drawAnimeWizard(ctx, al.combatX + 20, al.combatY, 1.5, atTick, al.atkProgress || 0, al.atkColor || '#fff', false, al.equipamentos || {}, al.casa);
                 
-                // 🔥 DESENHA O ESCUDO DO TEU AMIGO DA PARTY
                 if (al.mode === 'protego' && al.timer > 0) {
-                    ctx.beginPath();
-                    ctx.arc(al.combatX + 20, al.combatY - 30, 45, 0, Math.PI * 2);
-                    ctx.fillStyle = "rgba(100, 200, 255, 0.15)";
-                    ctx.fill();
-                    ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
+                    ctx.beginPath(); ctx.arc(al.combatX + 20, al.combatY - 30, 45, 0, Math.PI * 2);
+                    ctx.fillStyle = "rgba(100, 200, 255, 0.15)"; ctx.fill();
+                    ctx.strokeStyle = "rgba(100, 200, 255, 0.8)"; ctx.lineWidth = 2; ctx.stroke();
                 }
-
-                // Nome do Aliado
                 ctx.fillStyle = '#2ecc71'; ctx.font = "bold 12px Arial"; ctx.textAlign="center";
                 ctx.fillText(al.nome, al.combatX + 20, al.combatY - 20);
             }
         });
     }
 
-    // 🔥 ATUALIZAÇÃO: DESENHA O INIMIGO NO PVP COM O ESCUDO
+    // --- DESENHA INIMIGO PVP ---
     if (arenaInimigoPvP) {
-        // Diminui o timer do escudo se existir
+        if (arenaInimigoPvP.atkProgress > 0) arenaInimigoPvP.atkProgress = Math.max(0, arenaInimigoPvP.atkProgress - 0.04);
         if (arenaInimigoPvP.timer > 0) arenaInimigoPvP.timer -= 16;
         
         ctx.save();
-        // O inimigo é desenhado na direita, virado para a esquerda (scale -1)
         ctx.translate(arenaInimigoPvP.combatX || 800, arenaInimigoPvP.combatY || 300);
         ctx.scale(-1.5, 1.5); 
-        
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
         ctx.beginPath(); ctx.ellipse(0, 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
-
         drawAnimeWizard(ctx, 0, 0, 1.0, atTick, arenaInimigoPvP.atkProgress, arenaInimigoPvP.atkColor || '#e74c3c', false, arenaInimigoPvP.equipamentos || {}, arenaInimigoPvP.casa);
         ctx.restore();
 
-        // 🔥 DESENHA O ESCUDO DO INIMIGO PVP (Fora do ctx.save para a coordenada não inverter)
         if (arenaInimigoPvP.mode === 'protego' && arenaInimigoPvP.timer > 0) {
-            ctx.beginPath();
-            ctx.arc((arenaInimigoPvP.combatX || 800) - 20, (arenaInimigoPvP.combatY || 300) - 30, 45, 0, Math.PI * 2);
-            ctx.fillStyle = "rgba(100, 200, 255, 0.15)";
-            ctx.fill();
-            ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
-            ctx.lineWidth = 2;
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc((arenaInimigoPvP.combatX || 800) - 20, (arenaInimigoPvP.combatY || 300) - 30, 45, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(100, 200, 255, 0.15)"; ctx.fill();
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.8)"; ctx.lineWidth = 2; ctx.stroke();
         }
-
         ctx.fillStyle = '#e74c3c'; ctx.font = "bold 16px Cinzel"; ctx.textAlign="center";
         ctx.fillText(arenaInimigoPvP.nome, (arenaInimigoPvP.combatX || 800), (arenaInimigoPvP.combatY || 300) - 30);
     }
 
-    // ==========================================
-    // 2. JOGADOR LOCAL (ESTILO ANIME C/ KINEMATICS PROTEGIDAS)
-    // ==========================================
-    // ==========================================
-    // 2. JOGADOR LOCAL (ESTILO ANIME C/ KINEMATICS PROTEGIDAS)
-    // ==========================================
+    // --- DESENHA JOGADOR LOCAL ---
     let isHurt = playerHitbox.mode === 'hurt'; 
-    
-    // ⚡ Reduz timers de estados do Jogador Local
     if (playerHitbox.mode === 'hurt' || playerHitbox.mode === 'protego') {
         playerHitbox.timer -= 16;
         if (playerHitbox.timer <= 0) {
             playerHitbox.mode = 'normal';
-            if (playerHitbox.escudoHp !== undefined) playerHitbox.escudoHp = 0; // 🔥 Escudo expirou por tempo
-            atualizarHPUIVisual(); // Apaga a barra visual
+            if (playerHitbox.escudoHp !== undefined) playerHitbox.escudoHp = 0; 
+            atualizarHPUIVisual(); 
         }
     }
-
-    // ⚡ Atualiza o temporizador da animação Kinematic de ataque 
     if (playerHitbox.atkTimer > 0) {
-        playerHitbox.atkTimer -= 0.04; // Velocidade da animação (volta ao zero suavemente)
+        playerHitbox.atkTimer -= 0.04; 
         if (playerHitbox.atkTimer < 0) playerHitbox.atkTimer = 0;
     }
 
-    // Sombra no chão Local
     ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
     ctx.beginPath(); ctx.ellipse(playerHitbox.x + 20, playerHitbox.y + 110, 25, 6, 0, 0, Math.PI*2); ctx.fill();
-
-    // Desenha o jogador. NOTE: Todas as animações do corpo/braço ocorrem APENAS aqui dentro!
     drawAnimeWizard(ctx, playerHitbox.x + 20, playerHitbox.y, 1.5, atTick, playerHitbox.atkTimer, playerHitbox.atkColor, isHurt, meuBruxo.equipamentos, meuBruxo.casa);
 
-    // Se estiver com o escudo Protego ativo, desenha a cúpula azul
-    // 🔥 SE TIVER O BUFF DE ESCUDO ATIVO NO SERVIDOR (Tempo Real), DESENHA A CÚPULA!
     const agoraCena = Date.now();
     let euTenhoEscudoFisico = meuBruxo.buffs && meuBruxo.buffs.some(b => b.tipo === 'escudo_fisico' && b.expiresAt > agoraCena);
     
@@ -4235,159 +4311,82 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         ctx.restore();
     }
 
-
-    // ==========================================
-    // 2. INIMIGOS (COM ARTE AVANÇADA)
-    // ==========================================
-    ctx.save();
-    // ==========================================
-    // 2. INIMIGOS (MOTORES DE RENDERIZAÇÃO PROCEDURAL E COLOSSAL)
-    // ==========================================
-    ctxCombat.save();
+    // --- DESENHA MOBS (PVE) ---
     ctxCombat.save();
     let mobsVivos = arenaInimigos.filter(m => m.vivo);
 
     mobsVivos.forEach((mob, index) => {
         let offsetX = (index * 160) - ((mobsVivos.length - 1) * 80);
-        
-        // 🔥 CORREÇÃO AQUI: Força as coordenadas da Arena e ignora o X/Y do Mundo Aberto!
         let bx = ((stateBossHitbox.x - 80) + offsetX); 
         let bY = (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos(atTick * 1.5 + index) * 15);
         let bN = mob.nome.toLowerCase();
         
-        // Verifica se é um Boss (Mais de 2500 de Vida) para aumentar a escala
         let isColossal = mob.hpMax >= 2500;
-        let sF = isColossal ? 1.8 : 1.0; // Scale Factor
+        let sF = isColossal ? 1.8 : 1.0;
 
         ctxCombat.save();
         ctxCombat.translate(bx, bY);
         ctxCombat.scale(sF, sF);
 
-        // Sombra / Magic Circle no chão
         ctxCombat.shadowColor = mob.padrao === 'frenesi' ? '#ff00ff' : '#0f5'; 
         ctxCombat.shadowBlur = isColossal ? 40 : 20;          
         ctxCombat.beginPath(); ctxCombat.ellipse(0, 60, 50, 12, 0, 0, Math.PI*2);
         ctxCombat.fillStyle = mob.idx === alvoAtualIdx ? "rgba(0, 255, 85, 0.3)" : "rgba(0, 0, 0, 0.5)"; 
-        if(isColossal) ctxCombat.fillStyle = "rgba(255, 0, 0, 0.2)"; // Bosses tem aura vermelha/roxa no chão
-        ctxCombat.fill();
-        ctxCombat.shadowBlur = 0;
+        if(isColossal) ctxCombat.fillStyle = "rgba(255, 0, 0, 0.2)"; 
+        ctxCombat.fill(); ctxCombat.shadowBlur = 0;
 
-        // Efeito de Dano ou Vulnerabilidade
         if (mob.padrao === 'vulneravel') {
-            ctxCombat.globalCompositeOperation = "lighter";
-            ctxCombat.filter = "brightness(200%) hue-rotate(90deg)";
+            ctxCombat.globalCompositeOperation = "lighter"; ctxCombat.filter = "brightness(200%) hue-rotate(90deg)";
         }
 
-        // ===============================================
-        // ARTE 1: ARANHA / ACROMÂNTULA (Kinematics)
-        // ===============================================
         if (bN.includes('aranha') || bN.includes('acromântula')) {
             ctxCombat.fillStyle = '#1a110c'; 
-            
-            // Pernas (Calculadas com Sine Waves para rastejar)
             ctxCombat.strokeStyle = '#0f0a07'; ctxCombat.lineWidth = 6; ctxCombat.lineCap = 'round';
             for(let i=0; i<4; i++) {
                 let pSpeed = mob.padrao === 'frenesi' ? 10 : 4;
-                let moveY = Math.sin(atTick * pSpeed + i) * 20;
-                let moveX = Math.cos(atTick * pSpeed + i) * 15;
-                
-                // Pernas Traseiras
-                ctxCombat.beginPath(); ctxCombat.moveTo(0, 0); 
-                ctxCombat.lineTo(40 + moveX, -60 + moveY); 
-                ctxCombat.lineTo(80 + (isColossal?20:0), 60 + moveY); ctxCombat.stroke();
-                
-                // Pernas Dianteiras
-                ctxCombat.beginPath(); ctxCombat.moveTo(-10, 10); 
-                ctxCombat.lineTo(-50 - moveX, -50 - moveY); 
-                ctxCombat.lineTo(-80 - (isColossal?20:0), 60 - moveY); ctxCombat.stroke();
+                let moveY = Math.sin(atTick * pSpeed + i) * 20; let moveX = Math.cos(atTick * pSpeed + i) * 15;
+                ctxCombat.beginPath(); ctxCombat.moveTo(0, 0); ctxCombat.lineTo(40 + moveX, -60 + moveY); ctxCombat.lineTo(80 + (isColossal?20:0), 60 + moveY); ctxCombat.stroke();
+                ctxCombat.beginPath(); ctxCombat.moveTo(-10, 10); ctxCombat.lineTo(-50 - moveX, -50 - moveY); ctxCombat.lineTo(-80 - (isColossal?20:0), 60 - moveY); ctxCombat.stroke();
             }
-
-            // Abdômen e Tórax
             ctxCombat.beginPath(); ctxCombat.ellipse(30, 0, 45, 35, Math.sin(atTick)*0.1, 0, Math.PI*2); ctxCombat.fill();
             ctxCombat.beginPath(); ctxCombat.ellipse(-15, 10, 25, 20, 0, 0, Math.PI*2); ctxCombat.fill();
-            
-            // Olhos Brilhantes Múltiplos
             ctxCombat.fillStyle = '#e74c3c'; ctxCombat.shadowColor = "#e74c3c"; ctxCombat.shadowBlur=15;
             ctxCombat.beginPath(); ctxCombat.arc(-25, 0, 5, 0, Math.PI*2); ctxCombat.fill();
             ctxCombat.beginPath(); ctxCombat.arc(-35, 5, 4, 0, Math.PI*2); ctxCombat.fill();
             ctxCombat.beginPath(); ctxCombat.arc(-20, -8, 3, 0, Math.PI*2); ctxCombat.fill();
         } 
-        // ===============================================
-        // ARTE 2: BASILISCO / COBRA GIGANTE (Trailing)
-        // ===============================================
         else if (bN.includes('basilisco') || bN.includes('cobra')) {
-            ctxCombat.fillStyle = '#0a2e15'; 
-            ctxCombat.strokeStyle = '#051409'; ctxCombat.lineWidth = 4;
-            
-            // Corpo da cobra (Segmentos seguindo ondas)
+            ctxCombat.fillStyle = '#0a2e15'; ctxCombat.strokeStyle = '#051409'; ctxCombat.lineWidth = 4;
             for(let s = 8; s > 0; s--) {
-                let segX = 20 + (s * 25);
-                let segY = Math.sin(atTick * 2 + s) * 30;
-                let segRadius = 25 - (s * 2);
-                
-                ctxCombat.beginPath(); 
-                ctxCombat.arc(segX, segY, segRadius, 0, Math.PI*2); 
-                ctxCombat.fill(); ctxCombat.stroke();
+                let segX = 20 + (s * 25); let segY = Math.sin(atTick * 2 + s) * 30; let segRadius = 25 - (s * 2);
+                ctxCombat.beginPath(); ctxCombat.arc(segX, segY, segRadius, 0, Math.PI*2); ctxCombat.fill(); ctxCombat.stroke();
             }
-            
-            // Cabeça e Presas
             ctxCombat.beginPath(); ctxCombat.ellipse(-10, Math.sin(atTick*2)*30, 30, 20, Math.PI/8, 0, Math.PI*2); ctxCombat.fill();
             ctxCombat.fillStyle = '#e74c3c'; ctxCombat.shadowColor = '#e74c3c'; ctxCombat.shadowBlur = 20;
-            ctxCombat.beginPath(); ctxCombat.ellipse(-20, Math.sin(atTick*2)*30 - 5, 4, 8, -Math.PI/4, 0, Math.PI*2); ctxCombat.fill(); // Olho Mortal
-            
-            ctxCombat.fillStyle = '#fff'; ctxCombat.shadowBlur = 0; // Presas
+            ctxCombat.beginPath(); ctxCombat.ellipse(-20, Math.sin(atTick*2)*30 - 5, 4, 8, -Math.PI/4, 0, Math.PI*2); ctxCombat.fill(); 
+            ctxCombat.fillStyle = '#fff'; ctxCombat.shadowBlur = 0; 
             ctxCombat.beginPath(); ctxCombat.moveTo(-35, Math.sin(atTick*2)*30 + 10); ctxCombat.lineTo(-45, Math.sin(atTick*2)*30 + 25); ctxCombat.lineTo(-30, Math.sin(atTick*2)*30 + 15); ctxCombat.fill();
         }
-        // ===============================================
-        // ARTE 3: DEMENTADOR (Layers de Tecido Translúcido)
-        // ===============================================
         else if (bN.includes('dementador') || bN.includes('trevas')) {
             ctxCombat.fillStyle = 'rgba(10,10,10,0.8)'; ctxCombat.shadowColor = '#000'; ctxCombat.shadowBlur = 40;
-            
-            // Capuz flutuante
             ctxCombat.beginPath(); ctxCombat.arc(0, -30 + Math.sin(atTick)*10, 25, 0, Math.PI*2); ctxCombat.fill(); 
-            
-            // Tentáculos de capa
             for(let layer = 0; layer < 3; layer++) {
-                ctxCombat.fillStyle = `rgba(5,5,5,${0.9 - (layer*0.2)})`;
-                ctxCombat.beginPath();
-                ctxCombat.moveTo(-25, -20);
-                for(let r=0; r<6; r++) {
-                    ctxCombat.quadraticCurveTo(
-                        Math.sin(atTick*(2+layer) + r)*50, 
-                        40 + (r*25), 
-                        -40 + (r*15) + Math.cos(atTick*1.5)*40, 
-                        120 + (layer*20)
-                    );
-                }
+                ctxCombat.fillStyle = `rgba(5,5,5,${0.9 - (layer*0.2)})`; ctxCombat.beginPath(); ctxCombat.moveTo(-25, -20);
+                for(let r=0; r<6; r++) { ctxCombat.quadraticCurveTo(Math.sin(atTick*(2+layer) + r)*50, 40 + (r*25), -40 + (r*15) + Math.cos(atTick*1.5)*40, 120 + (layer*20)); }
                 ctxCombat.lineTo(25, -20); ctxCombat.fill();
             }
-            
-            // Efeito de Frio Extremo (Partículas de Gelo em volta)
             ctxCombat.fillStyle = "rgba(255,255,255,0.5)"; ctxCombat.shadowBlur = 5;
-            for(let g=0; g<5; g++) {
-                ctxCombat.beginPath(); ctxCombat.arc(Math.random()*100-50, Math.random()*100-20, 2, 0, Math.PI*2); ctxCombat.fill();
-            }
+            for(let g=0; g<5; g++) { ctxCombat.beginPath(); ctxCombat.arc(Math.random()*100-50, Math.random()*100-20, 2, 0, Math.PI*2); ctxCombat.fill(); }
         } 
-        // ===============================================
-        // ARTE 4: TRASGO / BOSS BRUTO (Movimento Pesado)
-        // ===============================================
         else if (bN.includes('trasgo') || bN.includes('gigante')) {
-            ctxCombat.fillStyle = '#3a3a30'; // Pele cinza/pálida
-            
-            // Braço Segurando o Bastão
+            ctxCombat.fillStyle = '#3a3a30'; 
             let swing = Math.sin(atTick * 1.5) * 40;
             ctxCombat.strokeStyle = '#5C4033'; ctxCombat.lineWidth = 25; ctxCombat.lineCap = 'round';
-            ctxCombat.beginPath(); ctxCombat.moveTo(20, -10); ctxCombat.lineTo(-40, -50 + swing); ctxCombat.stroke(); // Bastão
-            
-            ctxCombat.beginPath(); ctxCombat.ellipse(0, 20, 50, 45, 0, 0, Math.PI*2); ctxCombat.fill(); // Corpo Gordo
-            ctxCombat.beginPath(); ctxCombat.ellipse(-15, -30, 20, 25, -Math.PI/8, 0, Math.PI*2); ctxCombat.fill(); // Cabeça minúscula
-            
-            ctxCombat.fillStyle = '#000'; ctxCombat.beginPath(); ctxCombat.arc(-25, -35, 3, 0, Math.PI*2); ctxCombat.fill(); // Olho estúpido
+            ctxCombat.beginPath(); ctxCombat.moveTo(20, -10); ctxCombat.lineTo(-40, -50 + swing); ctxCombat.stroke(); 
+            ctxCombat.beginPath(); ctxCombat.ellipse(0, 20, 50, 45, 0, 0, Math.PI*2); ctxCombat.fill(); 
+            ctxCombat.beginPath(); ctxCombat.ellipse(-15, -30, 20, 25, -Math.PI/8, 0, Math.PI*2); ctxCombat.fill(); 
+            ctxCombat.fillStyle = '#000'; ctxCombat.beginPath(); ctxCombat.arc(-25, -35, 3, 0, Math.PI*2); ctxCombat.fill(); 
         }
-        // ===============================================
-        // ARTE 5: DEFAULT SLIME / BESTA
-        // ===============================================
         else {
             ctxCombat.fillStyle = mob.padrao === 'tanque' ? '#2c0e3a' : '#3d1607'; 
             ctxCombat.beginPath(); ctxCombat.ellipse(0, 0, 40 + Math.sin(atTick*4)*5, 40 - Math.sin(atTick*4)*5, 0, 0, Math.PI*2); ctxCombat.fill();
@@ -4395,290 +4394,306 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         
         ctxCombat.globalCompositeOperation = "source-over"; ctxCombat.filter = "none"; ctxCombat.shadowBlur = 0;
 
-        // HUD DO MONSTRO (Nome, Elemento e EFEITOS)
-        ctxCombat.font = `bold ${14 / sF}px Cinzel`; // Ajusta a fonte para não ficar gigante no Boss
-        ctxCombat.fillStyle = "#fff"; ctxCombat.shadowBlur = 5; ctxCombat.shadowColor = "#000";
-        ctxCombat.textAlign = "center";
-        
-        // Desenha Nome
+        ctxCombat.font = `bold ${14 / sF}px Cinzel`; 
+        ctxCombat.fillStyle = "#fff"; ctxCombat.shadowBlur = 5; ctxCombat.shadowColor = "#000"; ctxCombat.textAlign = "center";
         ctxCombat.fillText(mob.nome, 0, (-80 / sF));
         
-        // Desenha Elemento
         const coresElem = { 'fogo':'#e74c3c', 'agua':'#3498db', 'trevas':'#9b59b6', 'luz':'#f1c40f', 'cinetico':'#ecf0f1' };
         ctxCombat.fillStyle = coresElem[mob.elemento] || '#fff';
         ctxCombat.fillText(`[${(mob.elemento || 'Normal').toUpperCase()}]`, 0, (-65 / sF));
 
-        // Ícones de Debuff visíveis por cima da cabeça
-        // Ícones de Debuff visíveis por cima da cabeça
         if (mob.efeitos && mob.efeitos.length > 0) {
             const yEfeito = (-110 / sF);
             let eX = - ((mob.efeitos.length * 20) / 2);
-            // 🔥 CORREÇÃO: Dicionário atualizado com todos os status e turnos
             const icones = { 'queimar': '🔥', 'sangrar': '🩸', 'envenenar': '🤢', 'atordoar': '💫', 'congelado': '🧊', 'vulneravel': '💔', 'molhado': '💧', 'anti_cura': '🚫', 'desarmar': '⚔️🚫' };
             
             mob.efeitos.forEach(ef => {
-                // Desenha o Emoji
-                ctxCombat.font = `18px Arial`;
-                ctxCombat.fillText(icones[ef.tipo] || '⚠️', eX, yEfeito);
-                // Desenha os Turnos restantes abaixo do Emoji
-                ctxCombat.font = `bold 10px Arial`;
-                ctxCombat.fillStyle = "#fff";
-                ctxCombat.fillText(`${ef.duracao}t`, eX, yEfeito + 14);
+                ctxCombat.font = `18px Arial`; ctxCombat.fillText(icones[ef.tipo] || '⚠️', eX, yEfeito);
+                ctxCombat.font = `bold 10px Arial`; ctxCombat.fillStyle = "#fff"; ctxCombat.fillText(`${ef.duracao}t`, eX, yEfeito + 14);
                 eX += 25;
             });
-            
-            // Efeito visual físico extra: Cubo de Gelo se estiver congelado
             if (mob.efeitos.some(e => e.tipo === 'congelado')) {
-                ctxCombat.fillStyle = "rgba(173, 216, 230, 0.4)";
-                ctxCombat.fillRect(-45, -50, 90, 80); 
+                ctxCombat.fillStyle = "rgba(173, 216, 230, 0.4)"; ctxCombat.fillRect(-45, -50, 90, 80); 
             }
         } 
-        
-        ctxCombat.restore(); // 🔥 FALTAVA RESTAURAR O CANVAS!
+        ctxCombat.restore(); 
     });
 
-    // ==========================================
-    // 3. TELEGRÁFICOS (Avisos de Ataque dos Bosses) - CLOSING RING & PARRY MECHANIC
-      // ==========================================
-        // 3. TELEGRÁFICOS (Avisos de Ataque dos Bosses) - CLOSING RING & PARRY MECHANIC
-        // ==========================================
-        for (let i = telegraficos.length - 1; i >= 0; i--) {
-            let t = telegraficos[i]; 
-            t.timer -= 16;
-            let mobAtacante = mobsVivos.find(m => m.idx === t.idx);
-            if(!mobAtacante) { telegraficos.splice(i, 1); continue; }
+    // --- AVISOS DE ATAQUE DOS INIMIGOS (TELEGRAPHS) ---
+    for (let i = telegraficos.length - 1; i >= 0; i--) {
+        let t = telegraficos[i]; 
+        t.timer -= 16;
+        let mobAtacante = mobsVivos.find(m => m.idx === t.idx);
+        if(!mobAtacante) { telegraficos.splice(i, 1); continue; }
+        
+        let mIndex = mobsVivos.indexOf(mobAtacante);
+        let bx_atk = (stateBossHitbox.x - 80) + ((mIndex * 140) - ((mobsVivos.length - 1) * 70));
+        let bY_atk = stateBossHitbox.y + ((mIndex % 2 !== 0) ? -35 : 15);
+
+        let progresso = 1 - (t.timer / t.maxTimer);
+
+        ctxCombat.save(); 
+        ctxCombat.shadowColor = t.cor;
+
+        let auraGlow = 10 + (progresso * 30);
+        ctxCombat.shadowBlur = auraGlow; ctxCombat.fillStyle = t.cor; ctxCombat.globalAlpha = 0.15 + (progresso * 0.25);
+        ctxCombat.beginPath(); ctxCombat.arc(bx_atk, bY_atk, 40 + (Math.sin(atTick * 10) * 5), 0, Math.PI * 2); ctxCombat.fill();
+
+        let ringRadiusMax = 120; let ringRadiusMin = 20; 
+        let currentRingRadius = ringRadiusMax - (progresso * (ringRadiusMax - ringRadiusMin));
+
+        ctxCombat.globalAlpha = progresso + 0.2; ctxCombat.lineWidth = 2 + (progresso * 4); 
+        ctxCombat.strokeStyle = t.cor; ctxCombat.beginPath(); ctxCombat.arc(bx_atk, bY_atk, currentRingRadius, 0, Math.PI * 2); ctxCombat.stroke();
+
+        ctxCombat.lineWidth = 2; ctxCombat.globalAlpha = 0.6;
+        for(let a = 0; a < 4; a++) {
+            let angle = (atTick * 3) + (a * (Math.PI / 2)); let lineStart = currentRingRadius + 5; let lineEnd = currentRingRadius + 25;
+            ctxCombat.beginPath(); ctxCombat.moveTo(bx_atk + Math.cos(angle) * lineStart, bY_atk + Math.sin(angle) * lineStart);
+            ctxCombat.lineTo(bx_atk + Math.cos(angle) * lineEnd, bY_atk + Math.sin(angle) * lineEnd); ctxCombat.stroke();
+        }
+
+        ctxCombat.globalAlpha = 1.0;
+        if (t.timer < 400) { 
+            let flashScale = (400 - t.timer) / 400; 
+            ctxCombat.shadowBlur = 40; ctxCombat.fillStyle = "#fff"; ctxCombat.font = `bold ${20 + flashScale * 40}px Cinzel`;
+            ctxCombat.fillText("✦", bx_atk, bY_atk - 40);
+            ctxCombat.fillStyle = `rgba(0,0,0,${flashScale * 0.15})`; ctxCombat.fillRect(-500, -500, 2000, 2000);
+        } else {
+            ctxCombat.font = "bold 14px Cinzel"; ctxCombat.fillStyle = t.cor; ctxCombat.fillText(`${t.tipo.toUpperCase()}`, bx_atk, bY_atk - 60 - (progresso * 15));
+        }
+
+        ctxCombat.restore();
+        
+        if (t.timer <= 0) {
+            let speed = -18; let scale = 20;
+            if(t.tipo === 'rápido') { speed = -28; scale = 12; }
+            else if(t.tipo === 'pesado') { speed = -12; scale = 40; }
+            else if(t.tipo === 'veneno') { speed = -15; scale = 25; }
             
-            let mIndex = mobsVivos.indexOf(mobAtacante);
-            let bx_atk = (stateBossHitbox.x - 80) + ((mIndex * 140) - ((mobsVivos.length - 1) * 70));
-            let bY_atk = stateBossHitbox.y + ((mIndex % 2 !== 0) ? -35 : 15);
+            document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 150);
+            criarImpactoEspecial(bx_atk, bY_atk, t.cor, 'nova'); 
+            projeteis.push({ x: bx_atk - 30, y: bY_atk, ty: playerHitbox.y, speed: speed, cor: t.cor, dmg: true, pBoss: true, scale: scale, rastro: [] }); 
+            telegraficos.splice(i, 1); playSFX('error');
+        }
+    }
 
-            let progresso = 1 - (t.timer / t.maxTimer); // Vai de 0.0 (início) a 1.0 (disparo)
+    // --- FÍSICA DE PROJÉTEIS E COLISÕES DE FEITIÇOS (BEAM STRUGGLES) ---
+    ctxCombat.globalCompositeOperation = 'lighter'; 
+    let alvoDistX = stateBossHitbox.x - 80;
+    let alvoMob = mobsVivos.find(m => m.idx === alvoAtualIdx);
+    if(alvoMob) { alvoDistX = (stateBossHitbox.x - 80) + (mobsVivos.indexOf(alvoMob) * 140) - ((mobsVivos.length - 1) * 70); }
 
-            ctxCombat.save(); 
-            ctxCombat.shadowColor = t.cor;
+    for(let idx = projeteis.length-1; idx>=0; idx--) {
+        let pj = projeteis[idx]; 
+        pj.x += pj.speed;
+        
+        if(pj.vy) pj.y += pj.vy; 
+        if(pj.mov === 'wavy') pj.y += Math.sin(atTick * 10 + pj.faseM) * 8;
+        if(pj.mov === 'erratic') { pj.y += (Math.random()*16 - 8); pj.x += (Math.random()*10 - 5); }
+        if(pj.shape === 'spiral') pj.y += Math.cos(atTick * 15 + pj.faseM) * 12;
 
-            // 1. Aura de Carregamento (Energia pulsante no monstro)
-            let auraGlow = 10 + (progresso * 30);
-            ctxCombat.shadowBlur = auraGlow;
-            ctxCombat.fillStyle = t.cor;
-            ctxCombat.globalAlpha = 0.15 + (progresso * 0.25);
-            ctxCombat.beginPath();
-            ctxCombat.arc(bx_atk, bY_atk, 40 + (Math.sin(atTick * 10) * 5), 0, Math.PI * 2);
-            ctxCombat.fill();
+        // 🔥 O SISTEMA DE COLISÃO DE FEITIÇOS (BEAM STRUGGLE)
+        if (pj.idFeiticoSalvo && pj.speed !== 0) {
+            for(let idx2 = idx - 1; idx2 >= 0; idx2--) {
+                let pj2 = projeteis[idx2];
+                // Verifica se são tiros inimigos frente a frente E o feitiço é o mesmo (Ex: Expelliarmus)
+                if (pj.pBoss !== pj2.pBoss && pj.idFeiticoSalvo === pj2.idFeiticoSalvo) {
+                    let dist = Math.hypot(pj.x - pj2.x, pj.y - pj2.y);
+                    if (dist < (pj.scale + pj2.scale + 20)) {
+                        // EXPLOSÃO ÉPICA MÚTUA!
+                        criarImpactoEspecial(pj.x + (pj2.x - pj.x)/2, pj.y, pj.cor, 'nova');
+                        gerarSparksEmCombate(pj.x, pj.y, pj.cor, 150, 'stars');
+                        spawnFloatingText(pj.x, pj.y - 40, "COLISÃO MÁGICA!", "#3498db", "35px");
+                        document.body.classList.add('shake-screen');
+                        setTimeout(()=>document.body.classList.remove('shake-screen'), 400);
+                        playSFX('error');
 
-            // 2. Anel de Foco (Closing Ring) - Encolhe até ao centro para dar o "Timing" do Protego
-            let ringRadiusMax = 120;
-            let ringRadiusMin = 20; // O tamanho do monstro
-            let currentRingRadius = ringRadiusMax - (progresso * (ringRadiusMax - ringRadiusMin));
-
-            ctxCombat.globalAlpha = progresso + 0.2; // Fica mais nítido à medida que fecha
-            ctxCombat.lineWidth = 2 + (progresso * 4); // Engrossa ao fechar
-            ctxCombat.strokeStyle = t.cor;
-            ctxCombat.beginPath();
-            ctxCombat.arc(bx_atk, bY_atk, currentRingRadius, 0, Math.PI * 2);
-            ctxCombat.stroke();
-
-            // 3. Partículas Sendo Sugadas (Juice de Implosão)
-            ctxCombat.lineWidth = 2;
-            ctxCombat.globalAlpha = 0.6;
-            for(let a = 0; a < 4; a++) {
-                let angle = (atTick * 3) + (a * (Math.PI / 2));
-                let lineStart = currentRingRadius + 5;
-                let lineEnd = currentRingRadius + 25;
-                ctxCombat.beginPath();
-                ctxCombat.moveTo(bx_atk + Math.cos(angle) * lineStart, bY_atk + Math.sin(angle) * lineStart);
-                ctxCombat.lineTo(bx_atk + Math.cos(angle) * lineEnd, bY_atk + Math.sin(angle) * lineEnd);
-                ctxCombat.stroke();
-            }
-
-            // 4. Glint de Perigo (Flash Final: "É AGORA O PARRY!")
-            ctxCombat.globalAlpha = 1.0;
-            if (t.timer < 400) { // Últimos 400ms = Zona de reflexo crítico
-                let flashScale = (400 - t.timer) / 400; // 0 a 1
-                ctxCombat.shadowBlur = 40;
-                ctxCombat.fillStyle = "#fff";
-                ctxCombat.font = `bold ${20 + flashScale * 40}px Cinzel`;
-                ctxCombat.fillText("✦", bx_atk, bY_atk - 40);
-
-                // Mini-efeito de slow-motion/foco escurecendo o resto da tela ligeiramente
-                ctxCombat.fillStyle = `rgba(0,0,0,${flashScale * 0.15})`;
-                ctxCombat.fillRect(-500, -500, 2000, 2000);
-            } else {
-                // Nome do Ataque a levitar suavemente
-                ctxCombat.font = "bold 14px Cinzel"; 
-                ctxCombat.fillStyle = t.cor; 
-                ctxCombat.fillText(`${t.tipo.toUpperCase()}`, bx_atk, bY_atk - 60 - (progresso * 15));
-            }
-
-            ctxCombat.restore();
-            
-            // 5. Disparo do Ataque
-            if (t.timer <= 0) {
-                let speed = -18; let scale = 20;
-                if(t.tipo === 'rápido') { speed = -28; scale = 12; }
-                else if(t.tipo === 'pesado') { speed = -12; scale = 40; }
-                else if(t.tipo === 'veneno') { speed = -15; scale = 25; }
-                
-                document.body.classList.add('shake-screen'); 
-                setTimeout(()=>document.body.classList.remove('shake-screen'), 150);
-                
-                // Explosão 'Nova' no ponto de disparo para dar peso ao lançamento
-                criarImpactoEspecial(bx_atk, bY_atk, t.cor, 'nova'); 
-
-                projeteis.push({ x: bx_atk - 30, y: bY_atk, ty: playerHitbox.y, speed: speed, cor: t.cor, dmg: true, pBoss: true, scale: scale, rastro: [] }); 
-                telegraficos.splice(i, 1); 
-                playSFX('error');
+                        projeteis.splice(idx, 1);
+                        projeteis.splice(idx2, 1);
+                        idx--; // Impede que o loop rebente porque o array encurtou
+                        break; 
+                    }
+                }
             }
         }
-        // ==========================================
-        // 4. MOTOR MÁGICO AVANÇADO E FÍSICA DE PROJÉTEIS
-        // ==========================================
-        ctxCombat.globalCompositeOperation = 'lighter'; 
-        let alvoDistX = stateBossHitbox.x - 80;
-        let alvoMob = mobsVivos.find(m => m.idx === alvoAtualIdx);
-        if(alvoMob) { alvoDistX = (stateBossHitbox.x - 80) + (mobsVivos.indexOf(alvoMob) * 140) - ((mobsVivos.length - 1) * 70); }
+        if (!projeteis[idx]) continue; // Se o tiro se desintegrou acima, salta para o próximo
 
-        for(let idx = projeteis.length-1; idx>=0; idx--) {
-            let pj = projeteis[idx]; 
-            pj.x += pj.speed;
-            
-            if(pj.vy) pj.y += pj.vy; 
-            if(pj.mov === 'wavy') pj.y += Math.sin(atTick * 10 + pj.faseM) * 8;
-            if(pj.mov === 'erratic') { pj.y += (Math.random()*16 - 8); pj.x += (Math.random()*10 - 5); }
-            if(pj.shape === 'spiral') pj.y += Math.cos(atTick * 15 + pj.faseM) * 12;
+        // Rasto do Feitiço
+        if(!pj.rastro) pj.rastro = [];
+        pj.rastro.push({x: pj.x, y: pj.y});
+        if(pj.rastro.length > (pj.trailLen || 15)) pj.rastro.shift();
+        
+        if (pj.rastro.length > 1 && pj.shape !== 'beam') {
+            ctxCombat.beginPath(); ctxCombat.moveTo(pj.rastro[0].x, pj.rastro[0].y);
+            for(let r = 1; r < pj.rastro.length; r++) {
+                if (pj.shape === 'bolt') ctxCombat.lineTo(pj.rastro[r].x + (Math.random()*12-6), pj.rastro[r].y + (Math.random()*12-6)); 
+                else if (pj.shape === 'slash') ctxCombat.lineTo(pj.rastro[r].x, pj.rastro[r].y + Math.sin(r)*15);
+                else ctxCombat.lineTo(pj.rastro[r].x, pj.rastro[r].y);
+            }
+            ctxCombat.strokeStyle = pj.cor; ctxCombat.lineWidth = pj.scale * 0.5;
+            ctxCombat.lineCap = 'round'; ctxCombat.shadowColor = pj.glow; ctxCombat.shadowBlur = 20; 
+            ctxCombat.stroke();
+        }
 
-            if(!pj.rastro) pj.rastro = [];
-            pj.rastro.push({x: pj.x, y: pj.y});
-            if(pj.rastro.length > (pj.trailLen || 15)) pj.rastro.shift();
-            
-            // Desenho do Rastro
-            if (pj.rastro.length > 1 && pj.shape !== 'beam') {
-                ctxCombat.beginPath(); ctxCombat.moveTo(pj.rastro[0].x, pj.rastro[0].y);
-                for(let r = 1; r < pj.rastro.length; r++) {
-                    if (pj.shape === 'bolt') ctxCombat.lineTo(pj.rastro[r].x + (Math.random()*12-6), pj.rastro[r].y + (Math.random()*12-6)); 
-                    else if (pj.shape === 'slash') ctxCombat.lineTo(pj.rastro[r].x, pj.rastro[r].y + Math.sin(r)*15);
-                    else ctxCombat.lineTo(pj.rastro[r].x, pj.rastro[r].y);
-                }
-                ctxCombat.strokeStyle = pj.cor; ctxCombat.lineWidth = pj.scale * 0.5;
-                ctxCombat.lineCap = 'round'; ctxCombat.shadowColor = pj.glow; ctxCombat.shadowBlur = 20; 
-                ctxCombat.stroke();
-            }
-
-            // Cabeça da Magia
-            ctxCombat.shadowColor = pj.glow; ctxCombat.shadowBlur = pj.shape === 'meteor' ? 50 : 30; 
-            ctxCombat.fillStyle = "#ffffff"; 
-            ctxCombat.save(); ctxCombat.translate(pj.x, pj.y);
-            
-            if (pj.shape === 'meteor') {
-                ctxCombat.fillStyle = pj.cor; ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale, 0, Math.PI * 2); ctxCombat.fill();
-                ctxCombat.fillStyle = "#ffffff"; ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale * 0.4, 0, Math.PI * 2); ctxCombat.fill();
-            } 
-            else if (pj.shape === 'beam') {
-                ctxCombat.fillStyle = pj.cor; ctxCombat.fillRect(-100, -pj.scale/2, 200, pj.scale);
-                ctxCombat.fillStyle = "#fff"; ctxCombat.fillRect(-100, -pj.scale/4, 200, pj.scale/2);
-            }
-            else if (pj.shape === 'wave' || pj.shape === 'slash') {
-                ctxCombat.rotate(pj.shape === 'slash' ? Math.PI/4 : 0);
-                ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale * 1.5, -Math.PI/2, Math.PI/2);
-                ctxCombat.lineWidth = 5; ctxCombat.strokeStyle = pj.cor; ctxCombat.stroke();
-            } 
-            else {
-                ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale * 0.7, 0, Math.PI * 2); ctxCombat.fill();
-            }
-            ctxCombat.restore();
-            
-            if(Math.random() > 0.3 && effectParticles.length < 60) {
-                effectParticles.push({ x: pj.x, y: pj.y, vx: -pj.speed*0.2 + Math.random()*4-2, vy: Math.random()*4-2, l: 1.0, c: pj.cor, style: pj.pStyle });
-            }
-            
-// Colisões e Animação de "Tomar Dano" (Hurt)
-            if (pj.pBoss && pj.x < playerHitbox.x + 40) {
-                 if (playerHitbox.mode === 'protego') { 
-                    // 🔥 SISTEMA DE QUEBRA DE ESCUDO (Toma dano no escudo, não na vida real)
-                    let danoEstimado = pj.scale * 4; 
-                    if (playerHitbox.escudoHp !== undefined) playerHitbox.escudoHp -= danoEstimado;
-                    
-                    gerarSparksEmCombate(playerHitbox.x+50, pj.y, "#3498db", 60); 
-                    criarImpactoEspecial(playerHitbox.x+50, pj.y, "#3498db", 'nova'); 
-                    playSFX('click');
-                    
-                    if (playerHitbox.escudoHp <= 0) {
-                        playerHitbox.mode = 'normal'; // Escudo Estilhaçado pelo golpe pesado!
-                        playerHitbox.escudoHp = 0;
-                        spawnFloatingText(playerHitbox.x + 40, playerHitbox.y - 50, "ESCUDO DESTRUÍDO!", "#3498db", "25px");
-                        criarImpactoEspecial(playerHitbox.x+50, pj.y, "#fff", 'shatter');
-                    } else {
-                        processarImpactoNoServidor("protego_block_reflex", true); 
-                    }
-                    atualizarHPUIVisual();
-                 } else { 
-                    // TOMA DANO NORMAL DIRETO NO CORPO
-                    playerHitbox.mode = 'hurt';
-                    playerHitbox.timer = 300; 
-                    document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300); playSFX('error');
-                    gerarSparksEmCombate(playerHitbox.x+20, pj.y, "#e74c3c", 80, 'blood'); 
-                    criarImpactoEspecial(playerHitbox.x+20, pj.y, "#e74c3c", 'shatter'); 
-                    playerCurrentHp -= Math.floor(bossMaxHp * 0.08); if(playerCurrentHp < 0) playerCurrentHp = 0; atualizarHPUIVisual();
-                    if(playerCurrentHp <= 0) { mostrarNotificacao(`Foste Derrotado.`, "erro"); finalizarArena(false); } else { processarImpactoNoServidor("dano_recebido", false); }
-                 }
-                 projeteis.splice(idx,1); continue;
-            } 
-            else if (!pj.pBoss && (pj.x > alvoDistX - 40 || (pj.shape === 'meteor' && pj.y >= pj.ty))) { 
-                 gerarSparksEmCombate(pj.x, pj.y, pj.cor, pj.shape==='meteor'?150:80, pj.pStyle); 
-                 
-                 // 🔥 SE FOR PVP E O OPONENTE ESTIVER COM ESCUDO ATIVO
-                 if (arenaInimigoPvP && arenaInimigoPvP.mode === 'protego') {
-                     let danoGrosso = pj.scale * 4;
-                     arenaInimigoPvP.escudoHp -= danoGrosso;
-                     if(arenaInimigoPvP.escudoHp <= 0) {
-                         arenaInimigoPvP.mode = 'normal';
-                         spawnFloatingText(pj.x, pj.y - 50, "QUEBRA DE GUARDA!", "#3498db", "25px");
-                         criarImpactoEspecial(pj.x, pj.y, "#fff", 'shatter');
-                     } else {
-                         criarImpactoEspecial(pj.x, pj.y, "#3498db", 'nova'); 
-                     }
-                 } else {
-                     criarImpactoEspecial(pj.x, pj.y, pj.cor, pj.impact); 
-                 }
-                 
-                 // Processa o impacto original
-                 if(!pj.aliado) { processarImpactoNoServidor(pj.idFeiticoSalvo, false); }
-                 projeteis.splice(idx, 1); playSFX('click');
-                 if(pj.shape === 'meteor') { document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 400); }
-            }
+        // Cabeça do Feitiço
+        ctxCombat.shadowColor = pj.glow; ctxCombat.shadowBlur = pj.shape === 'meteor' ? 50 : 30; 
+        ctxCombat.fillStyle = "#ffffff"; 
+        ctxCombat.save(); ctxCombat.translate(pj.x, pj.y);
+        
+        if (pj.shape === 'meteor') {
+            ctxCombat.fillStyle = pj.cor; ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale, 0, Math.PI * 2); ctxCombat.fill();
+            ctxCombat.fillStyle = "#ffffff"; ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale * 0.4, 0, Math.PI * 2); ctxCombat.fill();
+        } else if (pj.shape === 'beam') {
+            ctxCombat.fillStyle = pj.cor; ctxCombat.fillRect(-100, -pj.scale/2, 200, pj.scale);
+            ctxCombat.fillStyle = "#fff"; ctxCombat.fillRect(-100, -pj.scale/4, 200, pj.scale/2);
+        } else if (pj.shape === 'wave' || pj.shape === 'slash') {
+            ctxCombat.rotate(pj.shape === 'slash' ? Math.PI/4 : 0);
+            ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale * 1.5, -Math.PI/2, Math.PI/2);
+            ctxCombat.lineWidth = 5; ctxCombat.strokeStyle = pj.cor; ctxCombat.stroke();
+        } else { ctxCombat.beginPath(); ctxCombat.arc(0, 0, pj.scale * 0.7, 0, Math.PI * 2); ctxCombat.fill(); }
+        ctxCombat.restore();
+        
+        if(Math.random() > 0.3 && effectParticles.length < 60) {
+            effectParticles.push({ x: pj.x, y: pj.y, vx: -pj.speed*0.2 + Math.random()*4-2, vy: Math.random()*4-2, l: 1.0, c: pj.cor, style: pj.pStyle });
         }
         
-        // Partículas e Textos Flutuantes (Manteve-se igual)
-        ctxCombat.globalCompositeOperation = 'source-over';
-        for(let ep = effectParticles.length-1; ep>=0; ep--){
-            let par = effectParticles[ep]; par.x += par.vx; par.y += par.vy; par.l -= 0.04; 
-            if(par.l <= 0) { effectParticles.splice(ep,1); continue; }
-            ctxCombat.save(); ctxCombat.globalAlpha = par.l;
-            if (par.style === 'smoke' || par.style === 'void') {
-                ctxCombat.fillStyle = par.style === 'void' ? "#000" : `rgba(50,50,50,${par.l})`; ctxCombat.shadowBlur = 0; par.vx *= 0.95; par.vy -= 0.5; 
-                ctxCombat.beginPath(); ctxCombat.arc(par.x, par.y, 8 + (1-par.l)*15, 0, Math.PI*2); ctxCombat.fill();
-            } else if (par.style === 'blood') {
-                ctxCombat.fillStyle = "#8a0303"; par.vy += 0.8; 
-                ctxCombat.beginPath(); ctxCombat.ellipse(par.x, par.y, 4, 8, Math.atan2(par.vy, par.vx), 0, Math.PI*2); ctxCombat.fill();
-            } else if (par.style === 'stars') {
-                ctxCombat.fillStyle = par.c; ctxCombat.shadowColor = par.c; ctxCombat.shadowBlur = 10; par.vy += 0.2; ctxCombat.font = "15px Arial"; ctxCombat.fillText("✦", par.x, par.y);
-            } else {
-                par.vx *= 0.90; par.vy += 0.5; ctxCombat.shadowColor = par.c; ctxCombat.shadowBlur = 20; ctxCombat.fillStyle = `rgba(255,255,255,${par.l})`; 
-                ctxCombat.beginPath(); ctxCombat.ellipse(par.x, par.y, 3 + Math.abs(par.vx), 2, Math.atan2(par.vy, par.vx), 0, Math.PI*2); ctxCombat.fill();
+        // Colisões com o Jogador (Tomar Dano)
+        if (pj.pBoss && pj.x < playerHitbox.x + 40) {
+            if (playerHitbox.mode === 'protego') { 
+                let danoEstimado = pj.scale * 4; 
+                if (playerHitbox.escudoHp !== undefined) playerHitbox.escudoHp -= danoEstimado;
+                
+                gerarSparksEmCombate(playerHitbox.x+50, pj.y, "#3498db", 60); 
+                criarImpactoEspecial(playerHitbox.x+50, pj.y, "#3498db", 'nova'); 
+                playSFX('click');
+                
+                if (playerHitbox.escudoHp <= 0) {
+                    playerHitbox.mode = 'normal'; playerHitbox.escudoHp = 0;
+                    spawnFloatingText(playerHitbox.x + 40, playerHitbox.y - 50, "ESCUDO DESTRUÍDO!", "#3498db", "25px");
+                    criarImpactoEspecial(playerHitbox.x+50, pj.y, "#fff", 'shatter');
+                } else { processarImpactoNoServidor("protego_block_reflex", true); }
+                atualizarHPUIVisual();
+            } else { 
+                playerHitbox.mode = 'hurt'; playerHitbox.timer = 300; 
+                document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300); playSFX('error');
+                gerarSparksEmCombate(playerHitbox.x+20, pj.y, "#e74c3c", 80, 'blood'); 
+                criarImpactoEspecial(playerHitbox.x+20, pj.y, "#e74c3c", 'shatter'); 
+                playerCurrentHp -= Math.floor(bossMaxHp * 0.08); if(playerCurrentHp < 0) playerCurrentHp = 0; atualizarHPUIVisual();
+                if(playerCurrentHp <= 0) { mostrarNotificacao(`Foste Derrotado.`, "erro"); finalizarArena(false); } else { processarImpactoNoServidor("dano_recebido", false); }
             }
+            projeteis.splice(idx,1); continue;
+        } 
+        // Colisões com os Inimigos (Dar Dano)
+        else if (!pj.pBoss && (pj.x > alvoDistX - 40 || (pj.shape === 'meteor' && pj.y >= pj.ty))) { 
+            gerarSparksEmCombate(pj.x, pj.y, pj.cor, pj.shape==='meteor'?150:80, pj.pStyle); 
+            
+            if (arenaInimigoPvP && arenaInimigoPvP.mode === 'protego') {
+                let danoGrosso = pj.scale * 4;
+                arenaInimigoPvP.escudoHp -= danoGrosso;
+                if(arenaInimigoPvP.escudoHp <= 0) {
+                    arenaInimigoPvP.mode = 'normal';
+                    spawnFloatingText(pj.x, pj.y - 50, "QUEBRA DE GUARDA!", "#3498db", "25px");
+                    criarImpactoEspecial(pj.x, pj.y, "#fff", 'shatter');
+                } else { criarImpactoEspecial(pj.x, pj.y, "#3498db", 'nova'); }
+            } else { criarImpactoEspecial(pj.x, pj.y, pj.cor, pj.impact); }
+            
+            if(!pj.aliado) { processarImpactoNoServidor(pj.idFeiticoSalvo, false); }
+            projeteis.splice(idx, 1); playSFX('click');
+            if(pj.shape === 'meteor') { document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 400); }
+        }
+    }
+
+    // --- MIRA VISUAL DRAG-TO-AIM (RETÍCULA E LINHA) ---
+    if (dragAim.active) {
+        ctxCombat.globalCompositeOperation = 'source-over';
+        let startX = playerHitbox.x + 30;
+        let startY = playerHitbox.y - 30;
+        let corMira = dragAim.targetType === 'ally' ? "rgba(46, 204, 113, 0.8)" : "rgba(231, 76, 60, 0.8)";
+
+        // Linha Curvada Mágica
+        ctxCombat.beginPath();
+        ctxCombat.moveTo(startX, startY);
+        ctxCombat.quadraticCurveTo(startX + (dragAim.mouseX - startX)/2, startY - 100, dragAim.mouseX, dragAim.mouseY);
+        ctxCombat.strokeStyle = corMira;
+        ctxCombat.lineWidth = 3;
+        ctxCombat.setLineDash([10, 15]); 
+        ctxCombat.lineDashOffset = -atTick * 30; 
+        ctxCombat.shadowColor = corMira; ctxCombat.shadowBlur = 10;
+        ctxCombat.stroke();
+        ctxCombat.setLineDash([]); ctxCombat.shadowBlur = 0;
+
+        // Retícula Giratória no Alvo Selecionado
+        if (dragAim.selectedTarget !== null) {
+            let rx = dragAim.mouseX, ry = dragAim.mouseY;
+            
+            if (dragAim.targetType === 'enemy') {
+                if (isPvP) { rx = arenaInimigoPvP.combatX; ry = arenaInimigoPvP.combatY; }
+                else {
+                    let m = arenaInimigos.find(mob => mob.idx === dragAim.selectedTarget);
+                    if (m) {
+                        let mIndex = arenaInimigos.indexOf(m);
+                        rx = (stateBossHitbox.x - 80) + ((mIndex * 140) - ((arenaInimigos.length - 1) * 70));
+                        ry = stateBossHitbox.y + ((mIndex % 2 !== 0) ? -35 : 15);
+                    }
+                }
+            } else {
+                let a = arenaAliados.find(al => al.id === dragAim.selectedTarget);
+                if(a) { rx = a.combatX; ry = a.combatY; }
+            }
+
+            ctxCombat.save();
+            ctxCombat.translate(rx, ry);
+            ctxCombat.rotate(atTick * 2); 
+            ctxCombat.strokeStyle = corMira; ctxCombat.lineWidth = 2;
+            ctxCombat.beginPath(); ctxCombat.arc(0, 0, 40, 0, Math.PI * 1.5); ctxCombat.stroke();
+            ctxCombat.rotate(-atTick * 4); 
+            ctxCombat.beginPath(); ctxCombat.arc(0, 0, 30, 0, Math.PI * 1.5); ctxCombat.stroke();
             ctxCombat.restore();
         }
+    }
 
-        ctxCombat.textAlign = "center";
-        for(let i = floatingTexts.length - 1; i >= 0; i--) {
-            let ft = floatingTexts[i]; ft.y += ft.vy; ft.life -= 0.02; 
-            ctxCombat.globalAlpha = Math.max(0, ft.life); ctxCombat.shadowColor = "#000"; ctxCombat.shadowBlur = 5;
-            ctxCombat.fillStyle = ft.color; ctxCombat.font = `bold ${ft.font} Cinzel`; ctxCombat.fillText(ft.text, ft.x, ft.y);
-            if(ft.life <= 0) floatingTexts.splice(i, 1);
+    // --- PARTÍCULAS E TEXTOS FLUTUANTES ---
+    ctxCombat.globalCompositeOperation = 'source-over';
+    for(let ep = effectParticles.length-1; ep>=0; ep--){
+        let par = effectParticles[ep]; par.x += par.vx; par.y += par.vy; par.l -= 0.04; 
+        if(par.l <= 0) { effectParticles.splice(ep,1); continue; }
+        ctxCombat.save(); ctxCombat.globalAlpha = par.l;
+        if (par.style === 'smoke' || par.style === 'void') {
+            ctxCombat.fillStyle = par.style === 'void' ? "#000" : `rgba(50,50,50,${par.l})`; ctxCombat.shadowBlur = 0; par.vx *= 0.95; par.vy -= 0.5; 
+            ctxCombat.beginPath(); ctxCombat.arc(par.x, par.y, 8 + (1-par.l)*15, 0, Math.PI*2); ctxCombat.fill();
+        } else if (par.style === 'blood') {
+            ctxCombat.fillStyle = "#8a0303"; par.vy += 0.8; 
+            ctxCombat.beginPath(); ctxCombat.ellipse(par.x, par.y, 4, 8, Math.atan2(par.vy, par.vx), 0, Math.PI*2); ctxCombat.fill();
+        } else if (par.style === 'stars') {
+            ctxCombat.fillStyle = par.c; ctxCombat.shadowColor = par.c; ctxCombat.shadowBlur = 10; par.vy += 0.2; ctxCombat.font = "15px Arial"; ctxCombat.fillText("✦", par.x, par.y);
+        } else {
+            par.vx *= 0.90; par.vy += 0.5; ctxCombat.shadowColor = par.c; ctxCombat.shadowBlur = 20; ctxCombat.fillStyle = `rgba(255,255,255,${par.l})`; 
+            ctxCombat.beginPath(); ctxCombat.ellipse(par.x, par.y, 3 + Math.abs(par.vx), 2, Math.atan2(par.vy, par.vx), 0, Math.PI*2); ctxCombat.fill();
         }
-        ctxCombat.globalAlpha = 1.0;
-    
-	};
+        ctxCombat.restore();
+    }
+
+    ctxCombat.textAlign = "center";
+    for(let i = floatingTexts.length - 1; i >= 0; i--) {
+        let ft = floatingTexts[i]; ft.y += ft.vy; ft.life -= 0.02; 
+        ctxCombat.globalAlpha = Math.max(0, ft.life); ctxCombat.shadowColor = "#000"; ctxCombat.shadowBlur = 5;
+        ctxCombat.fillStyle = ft.color; ctxCombat.font = `bold ${ft.font} Cinzel`; ctxCombat.fillText(ft.text, ft.x, ft.y);
+        if(ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+    ctxCombat.globalAlpha = 1.0;
+    ctxCombat.restore();
+};
+
+function criarOndaDeChoqueVisual(x, y, cor) {
+    let radius = 10; let shockwaveInterval = setInterval(() => { if (!combatEngineAtivo) { clearInterval(shockwaveInterval); return; }
+        ctxCombat.save(); ctxCombat.globalCompositeOperation = 'lighter'; ctxCombat.strokeStyle = cor; ctxCombat.lineWidth = 40 / radius; ctxCombat.shadowBlur = 20; ctxCombat.shadowColor = cor;
+        ctxCombat.beginPath(); ctxCombat.arc(x, y, radius, 0, Math.PI*2); ctxCombat.stroke(); ctxCombat.restore();
+        radius += 15; if(radius > 150) clearInterval(shockwaveInterval);
+    }, 16);
+}
+// ==============================================================================
+// FIM DO BLOCO CONSOLIDADO
+// ==============================================================================
     function criarOndaDeChoqueVisual(x, y, cor) {
         let radius = 10; let shockwaveInterval = setInterval(() => { if (!combatEngineAtivo) { clearInterval(shockwaveInterval); return; }
             ctxCombat.save(); ctxCombat.globalCompositeOperation = 'lighter'; ctxCombat.strokeStyle = cor; ctxCombat.lineWidth = 40 / radius; ctxCombat.shadowBlur = 20; ctxCombat.shadowColor = cor;
@@ -4721,51 +4736,7 @@ let arenaOndasEspeciais = []; // Fila leve de efeitos
         }
     };
 
- // ==============================================================================
-// 🔥 MOTOR DE LANÇAMENTO DE FEITIÇOS (ACTION COMBAT COM CASTING E INTERRUPÇÃO)
-// ==============================================================================
-window.castPlayerLiveEngine = async function (sid, cMana, tElement, mecanicaVindaDoBotao, slotIndex) {
-    if (!combatEngineAtivo || arenaMana < cMana || !maoCombate[slotIndex]) return; 
-    
-    let agora = Date.now();
-    let statusArray = meuBruxo.buffs ? meuBruxo.buffs.concat(meuBruxo.efeitos || []) : (meuBruxo.efeitos || []);
-    let isStunned = statusArray.some(e => ['atordoar', 'congelado', 'desarmar'].includes(e.tipo) && e.expiresAt > agora);
-    
-    // Impede conjurar se estiver atordoado ou se JÁ estiver a carregar um feitiço
-    if (isStunned || (playerHitbox.isCasting && playerHitbox.castTimer > 0)) {
-        playSFX('error');
-        document.body.classList.add('shake-screen'); setTimeout(()=>document.body.classList.remove('shake-screen'), 300);
-        return; 
-    }
-    
-    const feitico = servidorGlobal.livroDeFeiticos[sid];
-    if (!feitico) return;
 
-    playSFX('click');
-    arenaMana -= cMana;
-    document.getElementById('ca-mana-fill').style.width = `${(arenaMana/arenaMaxMana)*100}%`;
-    
-    maoCombate[slotIndex] = null; 
-    renderizarCartasActionHog(); 
-    setTimeout(() => { window.comprarCartasAteLimite(); }, 1000);
-
-    // 🔥 O INÍCIO DO CHANTING!
-    let tempoDeCast = feitico.tempoCasting || 1000;
-    
-    playerHitbox.isCasting = true;
-    playerHitbox.castTimer = tempoDeCast;
-    playerHitbox.castTimerMax = tempoDeCast;
-    playerHitbox.castSpellId = sid;
-    playerHitbox.castSpellName = feitico.nome;
-    playerHitbox.atkColor = feitico.visualConfig ? feitico.visualConfig.color : '#fff';
-    
-    // Avisa os outros jogadores na arena que começaste a conjurar
-    socket.emit('iniciar_casting_magia', {
-        instId: combatInstId,
-        feiticoId: sid,
-        tempoCast: tempoDeCast
-    });
-};
 
 // 🔥 FUNÇÃO QUE DISPARA QUANDO A PALAVRA ESTÁ FORMADA E O CAST ACABA
 window.dispararFeiticoConcluido = function(sid) {

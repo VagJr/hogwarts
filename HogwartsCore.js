@@ -2488,12 +2488,33 @@ a.siclos += 5; // Bonus pro Last Hit
 
         if (mecanica === 'cura') {
             let curaAplicada = forcaDoFeitico + ((a.atributosTotais.pocoes || 5) * 5);
-            a.hpAtual = Math.min(a.hpMax, a.hpAtual + curaAplicada);
-            if (feitico.purificar) a.efeitos = []; 
-            relatoAcao = `Curaste ${curaAplicada} HP!`; prof.curaRealizada += curaAplicada; 
+            
+            // 🔥 NOVO: Verifica se a mira selecionou um aliado específico
+            let alvoCura = a; // Por defeito, cura a si mesmo
+            if (typeof alvoIdx === 'string' && alvoIdx !== a.id) {
+                // Procura o aliado no grupo
+                if (inst.membros && inst.membros.includes(alvoIdx)) {
+                    alvoCura = this.alunos[alvoIdx];
+                }
+            }
+
+            if (alvoCura) {
+                alvoCura.hpAtual = Math.min(alvoCura.hpMax, alvoCura.hpAtual + curaAplicada);
+                if (feitico.purificar) alvoCura.efeitos = []; 
+                relatoAcao = `Curaste ${alvoCura.nome} em ${curaAplicada} HP!`; 
+                prof.curaRealizada += curaAplicada; 
+                
+                // Emite socket para o aliado atualizar a própria barra de vida!
+                if (alvoCura.id !== a.id && global.io) {
+                    global.io.to(`priv_${alvoCura.id}`).emit('mmo_combat_update', { 
+                        hpJogador: alvoCura.hpAtual, buffsJogador: alvoCura.buffs 
+                    });
+                }
+            }
+            
             this._salvarBancoDeDados();
             return { sucesso: true, hpJogador: a.hpAtual, cura: curaAplicada, relatoAcao, bossMorto: false, entidades: inst.entidades, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel };
-        } 
+        }
         
         if (mecanica === 'escudo' || mecanica === 'defesa') {
             let duracaoMs = (feitico.duracaoBuff || 3) * 1000;
