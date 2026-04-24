@@ -1103,21 +1103,27 @@
 		<!-- 🔥 TELA DO MOTOR ROGUELIKE DA FLORESTA (PVE/PVP OPEN WORLD) -->
 <div id="forest-map-container" class="oculto" style="position:relative; width:100%; height: calc(100vh - 120px); border: 3px solid #27ae60; border-radius:4px; overflow:hidden; background:#020502; box-shadow: inset 0 0 50px rgba(0,0,0,0.9);">
     <button class="btn-voltar-floresta" onclick="fugirDaFlorestaParaOCastelo()">🏃 Voltar (Salvar Loot)</button>
-    <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.8); border:1px solid #2ecc71; color:#2ecc71; padding:5px 15px; border-radius:4px; z-index:20; font-family:'Cinzel'; text-shadow:0 0 5px #000;">
-        🌲 Floresta Proibida - Andar <span id="forest-ui-andar">1</span>
+    
+    <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.8); border:1px solid #2ecc71; color:#2ecc71; padding:5px 15px; border-radius:4px; z-index:20; font-family:'Cinzel'; text-shadow:0 0 5px #000; width: calc(100% - 150px); max-width: 300px;">
+        <div>🌲 Floresta Proibida - Andar <span id="forest-ui-andar">1</span></div>
+        <div style="margin-top: 5px; font-size: 0.8em; font-family: 'Arial'; color: #ccc;">
+            <b style="color:var(--hp-gold);">Objetivo:</b> <span id="forest-ui-objetivo">Limpar Área</span>
+        </div>
+        <!-- Barra de Progresso do Objetivo -->
+        <div class="meter-bg" style="height: 6px; margin-top: 5px;">
+            <div id="forest-ui-objetivo-barra" style="width:0%; background:#f1c40f; height:100%; transition: width 0.3s;"></div>
+        </div>
     </div>
 
     <!-- Interface do Loot em Risco -->
-    <!-- Interface do Loot em Risco -->
-    <div style="position:absolute; top:50px; left:10px; background:rgba(231,76,60,0.2); border:1px dashed #e74c3c; color:#fff; padding:10px; border-radius:4px; z-index:20; font-size:0.8em; backdrop-filter: blur(5px);">
-        <b style="color:#e74c3c;">Loot em Risco (Se morreres perdes):</b><br>
+    <div style="position:absolute; top:80px; left:10px; background:rgba(231,76,60,0.2); border:1px dashed #e74c3c; color:#fff; padding:10px; border-radius:4px; z-index:20; font-size:0.8em; backdrop-filter: blur(5px);">
+        <b style="color:#e74c3c;">Loot em Risco (Morte = Perda):</b><br>
         💰 <span id="forest-ui-loot-gold" style="color:var(--hp-gold); font-weight:bold;">0</span> G<br>
         ✨ <span id="forest-ui-loot-xp" style="color:#3498db; font-weight:bold;">0</span> EXP<br>
-        🎒 <span id="forest-ui-loot-itens" style="color:#9b59b6; font-weight:bold;">0</span> Artefatos Obtidos
+        🎒 <span id="forest-ui-loot-itens" style="color:#9b59b6; font-weight:bold;">0</span> Artefatos
     </div>
 
     <canvas id="forest-map-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
-    
     <!-- Joystick da Floresta -->
     <div id="forest-joystick-zone" style="position: absolute; bottom: 20px; left: 20px; width: 140px; height: 140px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 2px dashed rgba(255,255,255,0.3); touch-action: none; z-index: 100;">
         <div id="forest-joystick-knob" style="position: absolute; top: 40px; left: 40px; width: 60px; height: 60px; background: rgba(255,255,255,0.6); border-radius: 50%; box-shadow: 0 0 15px #000; pointer-events: none; transition: transform 0.05s;"></div>
@@ -8851,6 +8857,80 @@ function organizarFormacaoBatalha(jogadoresAtivos) {
             });
 
             ctx.restore();
+			ctx.restore(); // Restaura as coordenadas para o Ecrã Fixo da UI
+
+        // ==============================================================================
+        // 🔥 BÚSSOLA MÁGICA (RADAR DE OBJETIVOS)
+        // Aparece se o jogador passar mais de 15 segundos no mesmo andar sem avançar
+        // ==============================================================================
+        if (!this.floorStartTime) this.floorStartTime = Date.now();
+        let tempoNoAndar = (Date.now() - this.floorStartTime) / 1000;
+
+        if (tempoNoAndar > 15) { 
+            let targetX = null, targetY = null, icon = "";
+
+            if (!this.mapData.objetivo.concluido) {
+                // Procura o objetivo mais próximo
+                let minDist = Infinity;
+                if (this.mapData.objetivo.tipo === 'matar_mobs') {
+                    this.mapData.mobs.forEach(m => {
+                        if(!m.isBoss) {
+                            let d = Math.hypot(m.x - this.player.x, m.y - this.player.y);
+                            if (d < minDist) { minDist = d; targetX = m.x; targetY = m.y; icon = "👾"; }
+                        }
+                    });
+                } else if (this.mapData.objetivo.tipo === 'abrir_baus') {
+                    this.mapData.baus.forEach(b => {
+                        if(!b.looted) {
+                            let d = Math.hypot(b.x - this.player.x, b.y - this.player.y);
+                            if (d < minDist) { minDist = d; targetX = b.x; targetY = b.y; icon = "📦"; }
+                        }
+                    });
+                }
+            } else if (this.mapData.bossAtivo && this.mapData.mobs.some(m => m.isBoss)) {
+                let boss = this.mapData.mobs.find(m => m.isBoss);
+                targetX = boss.x; targetY = boss.y; icon = "👿";
+            } else if (this.mapData.portal.ativo) {
+                targetX = this.mapData.portal.x; targetY = this.mapData.portal.y; icon = "🌀";
+            }
+
+            // Se encontrou um alvo e ele não está visível no ecrã, desenha a bússola!
+            if (targetX !== null && targetY !== null) {
+                let screenX = targetX - this.camera.x;
+                let screenY = targetY - this.camera.y;
+
+                // Verifica se o alvo está fora do ecrã
+                if (screenX < 50 || screenX > this.vw - 50 || screenY < 50 || screenY > this.vh - 50) {
+                    let angle = Math.atan2(targetY - this.player.y, targetX - this.player.x);
+                    
+                    // Desenha o Radar na borda do ecrã (circular)
+                    let r = Math.min(this.vw/2 - 40, this.vh/2 - 40); 
+                    let indX = this.vw/2 + Math.cos(angle) * r;
+                    let indY = this.vh/2 + Math.sin(angle) * r;
+
+                    // O Círculo de Fundo
+                    ctx.fillStyle = "rgba(0,0,0,0.8)";
+                    ctx.beginPath(); ctx.arc(indX, indY, 20, 0, Math.PI*2); ctx.fill();
+                    ctx.strokeStyle = "#f1c40f"; ctx.lineWidth = 2; ctx.stroke();
+                    
+                    // O Ícone
+                    ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                    ctx.fillStyle = "#fff";
+                    ctx.fillText(icon, indX, indY);
+                    
+                    // A Seta Apontadora
+                    ctx.save();
+                    ctx.translate(indX + Math.cos(angle)*25, indY + Math.sin(angle)*25);
+                    ctx.rotate(angle);
+                    ctx.fillStyle = "#f1c40f";
+                    ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(12,0); ctx.lineTo(0,6); ctx.fill();
+                    ctx.restore();
+                }
+            }
+        }
+        // ==============================================================================
+
+
             this.loop = requestAnimationFrame(this.tick.bind(this));
         }
     };
@@ -9150,7 +9230,13 @@ const ForestMMOEngine = {
         }
 
         ctx.restore();
-
+// 🔥 O PORTAL AGORA EXIGE CLIQUE!
+                if (this.mapData.portal.ativo && Math.hypot(clickX - this.mapData.portal.x, clickY - this.mapData.portal.y) < 60) {
+                    if(Math.hypot(this.player.x - this.mapData.portal.x, this.player.y - this.mapData.portal.y) < 100) {
+                        socket.emit('forest_enter_portal', { instId: currentForestInstId });
+                    } else mostrarNotificacao("Aproxima-te do portal para atravessar!", "info");
+                    return;
+                }
         // 🖱️ Evento de Clique para Interagir (Atribuído apenas 1 vez)
         if (!this.interatividadeCriada) {
             this.cvs.addEventListener('click', (e) => {
@@ -9199,9 +9285,22 @@ socket.on('mmo_raid_status', (d) => {
 // =====================================
 socket.on('forest_sync', (data) => {
     ForestMMOEngine.mapData = data;
+    ForestMMOEngine.floorStartTime = Date.now(); // 🔥 RESET AO TEMPO DO ANDAR
     safeSet('forest-ui-andar', data.area);
     
-    // 🔥 NOVO: Atualiza a dica no painel de Entrada!
+    // Atualiza a Barra de Objetivos da Floresta
+    if (data.objetivo) {
+        let textoObj = data.objetivo.tipo === 'matar_mobs' ? 'Eliminar Bestas' : 'Vasculhar Baús';
+        if (data.objetivo.concluido) textoObj = '✅ Encontra e Derrota o Boss!';
+        if (data.bossAtivo && !data.mobs.some(m => m.isBoss)) textoObj = '🌀 Portal Desbloqueado!';
+
+        safeSet('forest-ui-objetivo', `${textoObj} (${data.objetivo.atual}/${data.objetivo.meta})`);
+        
+        let pct = Math.min(100, (data.objetivo.atual / data.objetivo.meta) * 100);
+        document.getElementById('forest-ui-objetivo-barra').style.width = `${pct}%`;
+        document.getElementById('forest-ui-objetivo-barra').style.background = data.objetivo.concluido ? '#2ecc71' : '#f1c40f';
+    }
+
     if (data.bioma) {
         safeSet('ui-pve-dica', `"${data.bioma.dica}"<br><span style="color:#e74c3c; font-weight:bold; font-size:0.8em; display:block; margin-top:5px;">FRAQUEZA ESPERADA: ${data.bioma.fraco.toUpperCase()}</span>`, true);
     }
@@ -9212,6 +9311,18 @@ socket.on('forest_sync', (data) => {
     }
 });
 
+// 🔥 NOVO: RECEPTOR DE EVENTOS DA FLORESTA (SPAWN DE BOSS E TREMOR DE TELA)
+socket.on('forest_event', (dados) => {
+    mostrarNotificacao(dados.msg, "erro");
+    if (dados.tipo === 'boss_spawn') {
+        playSFX('error');
+        document.body.classList.add('shake-screen');
+        setTimeout(() => document.body.classList.remove('shake-screen'), 500);
+        
+        // Põe um alvo/marca temporária no chão onde o boss nasceu para chamar a atenção
+        ForestMMOEngine.particulasGlobais.push({ x: dados.x, y: dados.y, vx: 0, vy: 0, s: 150, c: '#e74c3c' });
+    }
+});
 socket.on('forest_msg', (d) => { mostrarNotificacao(d.msg, "sucesso"); });
 
 window.finalizarArena = function(vitoria) { 

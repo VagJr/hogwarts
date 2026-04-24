@@ -1350,6 +1350,27 @@ io.on('connection', (socket) => {
             tempoCast: dados.tempoCast
         });
     });
+	// 🔥 O JOGADOR CLICOU NO PORTAL PARA AVANÇAR DE NÍVEL
+    socket.on('forest_enter_portal', (dados) => {
+        let inst = core.florestaEngine.instancias[dados.instId];
+        let a = core.alunos[socket.alunoId];
+        if(!inst || !a || !inst.portal.ativo) return;
+        
+        // Remove da instância antiga
+        delete inst.jogadores[a.id];
+        
+        // Aumenta o andar com segurança apenas UMA vez!
+        a.pveProgresso.area++;
+        core._salvarUrgente();
+        
+        let novaInst = core.florestaEngine.entrarFloresta(a);
+        
+        socket.leave(`forest_${inst.id}`);
+        socket.join(`forest_${novaInst.id}`);
+        
+        io.to(`priv_${a.id}`).emit('forest_floor_changed', { newInstId: novaInst.id, area: a.pveProgresso.area });
+        io.to(`priv_${a.id}`).emit('forest_msg', { msg: `🌀 Atravessaste o portal para as profundezas (Andar ${a.pveProgresso.area})!` });
+    });
 // 🔥 Lidar com ataques iniciados via clique no mapa da Floresta
     socket.on('forest_attack_mob', (dados) => {
         let inst = core.florestaEngine.instancias[dados.instId];
