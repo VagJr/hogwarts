@@ -101,10 +101,10 @@ async function inicializarServidor() {
             if (docLegado && docLegado.alunos && Object.keys(docLegado.alunos).length > 0) {
                 console.log("⚠️ ATENÇÃO: Formato antigo detetado! A iniciar migração blindada...");
                 
-                // 1. Move os alunos para a nova coleção (BulkWrite é ultra rápido)
+                // 1. Move os alunos para a nova coleção
                 const opsAlunos = Object.values(docLegado.alunos).map(aluno => ({
                     updateOne: {
-                        filter: { _id: aluno.id }, // Usa o ID do bruxo como ID do documento
+                        filter: { _id: aluno.id }, 
                         update: { $set: aluno },
                         upsert: true
                     }
@@ -123,8 +123,8 @@ async function inicializarServidor() {
                     { upsert: true }
                 );
 
-                // 3. Renomeia a coleção antiga para evitar que a migração rode duas vezes
-                await legacyCollection.rename('registos_escolares_old_backup');
+                // 3. 🔥 CORREÇÃO: Renomeia usando um carimbo de tempo para NUNCA dar erro "namespace exists"
+                await legacyCollection.rename(`registos_escolares_old_${Date.now()}`);
                 console.log("✅ Migração Concluída com Sucesso! Bem-vindo à nova Era de Hogwarts.");
             }
 
@@ -136,7 +136,7 @@ async function inicializarServidor() {
             // Carrega TODOS os alunos individualmente para a RAM
             const todosAlunos = await core.col_alunos.find({}).toArray();
             core.alunos = {};
-            todosAlunos.forEach(a => { core.alunos[a._id] = a; }); // Usa o _id para montar o objeto na RAM
+            todosAlunos.forEach(a => { core.alunos[a._id] = a; }); // Monta o objeto na RAM
 
             // Carrega o Sistema Global
             let sysDoc = await core.col_sistema.findOne({ _id: 'MATRIZ_SISTEMA' });
@@ -213,17 +213,16 @@ async function inicializarServidor() {
                 { upsert: true }
             );
 
-            // 2. Salvar Jogadores Isoladamente usando BULK WRITE (Foge ao limite de 16MB)
+            // 2. Salvar Jogadores Isoladamente usando BULK WRITE
             const alunosArray = Object.values(core.alunos);
             if (alunosArray.length > 0) {
                 const bulkOps = alunosArray.map(aluno => ({
                     updateOne: {
-                        filter: { _id: aluno.id }, // Procura o documento pelo ID do aluno
-                        update: { $set: aluno },   // Atualiza os dados
-                        upsert: true               // Se a conta for nova, cria no banco!
+                        filter: { _id: aluno.id },
+                        update: { $set: aluno },
+                        upsert: true
                     }
                 }));
-                // Executa tudo de uma vez. 'ordered: false' faz com que se um der erro, os outros gravem na mesma.
                 await core.col_alunos.bulkWrite(bulkOps, { ordered: false });
             }
             
@@ -281,7 +280,6 @@ async function inicializarServidor() {
                 quantidade_alunos: Object.keys(core.alunos).length 
             });
 
-            // Mantém os últimos 12 backups
             const backupsAntigos = await core.backup_collection.find().sort({ timestamp: -1 }).skip(12).toArray();
             for (let b of backupsAntigos) {
                 await core.backup_collection.deleteOne({ _id: b._id });
@@ -292,7 +290,7 @@ async function inicializarServidor() {
         }
     }, 3600000); 
 
-    // O Scriptorium (Máquina de Escrever em Background) continua como estava...
+    // O Scriptorium (Máquina de Escrever em Background)
     async function iniciarForjaDeLivrosEmBackground() {
         if (!core.db_biblioteca) {
             console.log("❌ [SCRIPTORIUM] Base de dados inacessível. O Monge volta a dormir.");
