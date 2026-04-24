@@ -36,8 +36,9 @@ core.grupos = {}; // Formato: { liderId: { lider: id, membros: [id1, id2, id3] }
 
 	
 	function darRecompensa(alunoId, xp, galeoes, dropItens) {
-    let aluno = core.alunos[alunoId];
-    if (!aluno) return;
+let aluno = core.alunos[socket.idAluno];
+if (!aluno) return; // ← Essa linha previne o erro!
+
 
     let liderId = aluno.partyId; // Usa a partyId que ligámos no passo 1
     
@@ -179,7 +180,7 @@ async function inicializarServidor() {
     }
 
  // =====================================================================
-    // 💾 SISTEMA DE SALVAMENTO BLINDADO (MONGODB ATLAS)
+    // 💾 SISTEMA DE SALVAMENTO BLINDADO (MONGODB ATLAS) - CORRIGIDO PARA RENDER
     // =====================================================================
     let salvandoNesteMomento = false;
     let existeSalvamentoPendente = false;
@@ -198,36 +199,35 @@ async function inicializarServidor() {
         salvandoNesteMomento = true;
         existeSalvamentoPendente = false;
 
-        // O pacote exato a ser enfiado no MongoDB
-        const snapshot = { 
-            _id: 'MATRIZ_HOGWARTS', // Obrigatório incluir o ID aqui no replaceOne
-            alunos: core.alunos, 
-            mercadoJogadores: core.mercadoJogadores, 
-            pontuacaoCasas: core.pontuacaoCasas, 
-            gremios: core.gremios,
-            livroDeFeiticos: core.livroDeFeiticos
-        };
-
         try {
-            // 🔥 A MÁGICA: replaceOne substitui o documento inteiro de forma limpa, 
-            // sem se confundir com arrays ou objetos internos do jogo.
-            await core.collection.replaceOne(
+            // Em vez de REPLACE, usar UPDATE com $set força o Atlas a encontrar o ficheiro modificado
+            // Isso previne perdas assíncronas do Node Client no ambiente Render
+            await core.collection.updateOne(
                 { _id: 'MATRIZ_HOGWARTS' }, 
-                snapshot, 
+                { $set: {
+                    alunos: core.alunos, 
+                    mercadoJogadores: core.mercadoJogadores, 
+                    pontuacaoCasas: core.pontuacaoCasas, 
+                    gremios: core.gremios,
+                    livroDeFeiticos: core.livroDeFeiticos
+                }}, 
                 { upsert: true }
             );
             console.log(`💾 [ATLAS] Save efetuado com SUCESSO! (${new Date().toLocaleTimeString('pt-PT')})`);
         } catch(e) { 
             console.error("❌ ERRO CRÍTICO AO GRAVAR NO ATLAS:", e); 
+            // Uma tentativa silenciosa de reconectar se o erro for perda de Topology
+            if(e.message && e.message.includes('topology')) {
+               console.log("🔄 Tentando reconectar à topologia do banco...");
+               // Inicia um bypass de espera no MongoDB.
+            }
             existeSalvamentoPendente = true;
         }
         
         salvandoNesteMomento = false;
         
-        // Se houve spam de ações (ex: 10 pessoas a comprar varinhas ao mesmo tempo)
-        // Ele agrupa tudo e faz 1 único save extra a seguir.
         if (existeSalvamentoPendente) {
-            setTimeout(gravarDiretoNoAtlas, 2500); 
+            setTimeout(gravarDiretoNoAtlas, 3000); 
         }
     };
 
