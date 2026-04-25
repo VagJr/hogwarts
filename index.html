@@ -1100,36 +1100,58 @@
             <button onclick="alternarModoHogwarts()" style="position:absolute; top:10px; right:10px; width:auto; z-index:20; background:rgba(0,0,0,0.8); color:#fff; border-color:#fff;">📱 Voltar aos Menus</button>
         </div>
 		
-		<!-- 🔥 TELA DO MOTOR ROGUELIKE DA FLORESTA (PVE/PVP OPEN WORLD) -->
+		<!-- 🔥 TELA DO MOTOR MMO DA FLORESTA PROIBIDA (PVE/PVP OPEN WORLD) -->
 <div id="forest-map-container" class="oculto" style="position:relative; width:100%; height: calc(100vh - 120px); border: 3px solid #27ae60; border-radius:4px; overflow:hidden; background:#020502; box-shadow: inset 0 0 50px rgba(0,0,0,0.9);">
-    <button class="btn-voltar-floresta" onclick="fugirDaFlorestaParaOCastelo()">🏃 Voltar (Salvar Loot)</button>
     
-    <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.8); border:1px solid #2ecc71; color:#2ecc71; padding:5px 15px; border-radius:4px; z-index:20; font-family:'Cinzel'; text-shadow:0 0 5px #000; width: calc(100% - 150px); max-width: 300px;">
-        <div>🌲 Floresta Proibida - Andar <span id="forest-ui-andar">1</span></div>
-        <div style="margin-top: 5px; font-size: 0.8em; font-family: 'Arial'; color: #ccc;">
-            <b style="color:var(--hp-gold);">Objetivo:</b> <span id="forest-ui-objetivo">Limpar Área</span>
-        </div>
-        <!-- Barra de Progresso do Objetivo -->
-        <div class="meter-bg" style="height: 6px; margin-top: 5px;">
-            <div id="forest-ui-objetivo-barra" style="width:0%; background:#f1c40f; height:100%; transition: width 0.3s;"></div>
+    <!-- Botão de Sair (Pequeno e Discreto no Topo Direito) -->
+    <button class="btn-voltar-floresta" onclick="fugirDaFlorestaParaOCastelo()" style="position:absolute; top:10px; right:10px; z-index:200; background:#c0392b; color:#fff; border: 1px solid #e74c3c; border-radius:4px; padding: 6px 12px; font-family:'Cinzel'; font-size:0.8em; box-shadow: 0 4px 10px rgba(0,0,0,0.8); width:auto; min-height:auto;">
+        🏃 Retornar
+    </button>
+
+    <!-- Cabeçalho Principal (Andar) - Compacto -->
+    <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.85); border:1px solid #2ecc71; color:#2ecc71; padding:8px 12px; border-radius:6px; z-index:20; font-family:'Cinzel'; text-shadow:0 0 5px #000; width: calc(100% - 110px); max-width: 240px; box-shadow: 0 5px 15px rgba(0,0,0,0.8);">
+        <div style="font-size:0.9em;">🌲 Floresta Proibida - Andar <span id="forest-ui-andar" style="font-size:1.3em; color:var(--hp-gold);">1</span></div>
+        <div style="margin-top: 4px; font-size: 0.7em; font-family: 'Arial'; color: #ccc; border-top:1px dashed #2ecc71; padding-top:4px;">
+            <b style="color:#e74c3c;">Risco:</b> Morte causa perda de Loot!
         </div>
     </div>
 
-    <!-- Interface do Loot em Risco -->
-    <div style="position:absolute; top:80px; left:10px; background:rgba(231,76,60,0.2); border:1px dashed #e74c3c; color:#fff; padding:10px; border-radius:4px; z-index:20; font-size:0.8em; backdrop-filter: blur(5px);">
-        <b style="color:#e74c3c;">Loot em Risco (Morte = Perda):</b><br>
-        💰 <span id="forest-ui-loot-gold" style="color:var(--hp-gold); font-weight:bold;">0</span> G<br>
-        ✨ <span id="forest-ui-loot-xp" style="color:#3498db; font-weight:bold;">0</span> EXP<br>
+    <!-- Interface Lateral (Loot Acumulado) - Baixou para top: 85px para não encavalar! -->
+    <div style="position:absolute; top:85px; left:10px; background:rgba(10,5,5,0.85); border:1px solid var(--hp-gold); color:#fff; padding:8px 10px; border-radius:6px; z-index:20; font-size:0.75em; box-shadow: 0 5px 15px rgba(0,0,0,0.8);">
+        <b style="color:var(--hp-gold); border-bottom:1px dashed #555; display:block; padding-bottom:3px; margin-bottom:4px;">Mochila</b>
+        💰 <span id="forest-ui-loot-gold" style="color:#f1c40f; font-weight:bold;">0</span> G<br>
+        ✨ <span id="forest-ui-loot-xp" style="color:#3498db; font-weight:bold;">0</span> XP<br>
         🎒 <span id="forest-ui-loot-itens" style="color:#9b59b6; font-weight:bold;">0</span> Artefatos
     </div>
 
-    <canvas id="forest-map-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
-    <!-- Joystick da Floresta -->
-    <div id="forest-joystick-zone" style="position: absolute; bottom: 20px; left: 20px; width: 140px; height: 140px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 2px dashed rgba(255,255,255,0.3); touch-action: none; z-index: 100;">
-        <div id="forest-joystick-knob" style="position: absolute; top: 40px; left: 40px; width: 60px; height: 60px; background: rgba(255,255,255,0.6); border-radius: 50%; box-shadow: 0 0 15px #000; pointer-events: none; transition: transform 0.05s;"></div>
+    <!-- 🔥 O NOVO HUD DO JOGADOR NA FLORESTA (Pequeno e ao canto inferior direito) -->
+    <div style="position:absolute; bottom:15px; right:15px; z-index:150; display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+        
+        <!-- Barra de Vida Sobreposta -->
+        <div style="background:rgba(0,0,0,0.9); padding:5px; border:1px solid #555; border-radius:4px; width:130px; text-align:center; box-shadow: 0 5px 10px #000;">
+            <div style="color:#fff; font-size:0.6em; font-family:'Cinzel'; margin-bottom:2px; font-weight:bold;">Físico</div>
+            <div class="bar-bg" style="height:10px; border-radius:2px; margin-bottom:0;">
+                <div class="hp-bar-fill" id="forest-ui-hp-bar" style="background:linear-gradient(90deg, #8a0b0c, #e74c3c); transition: width 0.3s ease;"></div>
+                <div class="bar-text" id="forest-ui-hp-txt" style="font-size:8px;">1000/1000</div>
+            </div>
+        </div>
+
+        <div style="display:flex; gap:5px;">
+            <button onclick="consumirPocaoFloresta()" style="background:linear-gradient(to bottom, #145a32, #0e2918); color:#2ecc71; border:1px solid #2ecc71; border-radius:4px; padding:6px 8px; font-size:0.7em; box-shadow:0 0 5px rgba(46,204,113,0.4); width:auto; min-height:auto;">
+                🧪 Curar
+            </button>
+            <button id="btn-pk-mode" onclick="togglePkMode()" style="background:linear-gradient(to bottom, #2c3e50, #1a252f); color:#fff; border:1px solid #555; border-radius:4px; padding:6px 8px; font-size:0.7em; width:auto; min-height:auto;">
+                🛡️ PK OFF
+            </button>
+        </div>
     </div>
+
+    <canvas id="forest-map-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
     
-    <button onclick="fugirDaFlorestaParaOCastelo()" style="position:absolute; top:10px; right:10px; width:auto; z-index:20; background:#c0392b; color:#fff; border-color:#e74c3c;">🏃 Voltar ao Castelo (Salvar Loot)</button>
+    <!-- Joystick Mobile Inferior Esquerdo -->
+    <div id="forest-joystick-zone" style="position: absolute; bottom: 20px; left: 20px; width: 120px; height: 120px; background: rgba(255,255,255,0.05); border-radius: 50%; border: 2px dashed rgba(255,255,255,0.3); touch-action: none; z-index: 100;">
+        <div id="forest-joystick-knob" style="position: absolute; top: 30px; left: 30px; width: 60px; height: 60px; background: rgba(255,255,255,0.6); border-radius: 50%; box-shadow: 0 0 15px #000; pointer-events: none; transition: transform 0.05s;"></div>
+    </div>
 </div>
 		
         <!-- SUB-MENU 1: EXPLORAR -->
@@ -2329,35 +2351,37 @@ let varinhaTxt = (meuBruxo.equipamentos && meuBruxo.equipamentos.varinha) ? `<di
 
     function renderizarGuardaRoupaUI() {
         if(!meuBruxo || !meuBruxo.equipamentos) return;
-        const coresRaridade = {'Comum':'#fff', 'Incomum':'#2ecc71', 'Raro':'#3498db', 'Épico':'#9b59b6', 'Lendário':'#f1c40f'};
+        const coresRaridade = {'Comum':'#fff', 'Incomum':'#2ecc71', 'Raro':'#3498db', 'Épico':'#9b59b6', 'Lendário':'#f1c40f', 'Mítico': '#e84393'};
 
         const lista = document.getElementById('lista-armario');
         if (lista) {
             if (!meuBruxo.inventario.armario || meuBruxo.inventario.armario.length === 0) {
-                lista.innerHTML = "<p style='color:#777; width:100%; text-align:center;'>Sem itens na forja.</p>";
+                lista.innerHTML = "<p style='color:#777; width:100%; text-align:center;'>O teu armário está vazio. Forja itens no Altar.</p>";
             } else {
                 lista.innerHTML = meuBruxo.inventario.armario.map(item => {
                     let rCor = coresRaridade[item.raridade || 'Comum'];
+                    let iconeSlot = item.tipo === 'cabeca' ? '🎩' : (item.tipo === 'pescoco' ? '🧣' : '👘');
                     return `
-                    <div style="background:rgba(0,0,0,0.5); border:1px solid ${rCor}; padding:10px; border-radius:4px; min-width:140px;">
-                        <b style="color:${rCor}; text-shadow:0 0 5px ${rCor};">[${item.raridade || 'Comum'}] ${item.nome}</b>
-                        <p style="font-size:0.7em; color:#aaa; margin:5px 0;">+${item.atributos.intelecto||0} INT | +${item.atributos.vigor||0} VIG | +${item.atributos.destreza||0} DES</p>
-                        <button onclick="equiparItemMistico('${item.id}')" style="padding:5px; font-size:0.8em; border-color:${rCor}; color:${rCor};">Equipar</button>
+                    <div style="background:rgba(0,0,0,0.5); border:1px solid ${rCor}; padding:10px; border-radius:4px; min-width:140px; display:flex; flex-direction:column; justify-content:space-between;">
+                        <b style="color:${rCor}; text-shadow:0 0 5px ${rCor}; font-size:0.9em;">${iconeSlot} [${item.raridade || 'Comum'}]<br>${item.nome}</b>
+                        <p style="font-size:0.75em; color:#aaa; margin:5px 0;">+${item.atributos?.intelecto||0} INT | +${item.atributos?.vigor||0} VIG | +${item.atributos?.destreza||0} DES</p>
+                        <button onclick="equiparItemMistico('${item.id}')" style="padding:5px; font-size:0.8em; border-color:${rCor}; color:${rCor}; margin-top:5px;">Equipar</button>
                     </div>`;
                 }).join('');
             }
         }
 
-        const btnDesq = (slot) => meuBruxo.equipamentos[slot] ? `<button onclick="desequiparItemMistico('${slot}')" style="padding:2px 5px; font-size:0.6em; margin-top:5px; background:#c0392b; color:#fff; border:none; border-radius:3px; cursor:pointer;">Desequipar</button>` : '';
+        // Função auxiliar limpa e blindada para desequipar
+        const btnDesq = (slot) => `<button onclick="desequiparItemMistico('${slot}')" style="padding:2px 5px; font-size:0.6em; margin-top:5px; background:#c0392b; color:#fff; border:1px solid #e74c3c; border-radius:3px; cursor:pointer;">Desequipar</button>`;
 
         const sc = document.getElementById('slot-cabeca');
-        if(sc) sc.innerHTML = `<b style="color:#e84393;">🎩 Cabeça</b><br> <span style="color:#fff; font-size:0.85em;">${meuBruxo.equipamentos.cabeca ? meuBruxo.equipamentos.cabeca.nome : "Nenhum"}</span><br>${btnDesq('cabeca')}`;
+        if(sc) sc.innerHTML = `<b style="color:#e84393;">🎩 Cabeça</b><br> <span style="color:#fff; font-size:0.85em;">${meuBruxo.equipamentos.cabeca ? meuBruxo.equipamentos.cabeca.nome : "Nenhum"}</span><br>${meuBruxo.equipamentos.cabeca ? btnDesq('cabeca') : ''}`;
         
         const sp = document.getElementById('slot-pescoco');
-        if(sp) sp.innerHTML = `<b style="color:#3498db;">🧣 Pescoço</b><br> <span style="color:#fff; font-size:0.85em;">${meuBruxo.equipamentos.pescoco ? meuBruxo.equipamentos.pescoco.nome : "Nenhum"}</span><br>${btnDesq('pescoco')}`;
+        if(sp) sp.innerHTML = `<b style="color:#3498db;">🧣 Pescoço</b><br> <span style="color:#fff; font-size:0.85em;">${meuBruxo.equipamentos.pescoco ? meuBruxo.equipamentos.pescoco.nome : "Nenhum"}</span><br>${meuBruxo.equipamentos.pescoco ? btnDesq('pescoco') : ''}`;
         
         const sco = document.getElementById('slot-corpo');
-        if(sco) sco.innerHTML = `<b style="color:#2ecc71;">👘 Corpo (Veste)</b><br> <span style="color:#fff; font-size:0.85em;">${meuBruxo.equipamentos.corpo ? meuBruxo.equipamentos.corpo.nome : "Veste Escolar Simples"}</span><br>${btnDesq('corpo')}`;
+        if(sco) sco.innerHTML = `<b style="color:#2ecc71;">👘 Corpo (Veste)</b><br> <span style="color:#fff; font-size:0.85em;">${meuBruxo.equipamentos.corpo ? meuBruxo.equipamentos.corpo.nome : "Veste Simples"}</span><br>${meuBruxo.equipamentos.corpo ? btnDesq('corpo') : ''}`;
     }
 
     window.desequiparItemMistico = async function(slot) {
@@ -2657,7 +2681,46 @@ safeSet('ui-galeoes', meuBruxo.galeoes);
     };
 
 
+// --- LÓGICA DO NOVO HUD FLORESTA ---
+let isPkModeAtivo = false;
 
+window.togglePkMode = function() {
+    isPkModeAtivo = !isPkModeAtivo;
+    const btn = document.getElementById('btn-pk-mode');
+    if(isPkModeAtivo) {
+        btn.innerText = "⚔️ PK: ON";
+        btn.style.background = "linear-gradient(to bottom, #8a0b0c, #4a0000)";
+        btn.style.borderColor = "#e74c3c";
+        btn.style.color = "#fff";
+        mostrarNotificacao("Modo PK Ativo. Podes atacar e ser atacado por jogadores com PK!", "erro");
+    } else {
+        btn.innerText = "🛡️ PK: OFF";
+        btn.style.background = "linear-gradient(to bottom, #2c3e50, #1a252f)";
+        btn.style.borderColor = "#555";
+        btn.style.color = "#ccc";
+        mostrarNotificacao("Modo Pacífico Ativo.", "sucesso");
+    }
+    socket.emit('forest_toggle_pk', { instId: currentForestInstId, status: isPkModeAtivo });
+};
+
+window.consumirPocaoFloresta = function() {
+    playSFX('magic');
+    socket.emit('forest_heal_potion', {});
+};
+
+// Quando recebes o update de HP (Mesmo se fores atacado ou curado fora do ecrã de combate)
+socket.on('forest_update_hp', (dados) => {
+    meuBruxo.hpAtual = dados.hpAtual;
+    meuBruxo.hpMax = dados.hpMax;
+    
+    // Atualiza a barra de vida no ecrã da floresta 2D!
+    let hpBar = document.getElementById('forest-ui-hp-bar');
+    let hpTxt = document.getElementById('forest-ui-hp-txt');
+    if(hpBar && hpTxt) {
+        hpBar.style.width = `${Math.max(0, (dados.hpAtual / dados.hpMax) * 100)}%`;
+        hpTxt.innerText = `${dados.hpAtual}/${dados.hpMax}`;
+    }
+});
     // 🔥 CORREÇÃO PRINCIPAL DO LAG: O Socket já tem a informação nova! 
     // Não precisa de fazer fetch de novo! Só chama a função de desenhar.
     // ==========================================================
@@ -9037,10 +9100,13 @@ const ForestMMOEngine = {
     loop: null, mapData: null,
     camera: { x: 0, y: 0 },
     keys: { w:0, a:0, s:0, d:0 },
-    player: { x: 0, y: 0, vx: 0, vy: 0, speed: 1.2, dir: 1, isMoving: false },
+    player: { x: 0, y: 0, vx: 0, vy: 0, speed: 1.5, dir: 1, isMoving: false },
+    controlesCriados: false,
+    interatividadeCriada: false,
 
     init: function() {
         this.cvs = document.getElementById('forest-map-canvas');
+        if(!this.cvs) return;
         this.ctx = this.cvs.getContext('2d');
         this.vw = this.cvs.parentElement.clientWidth;
         this.vh = this.cvs.parentElement.clientHeight;
@@ -9052,28 +9118,58 @@ const ForestMMOEngine = {
     },
 
     setupControls: function() {
-        // Aproveita o Joystick e Teclado idêntico ao do Beco/MMO
-        window.addEventListener('keydown', (e) => { if(currentForestInstId && ['w','a','s','d'].includes(e.key.toLowerCase())) this.keys[e.key.toLowerCase()] = 1; });
-        window.addEventListener('keyup', (e) => { if(currentForestInstId && ['w','a','s','d'].includes(e.key.toLowerCase())) this.keys[e.key.toLowerCase()] = 0; });
+        if(this.controlesCriados) return;
+        this.controlesCriados = true;
         
+        // Teclado (PC)
+        window.addEventListener('keydown', (e) => { 
+            const tag = document.activeElement ? document.activeElement.tagName : '';
+            if(tag === 'INPUT' || tag === 'TEXTAREA') return; 
+            if(currentForestInstId && ['w','a','s','d'].includes(e.key.toLowerCase())) {
+                ForestMMOEngine.keys[e.key.toLowerCase()] = 1; 
+            }
+        });
+        window.addEventListener('keyup', (e) => { 
+            const tag = document.activeElement ? document.activeElement.tagName : '';
+            if(tag === 'INPUT' || tag === 'TEXTAREA') return; 
+            if(currentForestInstId && ['w','a','s','d'].includes(e.key.toLowerCase())) {
+                ForestMMOEngine.keys[e.key.toLowerCase()] = 0; 
+            }
+        });
+        
+        // Joystick (Mobile)
         const zone = document.getElementById('forest-joystick-zone');
         const knob = document.getElementById('forest-joystick-knob');
         if(zone) {
             let jAtv = false, sx = 0, sy = 0;
-            zone.addEventListener('touchstart', (e) => { jAtv = true; let r = zone.getBoundingClientRect(); sx = r.left+70; sy = r.top+70; this.updJ(e.touches[0], sx, sy, knob); }, {passive:false});
-            zone.addEventListener('touchmove', (e) => { if(jAtv){ e.preventDefault(); this.updJ(e.touches[0], sx, sy, knob); } }, {passive:false});
-            zone.addEventListener('touchend', () => { jAtv = false; knob.style.transform = `translate(0,0)`; this.keys={w:0,a:0,s:0,d:0}; });
+            zone.addEventListener('touchstart', (e) => { 
+                jAtv = true; let r = zone.getBoundingClientRect(); sx = r.left+60; sy = r.top+60; 
+                ForestMMOEngine.updJ(e.touches[0], sx, sy, knob); 
+            }, {passive:false});
+            zone.addEventListener('touchmove', (e) => { 
+                if(jAtv){ e.preventDefault(); ForestMMOEngine.updJ(e.touches[0], sx, sy, knob); } 
+            }, {passive:false});
+            zone.addEventListener('touchend', () => { 
+                jAtv = false; knob.style.transform = `translate(0,0)`; 
+                ForestMMOEngine.keys={w:0,a:0,s:0,d:0}; 
+            });
         }
     },
+    
     updJ: function(t, sx, sy, k) {
         let dx = t.clientX - sx; let dy = t.clientY - sy; let dist = Math.hypot(dx,dy);
-        if(dist>50){ dx=(dx/dist)*50; dy=(dy/dist)*50; }
+        if(dist > 40){ dx = (dx/dist)*40; dy = (dy/dist)*40; }
         k.style.transform = `translate(${dx}px, ${dy}px)`;
-        this.keys.w = dy < -10 ? 1 : 0; this.keys.s = dy > 10 ? 1 : 0;
-        this.keys.a = dx < -10 ? 1 : 0; this.keys.d = dx > 10 ? 1 : 0;
+        
+        let forceX = Math.abs(dx) / 40;
+        let forceY = Math.abs(dy) / 40;
+
+        ForestMMOEngine.keys.w = dy < -10 ? forceY : 0; 
+        ForestMMOEngine.keys.s = dy > 10 ? forceY : 0;
+        ForestMMOEngine.keys.a = dx < -10 ? forceX : 0; 
+        ForestMMOEngine.keys.d = dx > 10 ? forceX : 0;
     },
 
-   // Adiciona esta variável no início do ForestMMOEngine para guardar o progresso do clique
     actionTarget: null,
 
     tick: function() {
@@ -9085,6 +9181,7 @@ const ForestMMOEngine = {
         let nVx = 0; let nVy = 0;
         const arenaFisica = document.getElementById('arena-acao');
         
+        // Verifica se NÃO estamos no ecrã de combate 3D
         if (!combatEngineAtivo && arenaFisica && arenaFisica.classList.contains('oculto')) {
             nVx = (this.keys.d - this.keys.a) * this.player.speed;
             nVy = (this.keys.s - this.keys.w) * this.player.speed;
@@ -9093,13 +9190,14 @@ const ForestMMOEngine = {
         this.player.isMoving = (nVx !== 0 || nVy !== 0);
         if(nVx !== 0) this.player.dir = nVx > 0 ? 1 : -1;
 
-        // Se o jogador se mover, cancela a ação pendente (Barra de Carregamento)
         if (this.player.isMoving && this.actionTarget) {
-            this.actionTarget = null;
+            this.actionTarget = null; // Cancela carregamento de ação (click) se andar
         }
 
-        let px = this.player.x + nVx; let py = this.player.y + nVy;
+        let px = this.player.x + nVx; 
+        let py = this.player.y + nVy;
         
+        // Física Básica: Colisão com Árvores
         let bateuX = false; let bateuY = false;
         this.mapData.arvores.forEach(a => { 
             if(Math.hypot(px - a.x, this.player.y - a.y) < a.r) bateuX = true; 
@@ -9117,6 +9215,7 @@ const ForestMMOEngine = {
         if (!bateuX) this.player.x = Math.max(0, Math.min(this.mapData.w, px));
         if (!bateuY) this.player.y = Math.max(0, Math.min(this.mapData.h, py));
 
+        // Envia Posição para Rede (Outros jogadores)
         if (this.player.isMoving || this.wasMoving) {
             socket.emit('forest_mover', { instId: currentForestInstId, x: this.player.x, y: this.player.y, dir: this.player.dir, isMoving: this.player.isMoving });
             this.wasMoving = this.player.isMoving;
@@ -9129,20 +9228,30 @@ const ForestMMOEngine = {
         ctx.clearRect(0,0,this.vw, this.vh);
         ctx.save(); ctx.translate(-this.camera.x, -this.camera.y);
 
-        // 🔥 NOVO VISUAL FLORESTA: Verde-azulado sombrio, mas menos escuro!
+        // Desenha Fundo
         let gr = ctx.createRadialGradient(this.player.x, this.player.y, 100, this.player.x, this.player.y, 800);
-        gr.addColorStop(0, "#0b1c14"); // Centro iluminado em torno do jogador
-        gr.addColorStop(1, "#020805"); // Escuridão nas bordas
+        gr.addColorStop(0, "#0b1c14"); 
+        gr.addColorStop(1, "#020805"); 
         ctx.fillStyle = gr; ctx.fillRect(0, 0, this.mapData.w, this.mapData.h);
 
-        // Portal
+        // Desenha Portal
         if(this.mapData.portal.ativo) {
             ctx.fillStyle = '#3498db'; ctx.shadowColor = '#3498db'; ctx.shadowBlur = 30;
             ctx.beginPath(); ctx.arc(this.mapData.portal.x, this.mapData.portal.y, 40, 0, Math.PI*2); ctx.fill();
             ctx.shadowBlur = 0;
         }
 
-        // Baús (Com Interatividade de Clique)
+        // TÚMULOS DE JOGADORES MORTOS (LOOT RISK)
+        if(this.mapData.tumbas) {
+            this.mapData.tumbas.forEach(t => {
+                ctx.fillStyle = '#111'; ctx.beginPath(); ctx.ellipse(t.x, t.y+10, 20, 10, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#666'; ctx.fillRect(t.x - 10, t.y - 20, 20, 30);
+                ctx.fillStyle = '#8a0b0c'; ctx.font = "bold 14px Arial"; ctx.fillText("✝", t.x, t.y-5);
+                ctx.fillStyle = '#fff'; ctx.font = "10px Arial"; ctx.fillText(`Espólio de ${t.ownerName}`, t.x, t.y - 25);
+            });
+        }
+
+        // Baús
         this.mapData.baus.forEach((b, idx) => {
             if(!b.looted) {
                 ctx.fillStyle = '#f1c40f'; ctx.fillRect(b.x - 15, b.y - 10, 30, 20);
@@ -9157,7 +9266,7 @@ const ForestMMOEngine = {
             ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
         });
 
-        // 🔥 MINI-MOBS ESTILIZADOS
+        // Desenha Mobs do Mapa
         this.mapData.mobs.forEach(m => {
             ctx.save();
             ctx.translate(m.x, m.y);
@@ -9185,7 +9294,7 @@ const ForestMMOEngine = {
             ctx.restore();
         });
 
-        // Jogadores Multiplayer
+        // Desenha Todos os Jogadores MMO
         Object.values(this.mapData.jogadores).forEach(p => {
             if (p.id !== meuBruxo.id && p.emCombate) return;
             if (p.id === meuBruxo.id && combatEngineAtivo) return;
@@ -9201,15 +9310,16 @@ const ForestMMOEngine = {
             ctx.restore();
 
             let cColor = p.partyId === meuBruxo.partyId ? '#2ecc71' : '#e74c3c'; 
+            if (p.pkMode) cColor = '#8a0b0c'; // Alerta: Jogador Vermelho de PK Ativo!
             if (p.id === meuBruxo.id) cColor = '#f1c40f'; 
             
             ctx.fillStyle = cColor; ctx.font = "bold 12px Arial"; ctx.textAlign = "center";
             ctx.fillText(p.nome, drawX, drawY - 30);
         });
 
-        // 🔥 BARRA DE CARREGAMENTO CIRCULAR DA AÇÃO
+        // 🔥 BARRA DE CARREGAMENTO CIRCULAR DA AÇÃO DE INTERAÇÃO
         if (this.actionTarget) {
-            this.actionTarget.progress += 2; // Velocidade do loading (2% por frame)
+            this.actionTarget.progress += 2; // Velocidade do loading
             
             ctx.lineWidth = 4;
             ctx.strokeStyle = "rgba(0,0,0,0.5)";
@@ -9218,7 +9328,7 @@ const ForestMMOEngine = {
             ctx.strokeStyle = this.actionTarget.color || "#f1c40f";
             ctx.beginPath(); ctx.arc(this.actionTarget.x, this.actionTarget.y, 25, -Math.PI/2, (-Math.PI/2) + (Math.PI * 2 * (this.actionTarget.progress / 100))); ctx.stroke();
 
-            // Dispara a acção!
+            // Executa a acção se encher
             if (this.actionTarget.progress >= 100) {
                 if(this.actionTarget.type === 'bau') {
                     socket.emit('forest_open_chest', { instId: currentForestInstId, bauIdx: this.actionTarget.idx });
@@ -9230,14 +9340,8 @@ const ForestMMOEngine = {
         }
 
         ctx.restore();
-// 🔥 O PORTAL AGORA EXIGE CLIQUE!
-                if (this.mapData.portal.ativo && Math.hypot(clickX - this.mapData.portal.x, clickY - this.mapData.portal.y) < 60) {
-                    if(Math.hypot(this.player.x - this.mapData.portal.x, this.player.y - this.mapData.portal.y) < 100) {
-                        socket.emit('forest_enter_portal', { instId: currentForestInstId });
-                    } else mostrarNotificacao("Aproxima-te do portal para atravessar!", "info");
-                    return;
-                }
-        // 🖱️ Evento de Clique para Interagir (Atribuído apenas 1 vez)
+
+        // Clique Rato/Touch (Eventos únicos de interação)
         if (!this.interatividadeCriada) {
             this.cvs.addEventListener('click', (e) => {
                 if(combatEngineAtivo || !currentForestInstId) return;
@@ -9245,6 +9349,25 @@ const ForestMMOEngine = {
                 const clickX = (e.clientX - rect.left) * (this.cvs.width / rect.width) + this.camera.x;
                 const clickY = (e.clientY - rect.top) * (this.cvs.height / rect.height) + this.camera.y;
 
+                // Portal
+                if (this.mapData.portal.ativo && Math.hypot(clickX - this.mapData.portal.x, clickY - this.mapData.portal.y) < 60) {
+                    if(Math.hypot(this.player.x - this.mapData.portal.x, this.player.y - this.mapData.portal.y) < 100) {
+                        socket.emit('forest_enter_portal', { instId: currentForestInstId });
+                    } else mostrarNotificacao("Aproxima-te do portal para atravessar!", "info");
+                    return;
+                }
+
+                // Clicar num Túmulo para Saquear
+                if(ForestMMOEngine.mapData.tumbas) {
+                    ForestMMOEngine.mapData.tumbas.forEach(t => {
+                        if(Math.hypot(clickX - t.x, clickY - t.y) < 40) {
+                            if(Math.hypot(ForestMMOEngine.player.x - t.x, ForestMMOEngine.player.y - t.y) < 100) {
+                                socket.emit('forest_loot_tumba', { instId: currentForestInstId, tumbaId: t.id });
+                            } else mostrarNotificacao("Aproxima-te da tumba para a saquear!", "info");
+                        }
+                    });
+                }
+                
                 // Baús
                 this.mapData.baus.forEach((b, idx) => {
                     if(!b.looted && Math.hypot(clickX - b.x, clickY - b.y) < 40) {

@@ -2806,12 +2806,12 @@ a.siclos += 5; // Bonus pro Last Hit
         this._salvarBancoDeDados();
         return { sucesso: true, msg: `Obra Prima! Forjaste um item [${item.raridade}]!`, item };
     }
-    // ==========================================
-    // SISTEMA DE DESEQUIPAR / EQUIPAR
+ // ==========================================
+    // SISTEMA DE DESEQUIPAR / EQUIPAR CORRIGIDO
     // ==========================================
     desequiparItem(alunoId, slot) {
         const a = this.alunos[alunoId];
-        if (!a || !a.equipamentos[slot]) return { erro: "Nada equipado." };
+        if (!a || !a.equipamentos || !a.equipamentos[slot]) return { erro: "Nada equipado nesse slot." };
         
         const item = a.equipamentos[slot];
         if (!a.inventario.armario) a.inventario.armario = [];
@@ -2820,7 +2820,7 @@ a.siclos += 5; // Bonus pro Last Hit
         a.inventario.armario.push(item);
         a.equipamentos[slot] = null;
 
-        this._obterAtributosTotais(a); // Recalcula os bónus
+        this._obterAtributosTotais(a); // Recalcula os bónus de HP e Foco
         this._salvarBancoDeDados();
         return { sucesso: true, msg: `Removeste [${item.nome}] e guardaste no armário.` };
     }
@@ -2830,24 +2830,26 @@ a.siclos += 5; // Bonus pro Last Hit
         if (!a || !a.inventario.armario) return { erro: "Armário vazio." };
 
         const idx = a.inventario.armario.findIndex(i => i.id === itemId);
-        if (idx === -1) return { erro: "Item não encontrado." };
+        if (idx === -1) return { erro: "Item não encontrado no teu armário." };
 
         const item = a.inventario.armario[idx];
-        const slot = item.tipo; // 'cabeca', 'corpo' ou 'pescoco'
+        // Força a conversão do tipo para bater certo com os slots do objeto
+        let slot = item.tipo.toLowerCase(); 
+        if (!['cabeca', 'corpo', 'pescoco'].includes(slot)) return { erro: "Tipo de equipamento inválido." };
 
-        // Se já tiver algo equipado, troca (desequipa o antigo primeiro)
-        if (a.equipamentos[slot]) {
+        // Se já tiver algo equipado nesse slot, manda o item antigo de volta para o armário
+        if (a.equipamentos[slot] && a.equipamentos[slot] !== null) {
             a.inventario.armario.push(a.equipamentos[slot]);
         }
 
+        // Equipa o novo e remove do armário
         a.equipamentos[slot] = item;
-        a.inventario.armario.splice(idx, 1); // Remove do armário pois está no corpo
+        a.inventario.armario.splice(idx, 1);
 
         this._obterAtributosTotais(a);
         this._salvarBancoDeDados();
-        return { sucesso: true, msg: `Equipaste [${item.nome}].` };
+        return { sucesso: true, msg: `Vestiste [${item.nome}]. Os teus atributos aumentaram!` };
     }
-
     criarGremio(alunoId, nomeGremio) {
         const a = this.alunos[alunoId]; if(!a) return {erro:"Fantasma"};
         if(a.galeoes < 100) return {erro: "Requer 100 Galeões."};
@@ -3236,47 +3238,43 @@ a.siclos += 5; // Bonus pro Last Hit
 } // <--- FECHA A CLASSE HogwartsCore
 
 // ==============================================================================
-// 🌲 MOTOR PROCEDURAL DA FLORESTA PROIBIDA (DUNGEON CRAWLER AAA)
+// 🌲 MOTOR MMO OPEN WORLD: FLORESTA PROIBIDA AAA
 // ==============================================================================
 class MotorFlorestaProcedural {
     constructor(coreObj) {
         this.core = coreObj;
         this.instancias = {};
+        this.tumbas = []; // Túmulos de jogadores mortos com loot
+        
+        // Cria os 7 andares globais de antemão!
+        for(let i=1; i<=7; i++) {
+            this.instancias[`andar_${i}`] = this.gerarNivelFloresta(i, `andar_${i}`);
+        }
         setInterval(() => this.tickFloresta(global.io), 100); 
     }
 
     entrarFloresta(aluno) {
-        let instId = null;
         let areaAlvo = aluno.pveProgresso ? aluno.pveProgresso.area : 1;
-        
-        for (let id in this.instancias) {
-            let inst = this.instancias[id];
-            if (inst.area === areaAlvo && Object.keys(inst.jogadores).length < 10) {
-                instId = id; break;
-            }
-        }
-
-        if (!instId) {
-            instId = `forest_${crypto.randomBytes(4).toString('hex')}`;
-            this.instancias[instId] = this.gerarNivelFloresta(areaAlvo, instId);
-        }
-
+        let instId = `andar_${areaAlvo}`;
         let inst = this.instancias[instId];
-        aluno.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+
+        // Se o jogador não tem o objeto loot, cria-o
+        if(!aluno.lootTemporario) aluno.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
         
         inst.jogadores[aluno.id] = {
             id: aluno.id, nome: aluno.nome, casa: aluno.casa, partyId: aluno.partyId,
             equipamentos: aluno.equipamentos || {},
             x: inst.spawn.x + (Math.random()*60 - 30), 
             y: inst.spawn.y + (Math.random()*60 - 30),
-            vx: 0, vy: 0, dir: 1, isMoving: false, emCombate: false, combatInstId: null
+            vx: 0, vy: 0, dir: 1, isMoving: false, emCombate: false, combatInstId: null,
+            pkMode: false // Jogador entra pacífico por defeito
         };
 
         return inst;
     }
 
     gerarNivelFloresta(areaNivel, instId) {
-        let size = 2000 + (areaNivel * 400); 
+        let size = 2500 + (areaNivel * 500); // Mapas Massivos
         
         const BIOMAS = [
             { nome: "Clareira das Teias", dica: "Fios grossos prendem as folhas. Estas feras odeiam FOGO.", fraco: "fogo" },
@@ -3286,80 +3284,28 @@ class MotorFlorestaProcedural {
         ];
         let biomaSorteado = BIOMAS[(areaNivel - 1) % BIOMAS.length];
 
-        let edges = [ {x: 200, y: 200}, {x: size-200, y: size-200}, {x: 200, y: size-200}, {x: size-200, y: 200} ];
-        let spawnIndex = Math.floor(Math.random() * 4);
-        let portalIndex = (spawnIndex + 2) % 4; // Diagonal oposta
-
-        // 🔥 SISTEMA DE OBJETIVOS ESTRUTURADOS
-        let tiposObjetivo = ['matar_mobs', 'abrir_baus'];
-        let objSorteado = tiposObjetivo[Math.floor(Math.random() * tiposObjetivo.length)];
-        let meta = objSorteado === 'matar_mobs' ? (3 + areaNivel*2) : (2 + Math.floor(areaNivel/2));
+        let edges = [ {x: 300, y: 300}, {x: size-300, y: size-300}, {x: 300, y: size-300}, {x: size-300, y: 300} ];
 
         let inst = {
             id: instId, area: areaNivel, w: size, h: size, bioma: biomaSorteado,
             jogadores: {}, mobs: [], baus: [], arvores: [],
-            spawn: edges[spawnIndex],
-            portal: { x: edges[portalIndex].x, y: edges[portalIndex].y, ativo: false },
-            objetivo: { tipo: objSorteado, atual: 0, meta: meta, concluido: false },
-            bossAtivo: false
+            spawn: edges[0],
+            portal: { x: edges[1].x, y: edges[1].y, ativo: true }, // Portal está sempre ativo neste MMO Open World
         };
 
-           // 🔥 LEVEL DESIGN OTIMIZADO: Corredores mais amplos e menos sufocantes
-        for(let x = 0; x < size; x += 250) { // Antes era 150 (muito denso)
-            for(let y = 0; y < size; y += 250) {
-                // 50% de chance de deixar o espaço totalmente limpo
-                if (Math.random() < 0.50) continue; 
-                if (Math.hypot(x - inst.spawn.x, y - inst.spawn.y) < 400) continue;
-                if (Math.hypot(x - inst.portal.x, y - inst.portal.y) < 400) continue;
+        // Geração de Árvores com trilhos
+        for(let x = 0; x < size; x += 300) { 
+            for(let y = 0; y < size; y += 300) {
+                if (Math.random() < 0.40) continue; 
+                if (Math.hypot(x - inst.spawn.x, y - inst.spawn.y) < 500) continue;
+                if (Math.hypot(x - inst.portal.x, y - inst.portal.y) < 500) continue;
 
-                // Árvores menores e em menor quantidade por bosque
-                let arvoresNoBosque = 3 + Math.floor(Math.random() * 4); 
+                let arvoresNoBosque = 2 + Math.floor(Math.random() * 3); 
                 for(let j=0; j < arvoresNoBosque; j++) {
-                    inst.arvores.push({ 
-                        x: x + Math.random()*150, 
-                        y: y + Math.random()*150, 
-                        r: 25 + Math.random()*15 // Raio da árvore reduzido
-                    });
+                    inst.arvores.push({ x: x + Math.random()*200, y: y + Math.random()*200, r: 30 + Math.random()*20 });
                 }
             }
         }
-
-        // Gera Mobs
-        let qtdMobs = meta + 5; 
-        for(let i=0; i<qtdMobs; i++) {
-            let mData = this.core._gerarMonstroRapido(400 * (1 + (areaNivel*0.2)), "Floresta", false, areaNivel);
-            mData.fracoContra = biomaSorteado.fraco; 
-            inst.mobs.push({
-                id: `fmob_${crypto.randomBytes(3).toString('hex')}`,
-                nome: mData.nome, hpMax: mData.hpMax, hpAtual: mData.hpMax,
-                padrao: mData.padrao, elemento: mData.elemento, fracoContra: mData.fracoContra,
-                x: 300 + Math.random() * (size-600), y: 300 + Math.random() * (size-600),
-                vx: Math.random()*2-1, vy: Math.random()*2-1, isBoss: false
-            });
-        }
-
-        // 🔥 SPAWN SEGURO DOS BAÚS (Impede que nasçam debaixo das árvores)
-        let qtdBaus = objSorteado === 'abrir_baus' ? meta + 1 : Math.floor(Math.random()*3) + 1;
-        for(let i=0; i<qtdBaus; i++) {
-            let bx, by, bateuNaArvore;
-            let tentativas = 0;
-            do {
-                bateuNaArvore = false;
-                bx = 200 + Math.random()*(size-400);
-                by = 200 + Math.random()*(size-400);
-                
-                // Verifica se a coordenada calculada esbarra em alguma árvore existente
-                for (let a of inst.arvores) {
-                    if (Math.hypot(bx - a.x, by - a.y) < a.r + 30) {
-                        bateuNaArvore = true; break;
-                    }
-                }
-                tentativas++;
-            } while (bateuNaArvore && tentativas < 50); // Tenta 50 vezes no máximo para não dar crash
-
-            inst.baus.push({ x: bx, y: by, looted: false });
-        }
-
         return inst;
     }
 
@@ -3367,164 +3313,166 @@ class MotorFlorestaProcedural {
         for (let instId in this.instancias) {
             let inst = this.instancias[instId];
             let playersInMap = Object.values(inst.jogadores).filter(p => !p.emCombate);
-            let playersInCombat = Object.values(inst.jogadores).filter(p => p.emCombate && p.combatInstId);
 
-            // GESTÃO DO OBJETIVO E DESPERTAR DO BOSS
-            if (!inst.objetivo.concluido && inst.objetivo.atual >= inst.objetivo.meta) {
-                inst.objetivo.concluido = true;
-                inst.bossAtivo = true;
-                
-                // SPAM DO BOSS
-                let bossData = this.core._gerarMonstroRapido(1500 * inst.area, "Floresta", true, inst.area);
-                bossData.fracoContra = inst.bioma.fraco;
-                inst.mobs.push({
-                    id: `fboss_${crypto.randomBytes(3).toString('hex')}`,
-                    nome: bossData.nome, hpMax: bossData.hpMax, hpAtual: bossData.hpMax,
-                    padrao: bossData.padrao, elemento: bossData.elemento, fracoContra: bossData.fracoContra,
-                    x: inst.portal.x, y: inst.portal.y, vx: 0, vy: 0, isBoss: true
-                });
-
-                ioGlobal.to(`forest_${inst.id}`).emit('forest_event', { 
-                    tipo: 'boss_spawn', 
-                    msg: `⚠️ O Guardião da Área (${bossData.nome}) despertou no portal!`,
-                    x: inst.portal.x, y: inst.portal.y
-                });
+            // ===================================================
+            // 🔥 EVENTOS DINÂMICOS: RESPWAWN DE MOBS E BAÚS
+            // ===================================================
+            if (inst.mobs.length < 10 + (inst.area * 2)) {
+                if(Math.random() < 0.05) { // Respawn gradual
+                    let isBoss = Math.random() < 0.05; // 5% chance de World Boss de andar
+                    let mData = this.core._gerarMonstroRapido(400 * (1 + (inst.area*0.2)), "Floresta", isBoss, inst.area);
+                    mData.fracoContra = inst.bioma.fraco; 
+                    inst.mobs.push({
+                        id: `fmob_${crypto.randomBytes(3).toString('hex')}`,
+                        nome: isBoss ? `[WORLD BOSS] ${mData.nome}` : mData.nome, hpMax: mData.hpMax, hpAtual: mData.hpMax,
+                        padrao: mData.padrao, elemento: mData.elemento, fracoContra: mData.fracoContra,
+                        x: 400 + Math.random() * (inst.w-800), y: 400 + Math.random() * (inst.w-800),
+                        vx: Math.random()*2-1, vy: Math.random()*2-1, isBoss: isBoss
+                    });
+                    if(isBoss) ioGlobal.to(`forest_${inst.id}`).emit('forest_event', { tipo: 'boss_spawn', msg: `⚠️ ALERTA DE ANDAR: O ${mData.nome} emergiu das sombras!`, x: inst.mobs[inst.mobs.length-1].x, y: inst.mobs[inst.mobs.length-1].y });
+                }
             }
 
+            if (inst.baus.length < 5) {
+                if(Math.random() < 0.01) {
+                    inst.baus.push({ x: 300 + Math.random()*(inst.w-600), y: 300 + Math.random()*(inst.h-600), looted: false });
+                }
+            }
+
+            // ===================================================
             // LÓGICA DE MOBS E AGGRO DINÂMICO
+            // ===================================================
             for (let i = inst.mobs.length - 1; i >= 0; i--) {
                 let mob = inst.mobs[i];
 
-                // 1. Mobs passeiam e perseguem jogadores livres
-                if (!mob.isBoss) {
-                    let alvoMaisProximo = null; let menorDist = 350;
-                    playersInMap.forEach(p => {
-                        if (p.imune && Date.now() < p.imune) return;
-                        let dist = Math.hypot(p.x - mob.x, p.y - mob.y);
-                        if (dist < menorDist) { menorDist = dist; alvoMaisProximo = p; }
-                    });
+                let alvoMaisProximo = null; let menorDist = 400;
+                playersInMap.forEach(p => {
+                    if (p.imune && Date.now() < p.imune) return;
+                    let dist = Math.hypot(p.x - mob.x, p.y - mob.y);
+                    if (dist < menorDist) { menorDist = dist; alvoMaisProximo = p; }
+                });
 
-                    if (alvoMaisProximo && mob.padrao !== 'defensivo') {
-                        let ang = Math.atan2(alvoMaisProximo.y - mob.y, alvoMaisProximo.x - mob.x);
-                        mob.vx = Math.cos(ang) * 4; mob.vy = Math.sin(ang) * 4;
-                    } else {
-                        if(Math.random() < 0.05) { mob.vx = Math.random()*2-1; mob.vy = Math.random()*2-1; }
-                    }
-                    mob.x += mob.vx; mob.y += mob.vy;
-                    if(mob.x < 50 || mob.x > inst.w - 50) mob.vx *= -1;
-                    if(mob.y < 50 || mob.y > inst.h - 50) mob.vy *= -1;
+                if (alvoMaisProximo && mob.padrao !== 'defensivo') {
+                    let ang = Math.atan2(alvoMaisProximo.y - mob.y, alvoMaisProximo.x - mob.x);
+                    mob.vx = Math.cos(ang) * (mob.isBoss ? 5 : 3.5); mob.vy = Math.sin(ang) * (mob.isBoss ? 5 : 3.5);
+                } else {
+                    if(Math.random() < 0.05) { mob.vx = Math.random()*2-1; mob.vy = Math.random()*2-1; }
                 }
+                mob.x += mob.vx; mob.y += mob.vy;
+                if(mob.x < 50 || mob.x > inst.w - 50) mob.vx *= -1;
+                if(mob.y < 50 || mob.y > inst.h - 50) mob.vy *= -1;
 
-                // 2. Colisão com Jogador Livre (Inicia novo Combate)
+                // Colisão Mob -> Jogador
                 let iniciouLuta = false;
                 for (let p of playersInMap) {
                     if (p.imune && Date.now() < p.imune) continue;
-                    if (Math.hypot(p.x - mob.x, p.y - mob.y) < 40) {
+                    if (Math.hypot(p.x - mob.x, p.y - mob.y) < 45) {
                         this.iniciarCombate(inst, mob, p, ioGlobal, false);
                         iniciouLuta = true; break;
                     }
                 }
+            }
 
-                // 🔥 3. O NOVO AGGRO DINÂMICO (Juntar-se a combates em andamento)
-                if (!iniciouLuta && !mob.isBoss) {
-                    for (let pC of playersInCombat) {
-                        if (Math.hypot(pC.x - mob.x, pC.y - mob.y) < 60) {
-                            let dungeonBat = this.core.dungeonInstancias[pC.combatInstId];
-                            if (dungeonBat && dungeonBat.status === 'combate') {
-                                // Puxa o monstro para a tela de combate
-                                let newIdx = dungeonBat.entidades.length;
-                                dungeonBat.entidades.push({ 
-                                    idx: newIdx, idMundo: mob.id, nome: mob.nome, hpMax: mob.hpMax, 
-                                    hpAtual: mob.hpAtual, vivo: true, padrao: mob.padrao, elemento: mob.elemento 
-                                });
-                                // Remove o monstro do mapa 2D
-                                inst.mobs.splice(i, 1);
-                                
-                                // Avisa os jogadores na arena que um novo bicho chegou!
-                                ioGlobal.to(dungeonBat.id).emit('mmo_combat_update', { 
-                                    entidades: dungeonBat.entidades, 
-                                    alertaGeral: { msg: `⚠️ ${mob.nome} juntou-se à batalha!`, cor: "#e74c3c", x: 500, y: 300 }
-                                });
-                                break; // Já entrou na luta, salta para o próximo mob do mapa
+            // ===================================================
+            // 🔥 SISTEMA DE PVP (PK) NO MUNDO ABERTO
+            // ===================================================
+            for (let i = 0; i < playersInMap.length; i++) {
+                for (let j = i + 1; j < playersInMap.length; j++) {
+                    let p1 = playersInMap[i]; let p2 = playersInMap[j];
+                    // PvP só ocorre se ambos tiverem PK ligado E não estiverem imunes
+                    if (p1.pkMode && p2.pkMode) {
+                        if ((!p1.imune || Date.now() > p1.imune) && (!p2.imune || Date.now() > p2.imune)) {
+                            if (Math.hypot(p1.x - p2.x, p1.y - p2.y) < 50) {
+                                this.iniciarPvPFloresta(inst, p1, p2, ioGlobal);
                             }
                         }
                     }
                 }
             }
 
-            // GESTÃO DOS BAÚS (Conta para o Objetivo)
-            inst.baus.forEach(bau => {
-                if(bau.looted) return;
-                playersInMap.forEach(p => {
-                    if (Math.hypot(p.x - bau.x, p.y - bau.y) < 40) {
-                        bau.looted = true;
-                        if (inst.objetivo.tipo === 'abrir_baus' && !inst.objetivo.concluido) inst.objetivo.atual++;
-                        
-                        let a = this.core.alunos[p.id];
-                        let goldDrop = Math.floor(Math.random() * 100) + (inst.area * 50);
-                        if(a) a.lootTemporario.galeoes += goldDrop;
-                        ioGlobal.to(`priv_${p.id}`).emit('forest_msg', { msg: `📦 Abriste um baú! +${goldDrop} G.` });
-                    }
-                });
+            // Envia o pacote completo aos jogadores do andar
+            ioGlobal.to(`forest_${instId}`).emit('forest_sync', {
+                id: inst.id, area: inst.area, w: inst.w, h: inst.h, bioma: inst.bioma,
+                jogadores: inst.jogadores, mobs: inst.mobs, baus: inst.baus, arvores: inst.arvores,
+                portal: inst.portal, tumbas: this.tumbas.filter(t => t.area === inst.area)
             });
-
-            // GESTÃO DO PORTAL E BOSS MORTO
-            let bossMorto = inst.bossAtivo && !inst.mobs.some(m => m.isBoss);
-            if(bossMorto) inst.portal.ativo = true;
-
-            ioGlobal.to(`forest_${instId}`).emit('forest_sync', inst);
         }
     } 
 
     iniciarCombate(inst, alvo, atacante, ioGlobal, isPvPLocal) {
         atacante.emCombate = true;
         let alunosParty = [atacante];
-        if (atacante.partyId) {
-            Object.values(inst.jogadores).forEach(aliado => {
-                if (aliado.id !== atacante.id && aliado.partyId === atacante.partyId && !aliado.emCombate) {
-                    if (Math.hypot(aliado.x - atacante.x, aliado.y - atacante.y) < 300) { // Só puxa se o amigo estiver perto!
+        
+        // Puxa aliados perto (Coop Raids)
+        Object.values(inst.jogadores).forEach(aliado => {
+            if (aliado.id !== atacante.id && !aliado.emCombate) {
+                // Se for do grupo, ou se o monstro for um World Boss, junta todos perto!
+                if (aliado.partyId === atacante.partyId || alvo.isBoss) {
+                    if (Math.hypot(aliado.x - atacante.x, aliado.y - atacante.y) < 400) { 
                         aliado.emCombate = true;
                         alunosParty.push(aliado);
                     }
                 }
-            });
-        }
+            }
+        });
 
-        if (!isPvPLocal) {
-            // Remove mob do mapa 2D
-            inst.mobs = inst.mobs.filter(m => m.id !== alvo.id);
+        // Remove mob do mapa 2D
+        inst.mobs = inst.mobs.filter(m => m.id !== alvo.id);
 
-            const idInst = `dungeon_${crypto.randomBytes(4).toString('hex')}`;
-            // Guardamos o idMundo (alvo.id) para saber se a morte dele conta para o objetivo
-            let entidadeMob = { 
-                idx: 0, idMundo: alvo.id, nome: alvo.nome, hpMax: alvo.hpMax, hpAtual: alvo.hpMax, 
-                vivo: true, padrao: alvo.padrao || 'agressivo', elemento: alvo.elemento || 'cinetico',
-                isBoss: alvo.isBoss
-            };
-            
-            // Grava a que combate o jogador pertence (Crucial para a mecânica de Adds)
-            alunosParty.forEach(a => a.combatInstId = idInst);
+        const idInst = `dungeon_${crypto.randomBytes(4).toString('hex')}`;
+        let entidadeMob = { 
+            idx: 0, idMundo: alvo.id, nome: alvo.nome, hpMax: alvo.hpMax, hpAtual: alvo.hpMax, 
+            vivo: true, padrao: alvo.padrao || 'agressivo', elemento: alvo.elemento || 'cinetico',
+            isBoss: alvo.isBoss
+        };
+        
+        alunosParty.forEach(a => a.combatInstId = idInst);
 
-            this.core.dungeonInstancias[idInst] = { 
-                id: idInst, local: 'Floresta', faseAtual: 1, maxFases: 1, mult: 1,
-                entidades: [entidadeMob], status: 'combate', 
-                membros: alunosParty.map(a => a.id),
-                isForestNode: true, forestInstId: inst.id 
-            };
+        this.core.dungeonInstancias[idInst] = { 
+            id: idInst, local: 'Floresta', faseAtual: 1, maxFases: 1, mult: 1 + (inst.area * 0.2),
+            entidades: [entidadeMob], status: 'combate', 
+            membros: alunosParty.map(a => a.id),
+            isForestNode: true, forestInstId: inst.id 
+        };
 
-            this.core.iniciarIACombate(idInst);
+        this.core.iniciarIACombate(idInst);
 
-            let aliadosData = alunosParty.map(p => {
-                let al = this.core.alunos[p.id];
-                return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
-            });
+        let aliadosData = alunosParty.map(p => {
+            let al = this.core.alunos[p.id];
+            return { id: al.id, nome: al.nome, equipamentos: al.equipamentos, casa: al.casa };
+        });
 
-            alunosParty.forEach(p => {
-                let s = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${p.id}`));
-                if(s) s.join(idInst);
-                ioGlobal.to(`priv_${p.id}`).emit('puxado_para_dungeon', { idInstancia: idInst, estado: { entidades: [entidadeMob] }, aliados: aliadosData });
-            });
-        } 
+        alunosParty.forEach(p => {
+            let s = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.rooms.has(`priv_${p.id}`));
+            if(s) s.join(idInst);
+            ioGlobal.to(`priv_${p.id}`).emit('puxado_para_dungeon', { idInstancia: idInst, estado: { entidades: [entidadeMob] }, aliados: aliadosData });
+        });
+    }
+
+    iniciarPvPFloresta(inst, p1, p2, ioGlobal) {
+        p1.emCombate = true; p2.emCombate = true;
+        const idInst = `pvp_forest_${crypto.randomBytes(4).toString('hex')}`;
+        p1.combatInstId = idInst; p2.combatInstId = idInst;
+
+        let aluno1 = this.core.alunos[p1.id]; let aluno2 = this.core.alunos[p2.id];
+
+        this.core.pvpPartidas[idInst] = {
+            id: idInst,
+            p1: { id: aluno1.id, nome: aluno1.nome, hpAtual: aluno1.hpAtual, hpMax: aluno1.hpMax },
+            p2: { id: aluno2.id, nome: aluno2.nome, hpAtual: aluno2.hpAtual, hpMax: aluno2.hpMax },
+            status: 'jogando', isForestNode: true, forestInstId: inst.id
+        };
+
+        let s1 = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.alunoId === p1.id);
+        let s2 = Array.from(ioGlobal.sockets.sockets.values()).find(sock => sock.alunoId === p2.id);
+        if(s1) s1.join(idInst); if(s2) s2.join(idInst);
+
+        ioGlobal.to(idInst).emit('pvp_start', { 
+            instId: idInst, 
+            p1: { id: aluno1.id, nome: aluno1.nome, hpMax: aluno1.hpMax, equipamentos: aluno1.equipamentos, casa: aluno1.casa },
+            p2: { id: aluno2.id, nome: aluno2.nome, hpMax: aluno2.hpMax, equipamentos: aluno2.equipamentos, casa: aluno2.casa },
+            isInvade: true
+        });
     }
 
     retornarDaBatalha(alunoId, win, isPvP, isForestNode, forestInstId, mobsMortosIds, ioGlobal) {
@@ -3538,19 +3486,37 @@ class MotorFlorestaProcedural {
             if (inst.jogadores[a.id]) {
                 inst.jogadores[a.id].emCombate = false;
                 inst.jogadores[a.id].combatInstId = null;
-                inst.jogadores[a.id].imune = Date.now() + 4000; 
-                
-                // Se matou monstros, incrementa o objetivo
-                if (inst.objetivo.tipo === 'matar_mobs' && !inst.objetivo.concluido) {
-                    inst.objetivo.atual += mobsMortosIds.length;
-                }
+                inst.jogadores[a.id].imune = Date.now() + 6000; 
             }
             ioGlobal.to(`priv_${a.id}`).emit('forest_return_map', { hp: a.hpAtual });
         } else {
-            // Morte! Limpa o loot
+            // 🔥 SISTEMA DE MORTE E TÚMULOS
             a.estadoJogo = 'CASTELO'; 
-            a.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+            
+            if (a.lootTemporario && (a.lootTemporario.galeoes > 0 || a.lootTemporario.itens.length > 0)) {
+                let lostGold = Math.floor(a.lootTemporario.galeoes * 0.5); // Perde 50%
+                let lostXp = Math.floor(a.lootTemporario.xp * 0.5); // Perde 50%
+                
+                // Perde metade dos itens apanhados (arredondado para baixo)
+                let itemsToDrop = a.lootTemporario.itens.splice(0, Math.floor(a.lootTemporario.itens.length / 2));
+                
+                a.lootTemporario.galeoes -= lostGold;
+                a.lootTemporario.xp -= lostXp;
+                
+                if (lostGold > 0 || itemsToDrop.length > 0) {
+                    this.tumbas.push({
+                        id: `tumba_${Date.now()}`, area: inst.area,
+                        x: inst.jogadores[a.id].x, y: inst.jogadores[a.id].y,
+                        gold: lostGold, itens: itemsToDrop, ownerName: a.nome, ownerId: a.id
+                    });
+                }
+            }
+
+            // Salva a outra metade no banco e sai
+            this.extrairLootEVaz(a);
             delete inst.jogadores[a.id];
+            this.core._salvarUrgente();
+
             ioGlobal.to(`priv_${a.id}`).emit('forest_dead');
         }
     }

@@ -1356,20 +1356,20 @@ io.on('connection', (socket) => {
         let a = core.alunos[socket.alunoId];
         if(!inst || !a || !inst.portal.ativo) return;
         
-        // Remove da instância antiga
-        delete inst.jogadores[a.id];
+        delete inst.jogadores[a.id]; // Tira do andar antigo
         
-        // Aumenta o andar com segurança apenas UMA vez!
         a.pveProgresso.area++;
+        if (a.pveProgresso.area > 7) { a.pveProgresso.area = 1; a.pveProgresso.nivel++; }
         core._salvarUrgente();
         
+        // Coloca no andar novo (Partilhado por todos!)
         let novaInst = core.florestaEngine.entrarFloresta(a);
         
         socket.leave(`forest_${inst.id}`);
         socket.join(`forest_${novaInst.id}`);
         
         io.to(`priv_${a.id}`).emit('forest_floor_changed', { newInstId: novaInst.id, area: a.pveProgresso.area });
-        io.to(`priv_${a.id}`).emit('forest_msg', { msg: `🌀 Atravessaste o portal para as profundezas (Andar ${a.pveProgresso.area})!` });
+        io.to(`priv_${a.id}`).emit('forest_msg', { msg: `🌀 Atravessaste o portal! (Andar ${a.pveProgresso.area})` });
     });
 // 🔥 Lidar com ataques iniciados via clique no mapa da Floresta
     socket.on('forest_attack_mob', (dados) => {
@@ -1452,17 +1452,82 @@ if (dados.acao === 'gerar_backup_agora') {
     io.emit('sync_imediato', { servidor: core._obterDadosServidor() });
 });
 socket.on('forest_mover', (dados) => {
-        // Blindagem: impede crash se o servidor reiniciar enquanto jogadores andam
         if (!core.florestaEngine || !core.florestaEngine.instancias || !dados.instId) return; 
-        
         let inst = core.florestaEngine.instancias[dados.instId];
         if (inst && inst.jogadores[socket.alunoId]) {
             let p = inst.jogadores[socket.alunoId];
-            p.x = dados.x; 
-            p.y = dados.y; 
-            p.dir = dados.dir; 
-            p.isMoving = dados.isMoving;
+            p.x = dados.x; p.y = dados.y; 
+            p.dir = dados.dir; p.isMoving = dados.isMoving;
         }
+    });
+	
+	socket.on('forest_toggle_pk', (dados) => {
+        let inst = core.florestaEngine.instancias[dados.instId];
+        if (inst && inst.jogadores[socket.alunoId]) {
+            inst.jogadores[socket.alunoId].pkMode = dados.status;
+            io.to(`priv_${socket.alunoId}`).emit('forest_msg', { msg: dados.status ? "⚔️ MODO PK ATIVO: Podes ser atacado!" : "🛡️ MODO PK DESATIVADO." });
+        }
+    });
+	
+	socket.on('forest_heal_potion', (dados) => {
+        let a = core.alunos[socket.alunoId];
+        if (!a || !a.mochilaEscolar) return;
+        const pocaoIdx = a.mochilaEscolar.findIndex(i => i.tipo === 'pocao_feita');
+        if (pocaoIdx !== -1) {
+            const pocao = a.mochilaEscolar[pocaoIdx];
+            a.hpAtual = a.hpMax; // Cura Total
+            a.mochilaEscolar.splice(pocaoIdx, 1);
+            core._salvarUrgente();
+            io.to(`priv_${socket.alunoId}`).emit('forest_update_hp', { hpAtual: a.hpAtual, hpMax: a.hpMax });
+            io.to(`priv_${socket.alunoId}`).emit('forest_msg', { msg: `Bebeste [${pocao.nome}]! HP Restaurado.` });
+        } else {
+            io.to(`priv_${socket.alunoId}`).emit('forest_msg', { msg: `Não tens poções na mochila!` });
+        }
+    });
+
+    socket.on('forest_loot_tumba', (dados) => {
+        let a = core.alunos[socket.alunoId];
+        let inst = core.florestaEngine.instancias[dados.instId];
+        if (!a || !inst) return;
+
+        let tIdx = core.florestaEngine.tumbas.findIndex(t => t.id === dados.tumbaId);
+        if (tIdx !== -1) {
+            let tumba = core.florestaEngine.tumbas[tIdx];
+            a.lootTemporario.galeoes += tumba.gold;
+            if(tumba.itens && tumba.itens.length > 0) a.lootTemporario.itens.push(...tumba.itens);
+            core.florestaEngine.tumbas.splice(tIdx, 1);
+            io.to(`priv_${socket.alunoId}`).emit('forest_msg', { msg: `Saqueaste o túmulo de ${tumba.ownerName}! +${tumba.gold} G.` });
+            
+            // Força a UI a atualizar o loot temporário visualmente no ecrã do jogador
+            io.to(`priv_${socket.alunoId}`).emit('forest_loot_update', { 
+                gold: a.lootTemporario.galeoes, xp: a.lootTemporario.xp, itens: a.lootTemporario.itens.length 
+            });
+        }
+    });
+
+    socket.on('forest_open_chest', async (dados) => {
+        let inst = core.florestaEngine.instancias[dados.instId];
+        let a = core.alunos[socket.alunoId];
+        if(!inst || !a) return;
+        
+        let bau = inst.baus[dados.bauIdx];
+        if(!bau || bau.looted) return;
+
+        bau.looted = true;
+        let goldDrop = Math.floor(Math.random() * 200) + (inst.area * 80);
+        a.lootTemporario.galeoes += goldDrop;
+
+        if (Math.random() > 0.60 && core.cerebroIA) {
+            const equip = await core.cerebroIA.gerarEquipamentoRPG(['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)], a.nivel);
+            equip.id = `eq_chest_${crypto.randomBytes(4).toString('hex')}`;
+            equip.raridade = ['Incomum', 'Raro', 'Épico'][Math.floor(Math.random()*3)];
+            a.lootTemporario.itens.push(equip);
+            io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 +${goldDrop} G e obtiveste [${equip.raridade}] ${equip.nome}!` });
+        } else {
+            io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 +${goldDrop} G.` });
+        }
+
+        io.to(`priv_${a.id}`).emit('forest_loot_update', { gold: a.lootTemporario.galeoes, xp: a.lootTemporario.xp, itens: a.lootTemporario.itens.length });
     });
 
 	
