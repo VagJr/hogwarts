@@ -4,6 +4,7 @@
 const crypto = require('crypto');
 const Groq = require('groq-sdk'); 
 const Lexicon = require('./LexiconMagicae.js');
+const { GamificacaoHogwarts } = require('./GamificacaoHogwarts.js');
 class AstrolabioMagico {
     static obterClimaAtual() {
         const hora = new Date().getHours();
@@ -707,15 +708,87 @@ async avaliarTeseMagica(aluno, manuscritoObj) {
                 "visualConfig": { "shape": "sphere", "color": "#8e44ad", "glow": "#4b0082", "quantity": 1, "speed": 18, "trailSize": 10, "movement": "linear", "particleStyle": "void", "impactEffect": "implosion" },
                 "lore": "Resumo lore."
             }
-        }`;       
+        }`;
+
+        if (!this.podeUsarIA()) return this._avaliarTeseOffline(aluno, manuscritoObj);
         try {
             const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: { type: "json_object" } });
-            return this._extrairJSONBlindado(res.choices[0].message.content);
-        } catch (e) { return { aprovado: false, feedback: "Falha na conexão astral." }; }
+            const result = this._extrairJSONBlindado(res.choices[0].message.content);
+            if (result && result.feitico) return result;
+            return this._avaliarTeseOffline(aluno, manuscritoObj);
+        } catch (e) { 
+            return this._avaliarTeseOffline(aluno, manuscritoObj); 
+        }
     }
 
-	async folhearLivroAula(materia, livro, anoLetivo) {
-        if (!this.apiKey) return { texto: "As letras fogem dos teus olhos." };
+    _avaliarTeseOffline(aluno, manuscritoObj) {
+        const t1 = String(manuscritoObj?.etapa1 || "").trim();
+        const t2 = String(manuscritoObj?.etapa2 || "").trim();
+        const t3 = String(manuscritoObj?.etapa3 || "").trim();
+        const t4 = String(manuscritoObj?.etapa4 || "").trim();
+        const textoTotal = `${t1} ${t2} ${t3} ${t4}`.toLowerCase();
+        
+        if (textoTotal.length < 15) {
+            return {
+                aprovado: false,
+                feedback: "A tua tese mágica carece de substância arcana. Descreve com mais precisão a intenção, o movimento da varinha e a fórmula de ativação."
+            };
+        }
+
+        let elemento = 'cinetico';
+        let cor = '#3498db';
+        let glow = '#2980b9';
+        let efeito = 'atordoar';
+        let shape = 'sphere';
+        let particleStyle = 'sparks';
+
+        if (/fogo|chama|ardente|calor|flama|ignis|labareda/i.test(textoTotal)) {
+            elemento = 'fogo'; cor = '#ff4500'; glow = '#ff8800'; efeito = 'queimar'; shape = 'meteor'; particleStyle = 'stars';
+        } else if (/gelo|frio|neve|congel|glacial|glacies/i.test(textoTotal)) {
+            elemento = 'gelo'; cor = '#00d2ff'; glow = '#0055ff'; efeito = 'congelado'; shape = 'beam'; particleStyle = 'stars';
+        } else if (/treva|sombra|morte|necro|veneno|mors|obscur/i.test(textoTotal)) {
+            elemento = 'trevas'; cor = '#8e44ad'; glow = '#2c3e50'; efeito = 'envenenar'; shape = 'spiral'; particleStyle = 'void';
+        } else if (/luz|solar|brilho|sagrad|vida|cura|lux/i.test(textoTotal)) {
+            elemento = 'luz'; cor = '#f1c40f'; glow = '#ffffff'; efeito = 'vulneravel'; shape = 'wave'; particleStyle = 'stars';
+        }
+
+        const nivel = aluno.nivel || 1;
+        const maxPoder = nivel <= 10 ? 120 : (nivel <= 30 ? 400 : 1500);
+        const valorBase = Math.min(maxPoder, Math.floor(60 + (nivel * 10)));
+        const custoMana = Math.min(10, Math.max(2, Math.floor(valorBase / 35)));
+        const maxQ = nivel <= 10 ? 2 : (nivel <= 30 ? 4 : 6);
+
+        const nomeFeitico = t1.length > 3 ? (t1.length > 28 ? t1.substring(0, 28) : t1) : "Centelha Arcana";
+
+        return {
+            aprovado: true,
+            feedback: `Tese avaliada e condecorada pelo Conselho de Magia Teórica de Hogwarts! A fórmula ressoa harmonicamente com a energia elemental de ${elemento.toUpperCase()}. Poder ajustado para o teu Nível ${nivel}.`,
+            feitico: {
+                nome: nomeFeitico,
+                tipoMecanica: 'ataque',
+                elemento: elemento,
+                valorBase: valorBase,
+                custoMana: custoMana,
+                efeitoSecundario: efeito,
+                duracao: 3,
+                visualConfig: {
+                    shape: shape,
+                    color: cor,
+                    glow: glow,
+                    quantity: Math.min(maxQ, 2),
+                    speed: 22,
+                    trailSize: 12,
+                    movement: 'linear',
+                    particleStyle: particleStyle,
+                    impactEffect: 'nova'
+                },
+                lore: `Feitiço inédito registrado por ${aluno.nome}: "${t4 || t1}".`
+            }
+        };
+    }
+
+	async folhearLivroAula(materia, livro, anoLetivo = 1) {
+        if (!this.podeUsarIA()) return this._folhearLivroFallback(materia, livro, anoLetivo);
         try {
             const prompt = `Escreve um excerto real e detalhado do livro mágico "${livro}" da disciplina de ${materia}. O leitor é um aluno do ${anoLetivo}º Ano em Hogwarts.
             PROGRESSÃO DIDÁTICA ESTRUTURADA: O texto deve conter um Início (teoria de acordo com o ano), Meio (como realizar na prática) e Fim (cuidados/perigos). Finge que é a página exata da aula de hoje para um estudante do ${anoLetivo}º ano.
@@ -727,12 +800,25 @@ async avaliarTeseMagica(aluno, manuscritoObj) {
                 model: "llama-3.1-8b-instant",
                 response_format: { type: "json_object" } 
             });
-            return this._extrairJSONBlindado(res.choices[0].message.content) || { texto: "Página rasgada." };
-        } catch(e) { return { texto: "O livro trancou as suas páginas." }; }
+            const d = this._extrairJSONBlindado(res.choices[0].message.content);
+            if (d && d.texto) return d;
+            return this._folhearLivroFallback(materia, livro, anoLetivo);
+        } catch(e) { return this._folhearLivroFallback(materia, livro, anoLetivo); }
     }
 
-    async respostaProfessorIA(professor, materia, alunoNome, mensagem, casa, anoLetivo) {
-        if (!this.apiKey) return null;
+    _folhearLivroFallback(materia, livro, anoLetivo = 1) {
+        const livrosPadrao = {
+            "Feitiços": `"Capítulo ${anoLetivo}: Fundamentos do Lançamento e Precisão Incantatória. O sucesso de qualquer encantamento reside na harmonia perfeita entre a postura do pulso e a clareza fonética. Nunca vacile a ponta da varinha ao focar o canalizador de energia arcana."`,
+            "Poções": `"Capítulo ${anoLetivo}: Dosagens e Flutuações Térmicas do Caldeirão. A infusão correta exige paciência absoluta. Mexer três vezes no sentido horário e uma no contra-horário permite que o bezoar dissolva suavemente sem precipitar a mistura."`,
+            "Transfiguração": `"Capítulo ${anoLetivo}: Da Matéria Inerte à Forma Viva. A transfiguração exige firmeza mental inabalável. Visualize mentalmente cada detalhe anatômico antes de desferir o golpe em 'V' com a varinha de condão."`,
+            "Herbologia": `"Capítulo ${anoLetivo}: Raízes Mágicas e Cuidados Botânicos. Ao manusear mandrágoras jovens ou ramos de ditamno, use sempre luvas de pele de dragão esterilizadas para evitar queimaduras seivosas."`,
+            "D.C.A.T.": `"Capítulo ${anoLetivo}: Defesa Prática e Reconhecimento de Ameaças Sombrias. O primeiro reflexo de um duelista deve ser erguer o escudo de Protego antes de contra-atacar com feitiços de desarmamento."`
+        };
+        return { texto: livrosPadrao[materia] || `"Capítulo ${anoLetivo} de ${livro}: Instruções e teoremas fundamentais para o estudo de ${materia} em Hogwarts. Dedique tempo diário aos manuscritos para dominar a arte mágica."` };
+    }
+
+    async respostaProfessorIA(professor, materia, alunoNome, mensagem, casa, anoLetivo = 1) {
+        if (!this.podeUsarIA()) return this._respostaProfessorFallback(professor, materia, alunoNome, mensagem, casa);
         try {
             const prompt = `És o Professor ${professor} de ${materia}. A tua turma tem alunos do ${anoLetivo}º Ano. O aluno ${alunoNome} (${casa}) disse na aula: "${mensagem}". 
             Avalia a resposta do aluno com base na teoria mágica adequada para o ${anoLetivo}º Ano. Se a resposta fizer sentido e mostrar estudo, elogia e dá 10 XP (escreve "+10 XP" no texto). Se for asneira ou estiver incorreta para este nível escolar, repreende-o e retira 5 pontos à casa.
@@ -745,30 +831,57 @@ async avaliarTeseMagica(aluno, manuscritoObj) {
                 model: "llama-3.1-8b-instant", 
                 response_format: {type: "json_object"} 
             });
-            return this._extrairJSONBlindado(res.choices[0].message.content);
-        } catch(e) { return null; }
+            const d = this._extrairJSONBlindado(res.choices[0].message.content);
+            if (d && d.texto) return d;
+            return this._respostaProfessorFallback(professor, materia, alunoNome, mensagem, casa);
+        } catch(e) { return this._respostaProfessorFallback(professor, materia, alunoNome, mensagem, casa); }
+    }
+
+    _respostaProfessorFallback(professor, materia, alunoNome, mensagem, casa) {
+        const respostasPorProfessor = {
+            "Snape": { texto: `Menos cinco pontos para ${casa}... ou melhor, vejo que ao menos abriste o livro, ${alunoNome}. Mais 10 XP pela tentativa.`, pontos: 10 },
+            "Flitwick": { texto: `Soberbo raciocínio, ${alunoNome}! Excelente compreensão da teoria! Mais 10 XP para ti!`, pontos: 10 },
+            "McGonagall": { texto: `Uma dedução precisa e diligente, ${alunoNome}. É este o rigor que exijo na minha turma. Mais 10 XP.`, pontos: 10 },
+            "Sprout": { texto: `Muito atencioso às propriedades da planta, ${alunoNome}! As tuas mãos têm talento para Herbologia. Mais 10 XP!`, pontos: 10 },
+            "Lupin": { texto: `Excelente instinto defensivo, ${alunoNome}. O foco na proteção antes do ataque é primordial. Mais 10 XP!`, pontos: 10 }
+        };
+        return respostasPorProfessor[professor] || { texto: `Interessante observação na aula de ${materia}, ${alunoNome}. Continua o bom trabalho! Mais 10 XP.`, pontos: 10 };
     }
 	
 	async gerarNoticiaProfeta() {
-        if (!this.apiKey) return "Avistamentos de Nargles na Escócia reportados por Luna Lovegood.";
+        if (!this.podeUsarIA()) return this._gerarNoticiaProfetaFallback();
         try {
             const prompt = `Escreve uma manchete super criativa e curta (1 frase) para o jornal 'O Profeta Diário' do mundo de Harry Potter. Pode ser sobre o Ministério, Quidditch, ou coisas engraçadas no mundo bruxo. APENAS O TEXTO DA NOTÍCIA, sem aspas.`;
             const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
-			return res.choices[0].message.content.replace(/["']/g, '').trim();
-        } catch(e) { return "O Ministério aprova nova lei sobre caldeirões de espessura padrão."; }
+			const t = res.choices[0].message.content.replace(/["']/g, '').trim();
+            return t || this._gerarNoticiaProfetaFallback();
+        } catch(e) { return this._gerarNoticiaProfetaFallback(); }
     }
+
+    _gerarNoticiaProfetaFallback() {
+        const noticias = [
+            "Ministério da Magia aprova novas diretrizes para torneios de duelos escolares.",
+            "Copa das Casas em Hogwarts entra na fase mais disputada do ano letivo!",
+            "Vassoura Firebolt Supreme avistada em voo de testes perto do campo de Quadribol.",
+            "Floresta Proibida registra atividade arcana incomum nas proximidades do lago.",
+            "Madame Malkin lança nova coleção de vestes encantadas com proteção térmica.",
+            "Dedos de Mel anuncia nova remessa de Sapos de Chocolate com figurinhas raras!"
+        ];
+        return noticias[Math.floor(Math.random() * noticias.length)];
+    }
+
 async gerarCapituloLivro(nomeLivro) {
-        if (!this.apiKey) return "A magia deste tomo está adormecida. Não detetei a chave da IA (GROQ_API_KEY). Verifica o teu terminal ou ficheiro .env.";
+        if (!this.podeUsarIA()) return `Este tomo encadernado em couro preserva séculos de saber mágico sobre ${nomeLivro}. Os antigos mestres de Hogwarts registraram aqui feitiços, propriedades botânicas e notas alquímicas de valor inestimável.`;
         try {
             const prompt = `És J.K. Rowling. Escreve um capítulo imersivo (cerca de 3 parágrafos) do livro "${nomeLivro}". O texto deve conter conhecimento mágico real (feitiços, poções ou criaturas) que um aluno de Hogwarts leria. Sem saudações, apenas o texto do livro.`;
             const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", temperature: 1.0 });
 			return res.choices[0].message.content.trim();
         } catch (e) {
-            return "As páginas estão manchadas de tinta e ilegíveis.";
+            return `Este tomo encadernado em couro preserva séculos de saber mágico sobre ${nomeLivro}. Os mestres registraram notas sobre feitiços e poções avançadas.`;
         }
     }
 	async gerarQuestProcedural(aluno) {
-        if (!this.apiKey) return null;
+        if (!this.podeUsarIA()) return this._gerarQuestProceduralFallback(aluno);
         try {
             const prompt = `Cria uma Missão RPG em Hogwarts para um aluno.
             Tipos permitidos OBRIGATÓRIOS: "coleta" (achar ingredientes), "pve" (derrotar monstros) ou "quadribol" (vencer partidas).
@@ -792,18 +905,85 @@ async gerarCapituloLivro(nomeLivro) {
             const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant", response_format: {type: "json_object"} });
             let q = this._extrairJSONBlindado(res.choices[0].message.content);
             if(q) { q.progresso = 0; q.concluida = false; return q; }
-            return null;
-        } catch(e) { return null; }
+            return this._gerarQuestProceduralFallback(aluno);
+        } catch(e) { return this._gerarQuestProceduralFallback(aluno); }
     }
+
+    _gerarQuestProceduralFallback(aluno) {
+        const pool = [
+            {
+                titulo: "A Colheita de Ditamno das Estufas",
+                lore: "A Professora Sprout precisa de ramos frescos de Ditamno para a ala hospitalar.",
+                objetivo: "Coleta 2 Ditamnos vasculhando os pátios ou estufas",
+                tipo: "coleta", alvo: "ditamno", meta: 2,
+                recompensaGaleoes: 150, recompensaXp: 350
+            },
+            {
+                titulo: "O Segredo do Asfódelo",
+                lore: "Poções curativas demandam folhas de Asfódelo colhidas sob a névoa.",
+                objetivo: "Encontra 2 raízes de Asfódelo no castelo",
+                tipo: "coleta", alvo: "asfodelo", meta: 2,
+                recompensaGaleoes: 160, recompensaXp: 380
+            },
+            {
+                titulo: "Ninho de Acromântulas",
+                lore: "Aranhas rastejam para perto dos limites da Floresta Proibida. É hora de empunhar a varinha!",
+                objetivo: "Derrota 2 Aranhas na Floresta Proibida",
+                tipo: "pve", alvo: "aranha", meta: 2,
+                recompensaGaleoes: 220, recompensaXp: 500
+            },
+            {
+                titulo: "A Glória de Quadribol",
+                lore: "A tua casa precisa de pontos cruciais na Taça! Monta a tua vassoura e voa até à vitória.",
+                objetivo: "Vence 1 Partida no Campo de Quadribol",
+                tipo: "quadribol", alvo: "vitoria", meta: 1,
+                recompensaGaleoes: 300, recompensaXp: 650
+            }
+        ];
+        const q = pool[Math.floor(Math.random() * pool.length)];
+        return { ...q, progresso: 0, concluida: false };
+    }
+
     async entrevistarAluno(nome, respostaAberta) {
-        const fallback = ["Gryffindor", "Slytherin", "Ravenclaw", "Hufflepuff"][Math.floor(Math.random() * 4)];
-        if (!this.apiKey) return { casa: fallback, relato: "Hmm, tens algo peculiar na tua mente..." };
+        const texto = String(respostaAberta || "").toLowerCase();
+        let casaProvavel = "Gryffindor";
+        let relatoProvavel = "Vejo uma coragem inata e sede de aventuras honradas!";
+
+        if (/cobra|astuc|poder|ambic|grandeza|lider|slytherin/i.test(texto)) {
+            casaProvavel = "Slytherin";
+            relatoProvavel = "Uma determinação afiada e ambição para alcançar o cume da magia!";
+        } else if (/livro|estud|conhec|sabedoria|mente|aprender|ravenclaw/i.test(texto)) {
+            casaProvavel = "Ravenclaw";
+            relatoProvavel = "Uma inteligência fulgurante e paixão por desvendar os maiores enigmas arcanos!";
+        } else if (/amigo|leal|just|trabalh|ajud|paciencia|hufflepuff/i.test(texto)) {
+            casaProvavel = "Hufflepuff";
+            relatoProvavel = "Um coração leal, justo e generoso que nunca abandona os companheiros!";
+        } else if (/corag|brav|honra|proteger|destem|luta|gryffindor/i.test(texto)) {
+            casaProvavel = "Gryffindor";
+            relatoProvavel = "A verdadeira bravura dos cavaleiros que não hesitam diante do perigo!";
+        } else {
+            const escolhas = [
+                { c: "Gryffindor", r: "O fogo da ousadia brilha nos teus olhos!" },
+                { c: "Slytherin", r: "O faro da astúcia guiará os teus passos!" },
+                { c: "Ravenclaw", r: "A mente perspicaz e curiosa anseia por conhecimento!" },
+                { c: "Hufflepuff", r: "A lealdade inabalável forjará a tua honra!" }
+            ];
+            const sorte = escolhas[Math.floor(Math.random() * escolhas.length)];
+            casaProvavel = sorte.c;
+            relatoProvavel = sorte.r;
+        }
+
+        if (!this.podeUsarIA()) return { casa: casaProvavel, relato: `${relatoProvavel} Sim... tu pertences a ${casaProvavel.toUpperCase()}!` };
         try {
             const prompt = `Age como o Chapéu Seletor de Hogwarts. Analisa: "${respostaAberta}". Retorna EXATAMENTE O JSON ABAIXO, substituindo a casa por Gryffindor, Slytherin, Ravenclaw ou Hufflepuff, e criando uma fala realista:
-            {"casa": "Gryffindor", "relato": "Uma mente astuta, vejo... mas há coragem!"}`;
+            {"casa": "${casaProvavel}", "relato": "${relatoProvavel}"}`;
             const res = await this.groq.chat.completions.create({ messages: [{ role: "user", content: prompt }], model: "llama-3.1-8b-instant" });
-            return this._extrairJSONBlindado(res.choices[0].message.content) || { casa: fallback, relato: "Vejo o teu destino..." };
-        } catch (e) { return { casa: fallback, relato: "Vou pelo palpite." }; }
+            const d = this._extrairJSONBlindado(res.choices[0].message.content);
+            if (d && d.casa) return d;
+            return { casa: casaProvavel, relato: `${relatoProvavel} O teu destino é ${casaProvavel.toUpperCase()}!` };
+        } catch (e) { 
+            return { casa: casaProvavel, relato: `${relatoProvavel} Sem dúvida... ${casaProvavel.toUpperCase()}!` }; 
+        }
     }
 
     // Substitua a sua função forjarVarinhaUnica por esta versão "Blindada"
@@ -1076,6 +1256,7 @@ class HogwartsCore {
         this.gremios = {};
         this.parties = {};
         this.grupos = {};
+        this.gamificacao = new GamificacaoHogwarts(this);
 		
 		this.florestaEngine = new MotorFlorestaProcedural(this);
 // 🔥 GUERRA DAS CASAS: Inicia o timer do ciclo se não existir
@@ -1130,7 +1311,13 @@ class HogwartsCore {
 
         // 🔥 O NOVO MOTOR MMO (Zonas Vivas do Open World)
         this.zonasVivas = {}; 
-        this.listaZonas = ["Salão Principal", "Grande Escadaria", "Masmorras", "Torre de Astronomia", "Biblioteca", "Floresta Proibida", "Banheiro da Murta", "Hogsmeade"];
+        this.listaZonas = [
+            "Pátio", "Salão Principal", "Grande Escadaria", "Salas de Aula", 
+            "Biblioteca", "Masmorras", "Estufas", "Campo de Quadribol", 
+            "Cabana do Hagrid", "Torre de Astronomia", "Comunal Gryffindor", 
+            "Comunal Slytherin", "Comunal Ravenclaw", "Comunal Hufflepuff", 
+            "Cozinhas", "Banheiro da Murta", "Sala Precisa", "Floresta Proibida", "Hogsmeade"
+        ];
         this.listaZonas.forEach(z => this.zonasVivas[z] = { entidades: [], itens: [] });
 
 // ==============================================================================
@@ -1334,9 +1521,13 @@ class HogwartsCore {
 	// ==========================================
     // 1. MOTOR DE XP (AGORA NO ESCOPO CERTO)
     // ==========================================
-    async _addXp(aluno, val) {
+    async _addXp(alunoOuId, val) {
+        let aluno = typeof alunoOuId === 'string' ? this.alunos[alunoOuId] : alunoOuId;
         if (!aluno) return;
         let valorReal = parseInt(val) || 0;
+        if (this.gamificacao && valorReal > 0) {
+            valorReal = this.gamificacao.aplicarBonusRestedXp(aluno, valorReal);
+        }
         
         // Sistema de Resgate de Conta Corrompida
         if (isNaN(aluno.xp) || aluno.xp == null) aluno.xp = 0;
@@ -1620,21 +1811,42 @@ class HogwartsCore {
     }
 	// SUBSTITUIR DENTRO DE HogwartsCore
     async acaoLivreAmbiente(alunoId, zona, acao) {
-        const a = this.alunos[alunoId]; if (!a || a.focoAtual < 1) return { erro: "Foco Insuficiente (Requer 1)." };
-        a.focoAtual -= 1;
-        const respIA = await this.cerebroIA.interagirAmbienteRPG(a.nome, zona, acao);
+        let a = this.alunos[alunoId];
+        let nomeAluno = a ? a.nome : "Jovem Bruxo";
+        if (a && a.focoAtual > 0) a.focoAtual -= 1;
         
-        if(!respIA) return { erro: "O oráculo não respondeu." };
-        this.ganharXp(a, respIA.xpGanho || 10);
-        if(respIA.ouro) a.galeoes += respIA.ouro;
-        if(respIA.item && respIA.item !== "Nenhum") a.mochilaEscolar.push({ id: crypto.randomBytes(4).toString('hex'), nome: respIA.item, tipo: 'reliquia' });
+        let respIA = null;
+        try {
+            respIA = await this.cerebroIA.interagirAmbienteRPG(nomeAluno, zona, acao);
+        } catch(e) {}
         
-        this._salvarBancoDeDados();
+        if (!respIA || !respIA.relato) {
+            respIA = {
+                relato: `A magia ancestral de Hogwarts respondeu à tua ação em ${zona || 'Castelo'}: um eco de sabedoria antiga tocou os teus sentidos.`,
+                xpGanho: 20,
+                ouro: 5
+            };
+        }
+        
+        if (a) {
+            this.ganharXp(a, respIA.xpGanho || 20);
+            if (respIA.ouro) a.galeoes = (a.galeoes || 0) + respIA.ouro;
+            if (respIA.item && respIA.item !== "Nenhum") {
+                if (!a.mochilaEscolar) a.mochilaEscolar = [];
+                a.mochilaEscolar.push({ id: crypto.randomBytes(4).toString('hex'), nome: respIA.item, tipo: 'reliquia' });
+            }
+            this._salvarBancoDeDados();
+        }
+        
         let recompensas = [];
-        if(respIA.ouro) recompensas.push(`+${respIA.ouro}G`);
-        if(respIA.item && respIA.item !== "Nenhum") recompensas.push(`Encontraste: [${respIA.item}]`);
+        if (respIA.xpGanho) recompensas.push(`+${respIA.xpGanho} XP`);
+        if (respIA.ouro) recompensas.push(`+${respIA.ouro}G`);
+        if (respIA.item && respIA.item !== "Nenhum") recompensas.push(`Obtiveste: [${respIA.item}]`);
         
-        return { sucesso: true, relato: `${respIA.relato}\n\n<span style="color:#0f5">${recompensas.join(' | ')}</span>` };
+        return { 
+            sucesso: true, 
+            relato: `${respIA.relato}\n\n${recompensas.length > 0 ? '<span style="color:#2ecc71; font-weight:bold;">' + recompensas.join(' | ') + '</span>' : ''}` 
+        };
     }
 
     // =========================================================
@@ -1741,14 +1953,9 @@ async folhearLivro(alunoId) {
     return { sucesso: true, texto: lido.texto };
 }
 
-    // Função de XP auxiliar isolada
+    // Função de XP unificada e condecorada
     ganharXp(aluno, valor) {
-        aluno.xp += valor;
-        while (aluno.xp >= aluno.xpProx) { 
-            aluno.nivel++; aluno.xp -= aluno.xpProx; aluno.xpProx = Math.floor(aluno.xpProx * 1.5); 
-            aluno.hpAtual = aluno.hpMax; aluno.focoAtual = aluno.maxFoco; 
-            this.cerebroIA.gerarTitulo(aluno).then(t => { aluno.titulo = t; this._salvarBancoDeDados(); });
-        }
+        return this._addXp(aluno, valor);
     }
 
     gerarRanking() {
@@ -1873,16 +2080,18 @@ a.siclos += 5;
     }
 
 
-            _verificarAvancoBeco(aluno) {
+    _verificarAvancoBeco(aluno) {
+        if (!aluno) return false;
         // Exige os 14 livros
         let temLivros = (aluno.inventario && aluno.inventario.livros) ? aluno.inventario.livros.length >= 14 : false; 
         
-        // O mesmo truque infalível da Veste
-        let strInventario = JSON.stringify(aluno);
-        let temVeste = strInventario.includes('Veste Escolar Simples');
+        // Verifica Veste no equipamento ou inventário
+        let strInventario = JSON.stringify(aluno).toLowerCase();
+        let temVeste = !!(aluno.equipamentos && (aluno.equipamentos.veste || aluno.equipamentos.corpo)) || strInventario.includes('veste');
+        
+        let temVarinha = !!(aluno.equipamentos && aluno.equipamentos.varinha);
         
         let i = (aluno.inventario && aluno.inventario.ingredientes) ? aluno.inventario.ingredientes : {};
-        
         let temIngredientes = (
             (i['asfodelo'] >= 1) && 
             (i['bezoar'] >= 1) && 
@@ -1891,7 +2100,7 @@ a.siclos += 5;
             (i['muco'] >= 1)
         );
         
-        return (aluno.equipamentos && aluno.equipamentos.varinha && temVeste && temLivros && temIngredientes);
+        return (temVarinha && temVeste && temLivros && temIngredientes);
     }
         
 	
@@ -2131,7 +2340,352 @@ a.siclos += 5;;
         this._salvarBancoDeDados(); return { sucesso: true, msg: `Inventaste [${feiticoIA.nome}]!` };
     }
 
-    equiparFeitico(alunoId, feiticoId) {
+    
+    // ==============================================================================
+    // ⚔️ SISTEMA AVANÇADO DE COMBATE, SINERGIAS ELEMENTAIS & CC BALANCEADO
+    // ==============================================================================
+    calcularDanoSinergia({ atacante, alvo, feitico, agora, instMult = 1 }) {
+        let dBase = Number(feitico.valorBase || feitico.poderBase || 50) + ((atacante.atributosTotais?.feiticos || 5) * 5);
+        
+        // Maestria do Feitiço (Nível 1 a 10)
+        let maestria = atacante.maestriaFeiticos?.[feitico.id] || { nivel: 1 };
+        let bonusMaestria = 1 + ((maestria.nivel - 1) * 0.06); // +6% por nível
+        dBase = Math.floor(dBase * bonusMaestria);
+
+        let multiplicador = 1.0;
+        let sinergiaAtivada = null;
+        let relato = "";
+        if (!alvo.efeitos) alvo.efeitos = [];
+        let efeitosDoAlvo = alvo.efeitos.map(e => e.tipo);
+
+        const elAtk = feitico.elemento || 'cinetico';
+        const elAlvo = alvo.elemento || 'normal';
+
+        // Tabela de Fraquezas Elementais Dinâmicas
+        if (elAtk === 'fogo' && (elAlvo === 'gelo' || elAlvo === 'natureza')) {
+            multiplicador += 0.5;
+            relato += "🔥 Fogo devora o alvo vulnerável (+50%)! ";
+        }
+        if (elAtk === 'agua' && elAlvo === 'fogo') {
+            multiplicador += 0.5;
+            relato += "🌊 Água extingue as chamas (+50%)! ";
+        }
+        if (elAtk === 'luz' && elAlvo === 'trevas') {
+            multiplicador += 0.75;
+            relato += "✨ A Luz sagrada dissipa as Trevas (+75%)! ";
+        }
+        if (alvo.fraco === elAtk) {
+            multiplicador += 0.5;
+            relato += "💥 Ponto fraco elemental explorado (+50%)! ";
+        }
+        if (alvo.resiste === elAtk) {
+            multiplicador *= 0.6;
+            relato += "🛡️ Alvo resistente ao elemento (-40%)! ";
+        }
+
+        // Sinergias Avançadas (MTG Combo)
+        if (elAtk === 'eletrico' && efeitosDoAlvo.includes('molhado')) {
+            multiplicador *= 2.0;
+            sinergiaAtivada = 'PARALISIA_ELETRICA';
+            alvo.efeitos = alvo.efeitos.filter(e => e.tipo !== 'molhado');
+            alvo.efeitos.push({ tipo: 'atordoar', expiresAt: agora + 1500, duracao: 1.5 });
+            relato += "⚡ Água conduz eletricidade! Choque estonteante (Atordoamento)! ";
+        }
+        if (elAtk === 'fogo' && efeitosDoAlvo.includes('envenenar')) {
+            multiplicador *= 2.5;
+            sinergiaAtivada = 'DETONACAO_TOXICA';
+            alvo.efeitos = alvo.efeitos.filter(e => e.tipo !== 'envenenar');
+            relato += "💥 DETONAÇÃO TÓXICA! ";
+        }
+        if (elAtk === 'cinetico' && efeitosDoAlvo.includes('congelado')) {
+            multiplicador *= 3.0;
+            sinergiaAtivada = 'SHATTER';
+            alvo.efeitos = alvo.efeitos.filter(e => e.tipo !== 'congelado');
+            relato += "🧊🔨 SHATTER! Estilhaçamento brutal de gelo! ";
+        }
+        if (elAtk === 'vento' && efeitosDoAlvo.includes('queimar')) {
+            multiplicador *= 1.5;
+            sinergiaAtivada = 'TEMPESTADE_FOGO';
+            let burn = alvo.efeitos.find(e => e.tipo === 'queimar');
+            if (burn) { burn.expiresAt = agora + 4500; burn.duracao = 4.5; }
+            relato += "🌪️🔥 Tempestade de Fogo alastra as chamas! ";
+        }
+        if (elAtk === 'trevas' && efeitosDoAlvo.includes('sangrar')) {
+            sinergiaAtivada = 'SIFAO_SANGUE';
+            let sifen = Math.floor(dBase * 0.4);
+            atacante.hpAtual = Math.min(atacante.hpMax || 1000, (atacante.hpAtual || 500) + sifen);
+            relato += `🦇 Sifão Sombrio restaurou +${sifen} HP! `;
+        }
+
+        // Armadura de Alvo e Redução
+        let mobArmor = 0;
+        if (alvo.isBoss) mobArmor = (alvo.hpMax || 1000) * 0.04;
+        if (instMult) mobArmor += (instMult * 15);
+        let reducao = 100 / (100 + mobArmor);
+        let danoFinal = Math.max(1, Math.floor(dBase * multiplicador * reducao));
+
+        // Quebra de Escudo (Shield Break)
+        let shieldBroken = false;
+        let temEscudo = alvo.buffs && alvo.buffs.some(b => b.tipo === 'escudo_fisico' || b.tipo === 'protego');
+        if (temEscudo && alvo.escudoHp > 0) {
+            if (elAtk === 'trevas') {
+                let pierce = Math.floor(danoFinal * 0.25);
+                alvo.hpAtual = Math.max(0, alvo.hpAtual - pierce);
+                danoFinal -= pierce;
+                relato += `💀 Trevas perfuram o escudo (${pierce} direto)! `;
+            }
+
+            if (danoFinal >= alvo.escudoHp) {
+                danoFinal -= alvo.escudoHp;
+                alvo.escudoHp = 0;
+                alvo.buffs = alvo.buffs.filter(b => b.tipo !== 'escudo_fisico' && b.tipo !== 'protego');
+                shieldBroken = true;
+                relato += "🛡️💥 ESCUDO ESTILHAÇADO! Alvo desestabilizado! ";
+                alvo.efeitos.push({ tipo: 'vulneravel', expiresAt: agora + 3000, duracao: 3 });
+            } else {
+                alvo.escudoHp -= danoFinal;
+                danoFinal = 0;
+                relato += "🛡️ O escudo absorveu o impacto. ";
+            }
+        }
+
+        // Controle de Grupo com Retornos Decrescentes
+        if (feitico.efeitoSecundario && danoFinal > 0) {
+            let ccTipo = feitico.efeitoSecundario;
+            let duracaoMs = (feitico.duracao || 1.5) * 1000;
+
+            if (['atordoar', 'congelado'].includes(ccTipo)) {
+                let ultCC = alvo.ultimoCCTempo || 0;
+                let ccCount = (agora - ultCC < 6000) ? (alvo.ccCount || 0) + 1 : 1;
+                alvo.ultimoCCTempo = agora;
+                alvo.ccCount = ccCount;
+
+                if (ccCount === 1) {
+                    alvo.efeitos.push({ tipo: ccTipo, expiresAt: agora + duracaoMs, duracao: duracaoMs / 1000 });
+                    relato += `[${ccTipo.toUpperCase()}] `;
+                } else if (ccCount === 2) {
+                    duracaoMs = Math.floor(duracaoMs * 0.5);
+                    alvo.efeitos.push({ tipo: ccTipo, expiresAt: agora + duracaoMs, duracao: duracaoMs / 1000 });
+                    relato += `[${ccTipo.toUpperCase()} Reduzido] `;
+                } else {
+                    relato += "⚠️ Alvo imune a novo atordoamento temporário! ";
+                }
+            } else {
+                alvo.efeitos.push({ tipo: ccTipo, expiresAt: agora + duracaoMs, duracao: duracaoMs / 1000 });
+                relato += `[${ccTipo}] `;
+            }
+        }
+
+        // Crítico natural (15% chance de +50% dano)
+        let isCrit = Math.random() < 0.15;
+        if (isCrit) {
+            danoFinal = Math.floor(danoFinal * 1.5);
+            relato += "⚡ CRÍTICO! ";
+        }
+
+        return { danoFinal, multiplicador, sinergiaAtivada, relato, shieldBroken, isCrit };
+    }
+
+    // 🏋️ CAMPO DE TREINO DE DUELOS (Maestria sem risco)
+    treinarFeiticoBoneco(alunoId, feiticoId) {
+        const a = this.alunos[alunoId];
+        if (!a) return { erro: "Aluno não encontrado." };
+        if (a.focoAtual < 1) return { erro: "Foco insuficiente. Descansa na Sala Comunal!" };
+
+        const feitico = this.livroDeFeiticos[feiticoId];
+        if (!feitico) return { erro: "Feitiço desconhecido." };
+
+        a.focoAtual -= 1;
+        if (!a.maestriaFeiticos) a.maestriaFeiticos = {};
+        if (!a.maestriaFeiticos[feiticoId]) a.maestriaFeiticos[feiticoId] = { nivel: 1, exp: 0, expProx: 100 };
+
+        let m = a.maestriaFeiticos[feiticoId];
+        m.exp += 25;
+        let upou = false;
+        let perkDesbloqueado = null;
+
+        let expProx = Math.floor(100 * Math.pow(1.35, m.nivel - 1));
+        if (m.exp >= expProx && m.nivel < 10) {
+            m.exp -= expProx;
+            m.nivel++;
+            m.expProx = Math.floor(100 * Math.pow(1.35, m.nivel - 1));
+            upou = true;
+            if (m.nivel === 5) perkDesbloqueado = "Perk Adepto: Efeito Elemental Aprimorado (+25% Duração/Área)";
+            if (m.nivel === 10) perkDesbloqueado = "Perk Grão-Mestre: Custo de Foco -1 e Aura Dourada Mística!";
+        }
+        if (m.nivel >= 10) m.perk = 'GRAO_MESTRE';
+        else if (m.nivel >= 5) m.perk = 'ADEPTO';
+        else m.perk = null;
+
+        this._addXp(a, 35);
+        this._salvarBancoDeDados();
+
+        return {
+            sucesso: true,
+            msg: upou ? `✨ Parabéns! O feitiço ${feitico.nome} atingiu o Nível ${m.nivel}!` : `Praticaste ${feitico.nome} no boneco (+25 EXP da Magia).`,
+            nivel: m.nivel,
+            exp: m.exp,
+            expGanho: 25,
+            expProx: m.expProx || 100,
+            upou,
+            perk: m.perk,
+            perkDesbloqueado
+        };
+    }
+
+    // 💰 ECONOMIA BANCÁRIA: JUROS DO COFRE DE GRINGOTES (1.5% ao dia)
+    calcularJurosGringotes(alunoId) {
+        const a = this.alunos[alunoId];
+        if (!a || (a.cofreGringotes === undefined && !a.galeoes)) return { juros: 0, jurosGaleoes: 0, saldo: 0, taxaDiaria: '1.5%', pronto: false };
+        
+        let saldo = typeof a.cofreGringotes === 'number' ? a.cofreGringotes : (a.cofreGringotes?.galeoes || a.galeoes || 0);
+        if (saldo < 100) return { juros: 0, jurosGaleoes: 0, saldo, taxaDiaria: '1.5%', pronto: false };
+
+        let agora = Date.now();
+        let ult = (typeof a.cofreGringotes === 'object' && a.cofreGringotes?.ultimoJuro) 
+            ? a.cofreGringotes.ultimoJuro 
+            : (a.ultimoRendimentoGringotes || (agora - (24 * 60 * 60 * 1000)));
+        let diffHoras = (agora - ult) / (1000 * 60 * 60);
+
+        if (diffHoras >= 24) {
+            let dias = Math.floor(diffHoras / 24);
+            let juros = Math.floor(saldo * (0.015 * Math.min(dias, 14))); // Max 14 dias acumulados
+            return { juros, jurosGaleoes: juros, saldo, diasAcumulados: dias, diasDecorridos: dias, taxaDiaria: '1.5%', pronto: true };
+        }
+        return { juros: 0, jurosGaleoes: 0, saldo, diasDecorridos: 0, taxaDiaria: '1.5%', pronto: false, horasRestantes: (24 - diffHoras).toFixed(1) };
+    }
+
+    resgatarJurosGringotes(alunoId) {
+        const a = this.alunos[alunoId];
+        if (!a || (a.cofreGringotes === undefined && !a.galeoes)) return { erro: "Cofre não encontrado." };
+
+        const info = this.calcularJurosGringotes(alunoId);
+        if (!info.pronto || info.juros <= 0) {
+            return { erro: `Os juros ainda não renderam. Faltam ${info.horasRestantes || 'algumas'} horas para o próximo rendimento.` };
+        }
+
+        if (typeof a.cofreGringotes === 'number') {
+            a.cofreGringotes += info.juros;
+            a.ultimoRendimentoGringotes = Date.now();
+        } else if (typeof a.cofreGringotes === 'object') {
+            a.cofreGringotes.galeoes += info.juros;
+            a.cofreGringotes.ultimoJuro = Date.now();
+        } else {
+            a.galeoes = (a.galeoes || 0) + info.juros;
+            a.ultimoRendimentoGringotes = Date.now();
+        }
+        this._salvarBancoDeDados();
+
+        return {
+            sucesso: true,
+            msg: `🪙 O Banco Gringotes creditou +${info.juros} Galeões de rendimentos mágicos no teu cofre!`,
+            resgatado: info.juros,
+            novoSaldo: typeof a.cofreGringotes === 'number' ? a.cofreGringotes : (a.cofreGringotes?.galeoes || a.galeoes)
+        };
+    }
+
+    // 📜 EXAMES DE FINAL DE ANO E N.O.M.s / N.I.E.M.s (O, E, A, P, D, T)
+    async realizarExameAno(alunoId, respostas) {
+        const a = this.alunos[alunoId];
+        if (!a) return { erro: "Aluno não encontrado." };
+
+        const anoAtual = a.anoLetivo || 1;
+        const materias = ["Feitiços", "Poções", "Transfiguração", "D.C.A.T.", "Herbologia"];
+        
+        let acertos = 0;
+        let totalPerguntas = materias.length;
+
+        // Avaliação das respostas do exame
+        materias.forEach((mat, idx) => {
+            let resp = (respostas && respostas[mat]) ? String(respostas[mat]).toLowerCase() : "";
+            if (resp.length >= 10 && !resp.includes("sei la") && !resp.includes("não sei")) {
+                acertos++;
+            }
+        });
+
+        let pct = Math.floor((acertos / totalPerguntas) * 100);
+        let notaInfo = { nota: 'A', titulo: 'Aceitável (Acceptable)', aprovado: true, xp: 200, galeoes: 25, pontosCasa: 10 };
+
+        if (pct >= 90) notaInfo = { nota: 'O', titulo: 'Ótimo (Outstanding)', aprovado: true, xp: 500, galeoes: 100, pontosCasa: 30 };
+        else if (pct >= 75) notaInfo = { nota: 'E', titulo: 'Excede as Expectativas (Exceeds Expectations)', aprovado: true, xp: 350, galeoes: 50, pontosCasa: 20 };
+        else if (pct >= 60) notaInfo = { nota: 'A', titulo: 'Aceitável (Acceptable)', aprovado: true, xp: 200, galeoes: 25, pontosCasa: 10 };
+        else if (pct >= 40) notaInfo = { nota: 'P', titulo: 'Pobre (Poor)', aprovado: false, xp: 50, galeoes: 0, pontosCasa: -5 };
+        else notaInfo = { nota: 'D', titulo: 'Desastroso (Dreadful)', aprovado: false, xp: 10, galeoes: 0, pontosCasa: -10 };
+
+        if (notaInfo.aprovado) {
+            a.galeoes = (a.galeoes || 0) + notaInfo.galeoes;
+            this._addXp(a, notaInfo.xp);
+            if (a.casa && this.pontuacaoCasas[a.casa] !== undefined) {
+                this.pontuacaoCasas[a.casa] += notaInfo.pontosCasa;
+            }
+            if (anoAtual < 7) {
+                a.anoLetivo = anoAtual + 1;
+                notaInfo.promovido = true;
+                notaInfo.novoAno = a.anoLetivo;
+            }
+        }
+
+        this._salvarBancoDeDados();
+
+        return {
+            sucesso: true,
+            anoAvaliado: anoAtual,
+            nota: notaInfo.nota,
+            titulo: notaInfo.titulo,
+            aprovado: notaInfo.aprovado,
+            promovido: notaInfo.promovido || false,
+            novoAno: a.anoLetivo,
+            recompensas: { xp: notaInfo.xp, galeoes: notaInfo.galeoes, pontosCasa: notaInfo.pontosCasa }
+        };
+    }
+
+    // 🦉 MERCADO MÁGICO / CORREIO CORUJA: Venda de excedentes
+    venderItemMercado(alunoId, tipoItem, chaveOuId, quantidade = 1) {
+        const a = this.alunos[alunoId];
+        if (!a) return { erro: "Aluno não encontrado." };
+
+        let valorUnitario = 15;
+        let nomeItem = chaveOuId || "Item";
+
+        if (tipoItem === 'ingrediente' || tipoItem === 'inventario') {
+            const precos = { 'asfodelo': 15, 'bezoar': 50, 'mandragora': 40, 'ditamno': 25, 'muco': 10, 'veneno_aranha': 35, 'escama_basilisco': 120, 'Mandrágora Rara': 40 };
+            valorUnitario = precos[chaveOuId] || 20;
+            nomeItem = String(chaveOuId).replace('_', ' ').toUpperCase();
+
+            if (a.inventario?.ingredientes && a.inventario.ingredientes[chaveOuId] !== undefined) {
+                if (a.inventario.ingredientes[chaveOuId] < quantidade) return { erro: `Não tens ${quantidade}x ${nomeItem} para vender!` };
+                a.inventario.ingredientes[chaveOuId] -= quantidade;
+            } else if (Array.isArray(a.inventario)) {
+                let itemObj = a.inventario.find(i => i.nome === chaveOuId || i.id === chaveOuId);
+                if (itemObj) {
+                    valorUnitario = itemObj.valor || valorUnitario;
+                    itemObj.quantidade = (itemObj.quantidade || 1) - quantidade;
+                    if (itemObj.quantidade <= 0) a.inventario = a.inventario.filter(i => i !== itemObj);
+                }
+            }
+        } else if (tipoItem === 'pocao') {
+            valorUnitario = 80;
+            let idx = (a.mochilaEscolar || []).findIndex(i => i.tipo === 'pocao_feita');
+            if (idx === -1) return { erro: "Não tens poções engarrafadas para vender." };
+            nomeItem = a.mochilaEscolar[idx].nome;
+            a.mochilaEscolar.splice(idx, 1);
+        } else {
+            return { erro: "Tipo de item não suportado para venda rápida." };
+        }
+
+        let totalGanho = valorUnitario * quantidade;
+        a.galeoes = (a.galeoes || 0) + totalGanho;
+        this._salvarBancoDeDados();
+
+        return {
+            sucesso: true,
+            msg: `Vendeste ${quantidade}x ${nomeItem} por ${totalGanho} Galeões no Correio Coruja!`,
+            ganhoTotal: totalGanho,
+            galeoes: a.galeoes
+        };
+    }
+
+        equiparFeitico(alunoId, feiticoId) {
         const a = this.alunos[alunoId]; if(!a) return {erro:"Erro"};
         if (a.feitiçosEquipados.includes(feiticoId)) { a.feitiçosEquipados = a.feitiçosEquipados.filter(f => f !== feiticoId); return { sucesso: true }; }
         
@@ -2534,68 +3088,29 @@ a.siclos += 5; // Bonus pro Last Hit
             return { bossMorto: false, entidades: inst.entidades, hpBoss: mob.hpAtual, danoAplicado: 0, defendeu: true, relatoAcao: `💨 O ${mob.nome} esquivou-se!`, upouFeitico, nomeFeiticoUpado: feitico.nome, novoNivelFeitico: maestria.nivel, hpJogador: a.hpAtual };
         }
 
-        let danoBaseCalculado = forcaDoFeitico + ((a.atributosTotais.feiticos || 5) * 5);
-        let mobArmor = 0;
-        if (mob.isBoss) mobArmor = mob.hpMax * 0.05;
-        if (inst.mult) mobArmor += (inst.mult * 20);
-        let reducao = 100 / (100 + mobArmor);
-        danoBaseCalculado = Math.floor(danoBaseCalculado * reducao);
-        if (danoBaseCalculado < 1) danoBaseCalculado = 1;
+        let calcRes = this.calcularDanoSinergia({
+            atacante: a,
+            alvo: mob,
+            feitico: feitico,
+            agora: agora,
+            instMult: inst.mult || 1
+        });
 
-        let danoFinal = danoBaseCalculado;
+        let danoFinal = calcRes.danoFinal;
+        relatoAcao += calcRes.relato;
         let defendeu = false;
-        let interrompeu = false; 
-
-        let entidadeAlvo = mob; 
-        if (!entidadeAlvo.efeitos) entidadeAlvo.efeitos = [];
-
-        // ====================================================================
-        // 🔮 SINERGIA MTG (NO PVE)
-        // ====================================================================
-        let multiplicador = 1.0;
-        let efeitosDoAlvo = (entidadeAlvo.efeitos || []).map(e => e.tipo);
-        
-        if (feitico.elemento === 'eletrico' && efeitosDoAlvo.includes('molhado')) {
-            multiplicador *= 2.0;
-            entidadeAlvo.efeitos.push({tipo: 'atordoar', expiresAt: agora + 1500, duracao: 1.5});
-            relatoAcao += " ⚡ Água conduz eletricidade! (Paralisia) ";
-        }
-        if (feitico.elemento === 'fogo' && efeitosDoAlvo.includes('envenenar')) {
-            multiplicador *= 2.5;
-            entidadeAlvo.efeitos = entidadeAlvo.efeitos.filter(e => e.tipo !== 'envenenar');
-            relatoAcao += " 💥 DETONAÇÃO TÓXICA! ";
-        }
-        if (feitico.elemento === 'cinetico' && efeitosDoAlvo.includes('congelado')) {
-            multiplicador *= 3.0;
-            entidadeAlvo.efeitos = entidadeAlvo.efeitos.filter(e => e.tipo !== 'congelado');
-            relatoAcao += " 🧊🔨 SHATTER! Quebra de Gelo! ";
-        }
-        if (feitico.elemento === 'vento' && efeitosDoAlvo.includes('queimar')) {
-            multiplicador *= 1.5;
-            let burn = entidadeAlvo.efeitos.find(e => e.tipo === 'queimar');
-            if(burn) { burn.expiresAt = agora + 4000; burn.duracao = 4.0; } 
-            relatoAcao += " 🌪️🔥 Tempestade de Fogo! ";
-        }
-        if (feitico.elemento === 'trevas' && efeitosDoAlvo.includes('sangrar')) {
-            let sifen = Math.floor(danoBaseCalculado * 0.5);
-            a.hpAtual = Math.min(a.hpMax, a.hpAtual + sifen); 
-            relatoAcao += ` 🦇 Sifão de Sangue (+${sifen} HP)! `;
-        }
-        danoFinal = Math.floor(danoBaseCalculado * multiplicador);
-
+        let interrompeu = false;
+        if (calcRes.sinergiaAtivada) prof.explorouFraqueza++;
+        if (calcRes.shieldBroken) defendeu = false;
         if (feitico.efeitoSecundario) {
-            if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) { interrompeu = true; }
-            let duracaoMs = 1200; 
-            let eExistente = entidadeAlvo.efeitos.find(e => e.tipo === feitico.efeitoSecundario);
-            if (eExistente) { eExistente.expiresAt = agora + duracaoMs; eExistente.duracao = 1.2; } 
-            else { entidadeAlvo.efeitos.push({ tipo: feitico.efeitoSecundario, expiresAt: agora + duracaoMs, duracao: 1.2 }); }
+            prof.ccAplicado++;
+            if (['atordoar', 'congelado', 'desarmar'].includes(feitico.efeitoSecundario)) interrompeu = true;
         }
 
         let alvoAntiCura = mob.efeitos.some(e => e.tipo === 'anti_cura');
         if (mob.padrao === 'defensivo' && mecanica !== 'status' && !alvoAntiCura) {
             danoFinal = Math.floor(danoFinal * 0.4); defendeu = true; prof.comboAtual = 0;
         }
-
         if (Math.random() > 0.85) danoFinal = Math.floor(danoFinal * 1.5);
         prof.danoCausado += danoFinal;
         if (!defendeu) { prof.comboAtual++; if (prof.comboAtual > prof.maiorCombo) prof.maiorCombo = prof.comboAtual; }
@@ -3031,61 +3546,15 @@ a.siclos += 5; // Bonus pro Last Hit
                 relatoAcao = `Curou ${hpCurado} HP.`;
             }
             else if (mecanica === 'ataque' || mecanica === 'maldicao' || mecanica === 'status') {
-                let dBase = (f.poderBase || 50) + ((aEu.atributosTotais.feiticos || 5) * 5);
-                if (inimigo.efeitos.some(e => e.tipo === 'vulneravel')) dBase *= 1.5;
-
-                // ====================================================================
-                // 🔮 SINERGIA MTG (NO PVP)
-                // ====================================================================
-                let multiplicador = 1.0;
-                let efeitosDoAlvo = (inimigo.efeitos || []).map(e => e.tipo);
-                
-                if (f.elemento === 'eletrico' && efeitosDoAlvo.includes('molhado')) {
-                    multiplicador *= 2.0;
-                    inimigo.efeitos.push({tipo: 'atordoar', expiresAt: agora + 1500, duracao: 1.5});
-                    relatoAcao += " ⚡ Água conduz eletricidade! (Paralisia) ";
-                }
-                if (f.elemento === 'fogo' && efeitosDoAlvo.includes('envenenar')) {
-                    multiplicador *= 2.5;
-                    inimigo.efeitos = inimigo.efeitos.filter(e => e.tipo !== 'envenenar');
-                    relatoAcao += " 💥 DETONAÇÃO TÓXICA! ";
-                }
-                if (f.elemento === 'cinetico' && efeitosDoAlvo.includes('congelado')) {
-                    multiplicador *= 3.0;
-                    inimigo.efeitos = inimigo.efeitos.filter(e => e.tipo !== 'congelado');
-                    relatoAcao += " 🧊🔨 SHATTER! Quebra de Gelo! ";
-                }
-                if (f.elemento === 'vento' && efeitosDoAlvo.includes('queimar')) {
-                    multiplicador *= 1.5;
-                    let burn = inimigo.efeitos.find(e => e.tipo === 'queimar');
-                    if(burn) { burn.expiresAt = agora + 4000; burn.duracao = 4.0; } 
-                    relatoAcao += " 🌪️🔥 Tempestade de Fogo! ";
-                }
-                if (f.elemento === 'trevas' && efeitosDoAlvo.includes('sangrar')) {
-                    let sifen = Math.floor(dBase * 0.5);
-                    eu.hpAtual = Math.min(eu.hpMax, eu.hpAtual + sifen); 
-                    relatoAcao += ` 🦇 Sifão de Sangue (+${sifen} HP)! `;
-                }
-
-                dBase = Math.floor(dBase * multiplicador);
-
-                // LÓGICA DE QUEBRA DE ESCUDO
-                let temEscudoVisual = inimigo.buffs.some(b => b.tipo === 'escudo_fisico');
-                if (temEscudoVisual && inimigo.escudoHp > 0) {
-                    if (dBase >= inimigo.escudoHp) {
-                        dano = dBase - inimigo.escudoHp; 
-                        inimigo.escudoHp = 0;
-                        inimigo.buffs = inimigo.buffs.filter(b => b.tipo !== 'escudo_fisico');
-                        relatoAcao += ` O escudo foi ESTILHAÇADO!`;
-                    } else {
-                        inimigo.escudoHp -= dBase; dano = 0; 
-                        relatoAcao += ` O escudo absorveu o golpe.`;
-                    }
-                } else {
-                    dano = Math.floor(dBase);
-                    relatoAcao += ` Dano de ${dano}!`;
-                }
-
+                let calcRes = this.calcularDanoSinergia({
+                    atacante: aEu,
+                    alvo: inimigo,
+                    feitico: f,
+                    agora: agora
+                });
+                dano = calcRes.danoFinal;
+                relatoAcao += calcRes.relato;
+                if (dano > 0) inimigo.hpAtual -= dano;
                 if (dano > 0) inimigo.hpAtual -= dano;
 
                 if (f.efeitoSecundario && (dano > 0 || mecanica === 'status')) {
@@ -3310,6 +3779,7 @@ class MotorFlorestaProcedural {
     }
 
     tickFloresta(ioGlobal) {
+        if (!ioGlobal || typeof ioGlobal.to !== 'function') return;
         for (let instId in this.instancias) {
             let inst = this.instancias[instId];
             let playersInMap = Object.values(inst.jogadores).filter(p => !p.emCombate);
@@ -3391,11 +3861,13 @@ class MotorFlorestaProcedural {
             }
 
             // Envia o pacote completo aos jogadores do andar
-            ioGlobal.to(`forest_${instId}`).emit('forest_sync', {
-                id: inst.id, area: inst.area, w: inst.w, h: inst.h, bioma: inst.bioma,
-                jogadores: inst.jogadores, mobs: inst.mobs, baus: inst.baus, arvores: inst.arvores,
-                portal: inst.portal, tumbas: this.tumbas.filter(t => t.area === inst.area)
-            });
+            if (ioGlobal && typeof ioGlobal.to === 'function') {
+                ioGlobal.to(`forest_${instId}`).emit('forest_sync', {
+                    id: inst.id, area: inst.area, w: inst.w, h: inst.h, bioma: inst.bioma,
+                    jogadores: inst.jogadores, mobs: inst.mobs, baus: inst.baus, arvores: inst.arvores,
+                    portal: inst.portal, tumbas: this.tumbas.filter(t => t.area === inst.area)
+                });
+            }
         }
     } 
 
@@ -3533,4 +4005,4 @@ class MotorFlorestaProcedural {
         }
     }
 }
-module.exports = { HogwartsCore, AstrolabioMagico, RelogioHogwarts, Ollivanders, MotorConscienciaHogwarts, MotorQuadribol, MotorFlorestaProcedural };
+module.exports = { HogwartsCore, AstrolabioMagico, RelogioHogwarts, Ollivanders, MotorConscienciaHogwarts, MotorQuadribol, MotorFlorestaProcedural, GamificacaoHogwarts };

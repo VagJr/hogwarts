@@ -36,31 +36,30 @@ core.grupos = {}; // Formato: { liderId: { lider: id, membros: [id1, id2, id3] }
 
 	
 	function darRecompensa(alunoId, xp, galeoes, dropItens) {
-let aluno = core.alunos[socket.idAluno];
-if (!aluno) return; // ← Essa linha previne o erro!
+        let aluno = core.alunos[alunoId];
+        if (!aluno) return;
 
+        let liderId = aluno.partyId;
+        
+        if (liderId && core.grupos[liderId]) {
+            let membrosOnline = core.grupos[liderId].membros;
+            let xpDividido = Math.floor((xp / membrosOnline.length) * 1.2);
+            let goldDividido = Math.floor(galeoes / membrosOnline.length);
 
-    let liderId = aluno.partyId; // Usa a partyId que ligámos no passo 1
-    
-    if (liderId && core.grupos[liderId]) {
-        let membrosOnline = core.grupos[liderId].membros;
-        let xpDividido = Math.floor((xp / membrosOnline.length) * 1.2);
-        let goldDividido = Math.floor(galeoes / membrosOnline.length);
-
-        membrosOnline.forEach(mId => {
-            let membro = core.alunos[mId];
-            if(membro) {
-                membro.galeoes += goldDividido;
-                core.ganharXp(membro, xpDividido);
-                io.to(`priv_${mId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `O teu grupo derrotou um inimigo! +${xpDividido} XP, +${goldDividido} G` });
-            }
-        });
-    } else {
-        aluno.galeoes += galeoes;
-        core.ganharXp(aluno, xp);
+            membrosOnline.forEach(mId => {
+                let membro = core.alunos[mId];
+                if(membro) {
+                    membro.galeoes += goldDividido;
+                    core.ganharXp(membro, xpDividido);
+                    io.to(`priv_${mId}`).emit('nova_mensagem', { canal: 'zona', autor: 'SISTEMA', texto: `O teu grupo derrotou um inimigo! +${xpDividido} XP, +${goldDividido} G` });
+                }
+            });
+        } else {
+            aluno.galeoes += galeoes;
+            core.ganharXp(aluno, xp);
+        }
+        core._salvarUrgente();
     }
-    core._salvarUrgente();
-}
 
 function iniciarDueloPvP(jogador1, jogador2) {
     let matchId = crypto.randomBytes(4).toString('hex');
@@ -69,14 +68,72 @@ function iniciarDueloPvP(jogador1, jogador2) {
     io.to(`priv_${jogador2.id}`).emit('pvp_iniciar', { oponente: jogador1, matchId: matchId, equipa: 'B' });
 }
 // =====================================================================
-// 🚀 INICIALIZAÇÃO DE BANCO DE DADOS BLINDADA (RENDER + ATLAS)
+// 🚀 INICIALIZAÇÃO DE BANCO DE DADOS HÍBRIDA (JSON LOCAL + ATLAS)
 // =====================================================================
+const CAMINHO_SAVE_LOCAL = path.join(__dirname, 'data', 'hogwarts_save.json');
+const CAMINHO_SAVE_TMP = path.join(__dirname, 'data', 'hogwarts_save.tmp');
+
+function salvarNoArquivoLocal() {
+    try {
+        const pastaData = path.join(__dirname, 'data');
+        if (!fs.existsSync(pastaData)) {
+            fs.mkdirSync(pastaData, { recursive: true });
+        }
+        const snapshot = {
+            timestamp: Date.now(),
+            alunos: core.alunos || {},
+            mercadoJogadores: core.mercadoJogadores || [],
+            pontuacaoCasas: core.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate', fimCiclo: Date.now() + 604800000 },
+            gremios: core.gremios || {},
+            livroDeFeiticos: core.livroDeFeiticos || {}
+        };
+        fs.writeFileSync(CAMINHO_SAVE_TMP, JSON.stringify(snapshot, null, 2), 'utf8');
+        try {
+            fs.renameSync(CAMINHO_SAVE_TMP, CAMINHO_SAVE_LOCAL);
+        } catch (renameErr) {
+            fs.copyFileSync(CAMINHO_SAVE_TMP, CAMINHO_SAVE_LOCAL);
+            try { fs.unlinkSync(CAMINHO_SAVE_TMP); } catch(_) {}
+        }
+        return true;
+    } catch (err) {
+        console.error("⚠️ Erro ao gravar snapshot local:", err.message);
+        return false;
+    }
+}
+
+function carregarDoArquivoLocal() {
+    try {
+        if (fs.existsSync(CAMINHO_SAVE_LOCAL)) {
+            const raw = fs.readFileSync(CAMINHO_SAVE_LOCAL, 'utf8');
+            const data = JSON.parse(raw);
+            if (data && data.alunos) {
+                core.alunos = data.alunos || {};
+                if (data.mercadoJogadores) core.mercadoJogadores = data.mercadoJogadores;
+                if (data.pontuacaoCasas) core.pontuacaoCasas = data.pontuacaoCasas;
+                if (data.gremios) core.gremios = data.gremios;
+                if (data.livroDeFeiticos) {
+                    for (let k in data.livroDeFeiticos) {
+                        core.livroDeFeiticos[k] = data.livroDeFeiticos[k];
+                    }
+                }
+                console.log(`📁 [PERSISTÊNCIA LOCAL] Carregados ${Object.keys(core.alunos).length} alunos de data/hogwarts_save.json!`);
+                return true;
+            }
+        }
+    } catch (e) {
+        console.error("⚠️ Falha ao ler data/hogwarts_save.json:", e.message);
+    }
+    return false;
+}
+
 async function inicializarServidor() {
     console.log("A invocar os feitiços de proteção de Gringotes...");
 
+    // 1. Carrega dados do arquivo local primeiro (garantia offline absoluta)
+    const carregouLocal = carregarDoArquivoLocal();
+
     if (MONGO_URI) {
         try {
-            // 1. CONEXÃO OTIMIZADA PARA RENDER (Sem o keepAlive descontinuado)
             const client = new MongoClient(MONGO_URI, {
                 maxPoolSize: 50,
                 serverSelectionTimeoutMS: 5000,
@@ -86,22 +143,16 @@ async function inicializarServidor() {
             await client.connect();
             const db = client.db('hogwarts_db'); 
             
-            // 2. NOVAS COLEÇÕES SEPARADAS (O Segredo do Sucesso)
-            core.col_sistema = db.collection('sistema_global'); // Casas, Mercado, Feitiços
-            core.col_alunos = db.collection('alunos');          // Cada jogador será 1 documento
+            core.col_sistema = db.collection('sistema_global');
+            core.col_alunos = db.collection('alunos');
             core.db_biblioteca = db.collection('biblioteca_oficial');
             core.backup_collection = db.collection('backups_seguranca');
 
-            // =================================================================
-            // 🔄 SISTEMA DE AUTO-MIGRAÇÃO (Resgata dados do Fly.io)
-            // =================================================================
             const legacyCollection = db.collection('registos_escolares');
             const docLegado = await legacyCollection.findOne({ _id: 'MATRIZ_HOGWARTS' });
 
             if (docLegado && docLegado.alunos && Object.keys(docLegado.alunos).length > 0) {
                 console.log("⚠️ ATENÇÃO: Formato antigo detetado! A iniciar migração blindada...");
-                
-                // 1. Move os alunos para a nova coleção
                 const opsAlunos = Object.values(docLegado.alunos).map(aluno => ({
                     updateOne: {
                         filter: { _id: aluno.id }, 
@@ -111,7 +162,6 @@ async function inicializarServidor() {
                 }));
                 if (opsAlunos.length > 0) await core.col_alunos.bulkWrite(opsAlunos);
 
-                // 2. Salva o resto do sistema
                 await core.col_sistema.updateOne(
                     { _id: 'MATRIZ_SISTEMA' },
                     { $set: {
@@ -122,31 +172,33 @@ async function inicializarServidor() {
                     }},
                     { upsert: true }
                 );
-
-                // 3. 🔥 CORREÇÃO: Renomeia usando um carimbo de tempo para NUNCA dar erro "namespace exists"
                 await legacyCollection.rename(`registos_escolares_old_${Date.now()}`);
                 console.log("✅ Migração Concluída com Sucesso! Bem-vindo à nova Era de Hogwarts.");
             }
 
-            // =================================================================
-            // 📥 CARREGAMENTO DO JOGO (BOOT)
-            // =================================================================
             console.log("📜 A carregar jogadores e sistema do Atlas...");
-            
-            // Carrega TODOS os alunos individualmente para a RAM
             const todosAlunos = await core.col_alunos.find({}).toArray();
-            core.alunos = {};
-            todosAlunos.forEach(a => { core.alunos[a._id] = a; }); // Monta o objeto na RAM
-
-            // Carrega o Sistema Global
-            let sysDoc = await core.col_sistema.findOne({ _id: 'MATRIZ_SISTEMA' });
             
+            if (todosAlunos.length > 0) {
+                todosAlunos.forEach(a => { core.alunos[a._id] = a; });
+            } else if (carregouLocal && Object.keys(core.alunos).length > 0) {
+                // Atlas vazio mas local tem alunos: sincroniza para o Atlas
+                const bulkOps = Object.values(core.alunos).map(aluno => ({
+                    updateOne: {
+                        filter: { _id: aluno.id },
+                        update: { $set: aluno },
+                        upsert: true
+                    }
+                }));
+                if (bulkOps.length > 0) await core.col_alunos.bulkWrite(bulkOps, { ordered: false });
+                console.log(`📤 [SINCRONIZAÇÃO] ${Object.keys(core.alunos).length} alunos locais sincronizados para o Atlas!`);
+            }
+
+            let sysDoc = await core.col_sistema.findOne({ _id: 'MATRIZ_SISTEMA' });
             if (sysDoc) {
-                core.mercadoJogadores = sysDoc.mercadoJogadores || [];
-                core.pontuacaoCasas = sysDoc.pontuacaoCasas || { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate', fimCiclo: Date.now() + 604800000 };
-                core.gremios = sysDoc.gremios || {};
-                
-                // Protege o Grimório Base e puxa os Customs
+                core.mercadoJogadores = sysDoc.mercadoJogadores || core.mercadoJogadores || [];
+                core.pontuacaoCasas = sysDoc.pontuacaoCasas || core.pontuacaoCasas;
+                core.gremios = sysDoc.gremios || core.gremios;
                 if (sysDoc.livroDeFeiticos) {
                     for (let key in sysDoc.livroDeFeiticos) {
                         if (key.startsWith('custom_')) {
@@ -154,17 +206,25 @@ async function inicializarServidor() {
                         }
                     }
                 }
-            } else if (todosAlunos.length === 0) {
+            } else if (Object.keys(core.alunos).length === 0) {
                 console.log("⚠️ Base de dados completamente limpa. A iniciar novo universo.");
                 core.pontuacaoCasas = { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate', fimCiclo: Date.now() + 604800000 };
             }
 
-            console.log(`✅ Conexão Gringotes Estabelecida! Jogadores carregados: ${todosAlunos.length}`);
-
+            console.log(`✅ Conexão Gringotes Estabelecida! Jogadores em memória: ${Object.keys(core.alunos).length}`);
         } catch (error) { 
-            console.error("❌ Falha crítica na conexão a Gringotes!", error); 
+            console.error("❌ Falha na conexão ao Atlas. Operando com persistência local em arquivo!", error.message); 
+        }
+    } else {
+        console.log(`📁 [MODO LOCAL ATIVO] Hogwarts rodando com persistência JSON local! Alunos: ${Object.keys(core.alunos).length}`);
+        if (Object.keys(core.alunos).length === 0) {
+            core.pontuacaoCasas = { Gryffindor: 0, Slytherin: 0, Ravenclaw: 0, Hufflepuff: 0, lider: 'Empate', fimCiclo: Date.now() + 604800000 };
         }
     }
+
+    // Salva imediatamente o estado inicial
+    salvarNoArquivoLocal();
+    setInterval(salvarNoArquivoLocal, 30000); // Autosave a cada 30 segundos
 
     // 3. INJEÇÃO DOS LIVROS PADRÃO (Livraria)
     const materiasParaGerar = [
@@ -184,12 +244,15 @@ async function inicializarServidor() {
     }
 
     // =====================================================================
-    // 💾 SISTEMA DE SALVAMENTO BLINDADO E FRACIONADO
+    // 💾 SISTEMA DE SALVAMENTO HÍBRIDO BLINDADO
     // =====================================================================
     let salvandoNesteMomento = false;
     let existeSalvamentoPendente = false;
 
-    const gravarDiretoNoAtlas = async () => {
+    const gravarHibrido = async () => {
+        // 1. Sempre grava no arquivo local imediatamente (segurança instantânea)
+        salvarNoArquivoLocal();
+
         if (!core.col_sistema || !core.col_alunos) return;
         
         if (salvandoNesteMomento) {
@@ -201,7 +264,6 @@ async function inicializarServidor() {
         existeSalvamentoPendente = false;
 
         try {
-            // 1. Salvar Variáveis do Mundo (Mercado, Casas, Guildas)
             await core.col_sistema.updateOne(
                 { _id: 'MATRIZ_SISTEMA' }, 
                 { $set: {
@@ -213,7 +275,6 @@ async function inicializarServidor() {
                 { upsert: true }
             );
 
-            // 2. Salvar Jogadores Isoladamente usando BULK WRITE
             const alunosArray = Object.values(core.alunos);
             if (alunosArray.length > 0) {
                 const bulkOps = alunosArray.map(aluno => ({
@@ -225,31 +286,33 @@ async function inicializarServidor() {
                 }));
                 await core.col_alunos.bulkWrite(bulkOps, { ordered: false });
             }
-            
             console.log(`💾 [ATLAS] Progresso salvo com SUCESSO! (${new Date().toLocaleTimeString('pt-PT')})`);
         } catch(e) { 
-            console.error("❌ ERRO CRÍTICO AO GRAVAR NO ATLAS:", e.message); 
+            console.error("❌ ERRO AO GRAVAR NO ATLAS (dados seguros localmente):", e.message); 
             existeSalvamentoPendente = true;
         }
         
         salvandoNesteMomento = false;
-        
         if (existeSalvamentoPendente) {
-            setTimeout(gravarDiretoNoAtlas, 3000); 
+            setTimeout(gravarHibrido, 3000); 
         }
     };
 
-    // Liga o Core a este novo motor
-    core._salvarBancoDeDados = gravarDiretoNoAtlas;
-    core._salvarUrgente = gravarDiretoNoAtlas;
+    // Liga o Core ao motor híbrido
+    core._salvarBancoDeDados = gravarHibrido;
+    core._salvarUrgente = gravarHibrido;
 
     // =====================================================================
     // 🛡️ PREVENÇÃO CONTRA O "SONO" DO RENDER (SIGTERM / SHUTDOWN)
     // =====================================================================
     const DesligarServidorSeguro = async () => {
-        console.log("⚠️ Render a forçar o encerramento! A disparar Salvamento Final Rápido...");
-        await gravarDiretoNoAtlas();
-        console.log("✅ Gravação final bem sucedida! A desligar...");
+        console.log("⚠️ A disparar salvamento final seguro...");
+        try {
+            await gravarHibrido();
+            console.log("✅ Gravação final bem sucedida!");
+        } catch(e) {
+            console.error("Erro na gravação final:", e);
+        }
         process.exit(0);
     };
 
@@ -454,7 +517,113 @@ async function inicializarServidor() {
     if (MONGO_URI) iniciarForjaDeLivrosEmBackground();
 }
     
-// <--- ESTE É O FECHO OFICIAL DA FUNÇÃO inicializarServidor() E DEVE ESTAR AQUI!
+// ==============================================================================
+// 🌟 ENDPOINTS GLOBAIS DE PERFIL, ADMIN E BECO DIAGONAL
+// ==============================================================================
+app.get('/api/jogador/perfil/:id', (req, res) => {
+    try {
+        const a = core.alunos[req.params.id];
+        if(!a) return res.status(404).json({erro: "Bruxo desaparecido."});
+        res.json({
+            id: a.id, nome: a.nome, titulo: a.titulo, nivel: a.nivel, casa: a.casa,
+            elo: a.elos?.duelos || 1000, 
+            varinha: a.equipamentos && a.equipamentos.varinha ? a.equipamentos.varinha.nome : "Nenhuma",
+            gremio: a.gremioId ? core.gremios[a.gremioId]?.nome : "Sem Guilda"
+        });
+    } catch(e) {
+        res.status(500).json({erro: "Erro ao consultar perfil."});
+    }
+});
+
+app.get('/api/admin/backup/download', (req, res) => {
+    try {
+        salvarNoArquivoLocal();
+        if (fs.existsSync(CAMINHO_SAVE_LOCAL)) {
+            res.setHeader('Content-Disposition', 'attachment; filename="hogwarts_backup.json"');
+            res.setHeader('Content-Type', 'application/json');
+            return res.sendFile(CAMINHO_SAVE_LOCAL);
+        }
+        const snapshot = {
+            timestamp: Date.now(),
+            alunos: core.alunos || {},
+            mercadoJogadores: core.mercadoJogadores || [],
+            pontuacaoCasas: core.pontuacaoCasas,
+            gremios: core.gremios,
+            livroDeFeiticos: core.livroDeFeiticos
+        };
+        res.setHeader('Content-Disposition', 'attachment; filename="hogwarts_backup.json"');
+        res.setHeader('Content-Type', 'application/json');
+        res.send(JSON.stringify(snapshot, null, 2));
+    } catch(e) {
+        res.status(500).json({ erro: "Falha ao gerar backup para download." });
+    }
+});
+
+app.post('/api/beco/comprar_kit_completo', (req, res) => {
+    try {
+        const { id } = req.body;
+        const a = core.alunos[id];
+        if (!a) return res.status(404).json({ erro: "Estudante não encontrado." });
+
+        const precoTotal = 400; // Custo amigável para caloiros (iniciam com 1344 Galeões)
+        if (a.galeoes < precoTotal) return res.json({ erro: "Galeões insuficientes para o Kit Escolar Completo." });
+
+        a.galeoes -= precoTotal;
+
+        // 1. Varinha destinada
+        if (!a.equipamentos.varinha) {
+            a.equipamentos.varinha = Ollivanders.forjarVarinhaDestinada(a.nome);
+        }
+        // 2. Veste oficial
+        if (!a.equipamentos.veste) {
+            a.equipamentos.veste = { id: "eq_veste_padrao", nome: "Veste Escolar Simples", tipo: "veste", poder: 5 };
+        }
+        if (!a.equipamentos.corpo) {
+            a.equipamentos.corpo = { id: "eq_veste_padrao", nome: "Veste Escolar Simples", tipo: "veste", poder: 5 };
+        }
+        // 3. Inicialização de inventário
+        if (!a.inventario) a.inventario = { livros: [], ingredientes: {} };
+        if (!a.inventario.livros) a.inventario.livros = [];
+        if (!a.inventario.ingredientes) a.inventario.ingredientes = {};
+
+        // 4. Injeção dos 14 livros escolares
+        for (let i = 1; i <= 14; i++) {
+            const lId = `l_${i}`;
+            if (!a.inventario.livros.includes(lId)) a.inventario.livros.push(lId);
+        }
+
+        // 5. Injeção dos 5 ingredientes fundamentais
+        const ings = ['asfodelo', 'bezoar', 'mandragora', 'ditamno', 'muco'];
+        ings.forEach(ing => {
+            a.inventario.ingredientes[ing] = Math.max(a.inventario.ingredientes[ing] || 0, 2);
+        });
+
+        core._salvarUrgente();
+        forcarSyncAluno(a.id);
+        res.json({ sucesso: true, msg: "🎒 Kit Escolar do Caloiro adquirido! Todos os materiais e livros prontos para o Expresso." });
+    } catch(e) {
+        res.status(500).json({ erro: "Erro ao adquirir o Kit Escolar." });
+    }
+});
+
+app.post('/api/jogador/bolsa_caloiro', (req, res) => {
+    try {
+        const { id } = req.body;
+        const a = core.alunos[id];
+        if (!a) return res.status(404).json({ erro: "Estudante não encontrado." });
+        if (a.onboardingConcluido) return res.status(400).json({ erro: "A Bolsa de Estudos já foi resgatada." });
+        
+        a.onboardingConcluido = true;
+        a.galeoes = (a.galeoes || 0) + 100;
+        core.ganharXp(a.id, 200);
+        core._salvarUrgente();
+        forcarSyncAluno(a.id);
+        res.json({ sucesso: true, msg: "🎁 Bolsa de Estudos do Caloiro resgatada! +100 Galeões e +200 XP concedidos pelo Diretor!" });
+    } catch(e) {
+        res.status(500).json({ erro: "Erro ao processar a bolsa de estudos." });
+    }
+});
+
 // ==============================================================================
 // 🔥 PATCH 2.0: PETS TAMAGOTCHI E XADREZ BRUXO
 // ==============================================================================
@@ -896,47 +1065,43 @@ app.post('/api/estufa/limpar_morto', (req, res) => {
 // Atualização da rota de vender no mercado para suportar móveis
 // Atualização da rota de vender no mercado para suportar móveis
 app.post('/api/mercado/vender', (req, res) => {
-    const { id, itemId, preco } = req.body;
-    const a = core.alunos[id];
-    if(!a) return res.json({erro: "Bruxo não encontrado."});
+    try {
+        const { id, itemId, preco } = req.body;
+        const a = core.alunos[id];
+        if(!a) return res.status(404).json({erro: "Bruxo não encontrado."});
 
-    let itemObj = (a.mochilaEscolar || []).find(i => i.id === itemId);
-    let isMovel = false;
+        let itemObj = (a.mochilaEscolar || []).find(i => i.id === itemId);
+        let isMovel = false;
 
-    if(!itemObj && a.inventario && a.inventario.mobilia) {
-        itemObj = a.inventario.mobilia.find(m => m.id === itemId);
-        if(itemObj && itemObj.equipado) return res.json({erro: "Retira o móvel da sala antes de o vender!"});
-        isMovel = true;
-    }
+        if(!itemObj && a.inventario && a.inventario.mobilia) {
+            itemObj = a.inventario.mobilia.find(m => m.id === itemId);
+            if(itemObj && itemObj.equipado) return res.json({erro: "Retira o móvel da sala antes de o vender!"});
+            isMovel = true;
+        }
 
-    if(!itemObj) return res.json({erro: "Item não encontrado."});
+        if(!itemObj) return res.json({erro: "Item não encontrado."});
 
-    const oferta = {
-        id: "of_" + Date.now(), 
-        vendedorId: a.id, 
-        vendedorNome: a.nome,
-        item: itemObj, 
-        preco: parseInt(preco), 
-        tipo: isMovel ? 'mobilia' : 'item'
-    };
+        const oferta = {
+            id: "of_" + Date.now(), 
+            vendedorId: a.id, 
+            vendedorNome: a.nome,
+            item: itemObj, 
+            preco: parseInt(preco) || 10, 
+            tipo: isMovel ? 'mobilia' : 'item'
+        };
 
-    // 🔥 CORREÇÃO: Guardar na array correta do núcleo do jogo!
-    if (!core.mercadoJogadores) core.mercadoJogadores = [];
-    core.mercadoJogadores.push(oferta);
-    
-    // Retira o item da mochila ou do baú
-    if(isMovel) a.inventario.mobilia = a.inventario.mobilia.filter(m => m.id !== itemId);
-    else a.mochilaEscolar = a.mochilaEscolar.filter(i => i.id !== itemId);
+        if (!core.mercadoJogadores) core.mercadoJogadores = [];
+        core.mercadoJogadores.push(oferta);
+        
+        if(isMovel) a.inventario.mobilia = a.inventario.mobilia.filter(m => m.id !== itemId);
+        else a.mochilaEscolar = a.mochilaEscolar.filter(i => i.id !== itemId);
 
-    if (typeof core._salvarBancoDeDados === 'function') core._salvarBancoDeDados();
-    else if (typeof core._salvarUrgente === 'function') core._salvarUrgente();
-    
-    res.json({sucesso: true, msg: "Oferta anunciada no Correio Coruja!"});
-	if (r.sucesso) {
-        // 🔥 AVISA TODOS OS JOGADORES EM TEMPO REAL
+        core._salvarUrgente();
         io.emit('mercado_atualizado', core.mercadoJogadores);
+        res.json({sucesso: true, msg: "Oferta anunciada no Correio Coruja!"});
+    } catch(e) {
+        res.status(500).json({erro: "Erro ao anunciar no mercado."});
     }
-    res.json(r);
 });
 
 // =========================================================
@@ -944,57 +1109,77 @@ app.post('/api/mercado/vender', (req, res) => {
 // =========================================================
 
 app.post('/api/estufa/regar', (req, res) => {
-    const { id, poteId } = req.body;
-    if (!core.alunos[id]) return res.json({ erro: "Estudante não encontrado." });
-    
-    const resultado = core.regarEstufa(id, poteId);
-    res.json(resultado);
+    try {
+        const { id, poteId } = req.body;
+        if (!core.alunos[id]) return res.status(404).json({ erro: "Estudante não encontrado." });
+        
+        const resultado = core.regarEstufa(id, poteId);
+        res.json(resultado);
+    } catch(e) {
+        res.status(500).json({ erro: "Erro ao regar vaso." });
+    }
 });
 
 app.post('/api/estufa/curar', (req, res) => {
-    const { id, poteId } = req.body;
-    if (!core.alunos[id]) return res.json({ erro: "Estudante não encontrado." });
-    
-    const resultado = core.curarPragaEstufa(id, poteId);
-    res.json(resultado);
+    try {
+        const { id, poteId } = req.body;
+        if (!core.alunos[id]) return res.status(404).json({ erro: "Estudante não encontrado." });
+        
+        const resultado = core.curarPragaEstufa(id, poteId);
+        res.json(resultado);
+    } catch(e) {
+        res.status(500).json({ erro: "Erro ao curar praga." });
+    }
 });
 
 // NOVA: Baile ELO
 app.post('/api/baile/recompensa', (req, res) => {
-    const { id, score } = req.body;
-    const a = core.alunos[id];
-    if(!a) return res.json({erro: "Erro"});
-    let eloGained = Math.floor(score / 500); // 1 ELO a cada 500 pts
-    if(eloGained > 50) eloGained = 50;
-    a.elos.baile += eloGained;
-    core.ganharXp(a, Math.floor(score/2));
-    core._salvarUrgente();
-    res.json({ sucesso: true, msg: `Baile Finalizado! (+${eloGained} ELO | +${Math.floor(score/2)} XP)`});
+    try {
+        const { id, score } = req.body;
+        const a = core.alunos[id];
+        if(!a) return res.status(404).json({erro: "Erro: aluno não encontrado"});
+        if(!a.elos) a.elos = { sabedoria: 1000, duelos: 1000, quadribol: 1000, baile: 1000, quiz: 1000, pocoes: 1000 };
+        let eloGained = Math.floor(score / 500); // 1 ELO a cada 500 pts
+        if(eloGained > 50) eloGained = 50;
+        a.elos.baile = (a.elos.baile || 1000) + eloGained;
+        core.ganharXp(a, Math.floor(score/2));
+        core._salvarUrgente();
+        res.json({ sucesso: true, msg: `Baile Finalizado! (+${eloGained} ELO | +${Math.floor(score/2)} XP)`});
+    } catch(e) {
+        res.status(500).json({ erro: "Erro ao processar recompensa do baile." });
+    }
 });
+
 // ==============================================================================
 // 3. EVENTOS DO JOGO, ROTINAS E EXPLORAÇÃO
 // ==============================================================================
 app.get('/api/status', (req, res) => {
-    const { id } = req.query;
-    const a = core.alunos[id];
-    if (!a) return res.json({ erro: "Estudante ausente." });
-    
-    // O ranking e TODOS os dados globais que a interface (e o combate) precisam para desenhar os botões
-    const ranking = core.gerarRanking();
-    
-    const servidorCompleto = {
-        pontuacaoCasas: core.pontuacaoCasas, 
-        relogio: RelogioHogwarts.obterHorarioAtual(),
-        climaHogwarts: AstrolabioMagico.obterClimaAtual(),
-        livroDeFeiticos: core.livroDeFeiticos, // 🔥 AQUI ESTAVA O PROBLEMA! Faltava isto para desenhar os botões
-        ranking: ranking,
-        gremios: core.gremios,
-        mercadoJogadores: core.mercadoJogadores,
-        worldBoss: core.worldBoss,
-        receitasPocoes: core.receitasPocoes
-    };
-
-    res.json({ aluno: a, servidor: servidorCompleto });
+    try {
+        const { id } = req.query;
+        const a = core.alunos[id];
+        if (!a) return res.status(404).json({ erro: "Estudante ausente." });
+        
+        if (core.gamificacao) core.gamificacao.garantirEstadoAluno(a);
+        const ranking = core.gerarRanking();
+        
+        const servidorCompleto = {
+            pontuacaoCasas: core.pontuacaoCasas, 
+            relogio: RelogioHogwarts.obterHorarioAtual(a.anoLetivo || 1),
+            climaHogwarts: AstrolabioMagico.obterClimaAtual(),
+            livroDeFeiticos: core.livroDeFeiticos,
+            ranking: ranking,
+            gremios: core.gremios,
+            mercadoJogadores: core.mercadoJogadores,
+            worldBoss: core.worldBoss,
+            receitasPocoes: core.receitasPocoes,
+            beaconsAtivos: core.gamificacao ? core.gamificacao.beaconsAtivos : {},
+            casaLiderInfo: core.gamificacao ? core.gamificacao.obterCasaLiderComBonus() : null,
+            bounties: core.gamificacao ? core.gamificacao.obterBountiesHogsmeade(a.id) : []
+        };
+        res.json({ aluno: a, servidor: servidorCompleto });
+    } catch(e) {
+        res.status(500).json({ erro: "Erro ao carregar status." });
+    }
 });
 
 app.post('/api/lifeskills/coletar', async (req, res) => { 
@@ -1249,6 +1434,180 @@ app.post('/api/combate/action', async (req, res) => {
     } catch(e) { res.status(500).json({ erro: "A magia ricocheteou no servidor." }); }
 });
 
+// ==============================================================================
+// 🎯 NOVOS ENDPOINTS: COMBATE, DECK, GRINGOTES & EXAMES ACADÉMICOS
+// ==============================================================================
+app.post('/api/combate/parry', (req, res) => {
+    try {
+        const { id, instId, deltaMs } = req.body;
+        const isPerfeito = deltaMs !== undefined ? (deltaMs <= 350) : true;
+        const a = core.alunos[id];
+        if (!a) return res.status(404).json({ erro: "Aluno não encontrado." });
+
+        if (isPerfeito) {
+            a.focoAtual = Math.min(a.maxFoco || 100, (a.focoAtual || 0) + 15);
+            let msg = "⚡ PARRY PERFEITO! O feitiço foi repelido e restauraste +15 Foco!";
+            if (instId && core.dungeonInstancias[instId]) {
+                const inst = core.dungeonInstancias[instId];
+                if (inst.profiler && inst.profiler[id]) inst.profiler[id].parriesPerfeitos++;
+            }
+            core._salvarBancoDeDados();
+            return res.json({ sucesso: true, parryPerfeito: true, msg, focoAtual: a.focoAtual });
+        } else {
+            return res.json({ sucesso: true, parryPerfeito: false, msg: "Bloqueio simples realizado." });
+        }
+    } catch(e) { res.status(500).json({ erro: "Erro ao processar parry." }); }
+});
+
+app.post('/api/combate/treinar', (req, res) => {
+    try {
+        const r = core.treinarFeiticoBoneco(req.body.id, req.body.feiticoId);
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao treinar no boneco." }); }
+});
+
+app.post('/api/deck/salvar', (req, res) => {
+    try {
+        const a = core.alunos[req.body.id];
+        if (!a) return res.status(404).json({ erro: "Aluno não encontrado." });
+        
+        if (Array.isArray(req.body.feiticos)) {
+            if (req.body.feiticos.length > 6) return res.status(400).json({ erro: "O Deck comporta no máximo 6 feitiços ativos." });
+            a.feitiçosEquipados = req.body.feiticos;
+        }
+        if (req.body.bolsaCombate) {
+            a.bolsaCombate = req.body.bolsaCombate;
+        }
+        core._salvarBancoDeDados();
+        res.json({ sucesso: true, msg: "Deck e Bolsa de Combate configurados com sucesso!", deck: a.feitiçosEquipados, bolsa: a.bolsaCombate });
+    } catch(e) { res.status(500).json({ erro: "Erro ao salvar deck." }); }
+});
+
+app.post('/api/gringotes/juros', (req, res) => {
+    try {
+        const { id, acao } = req.body;
+        if (acao === 'resgatar') {
+            const r = core.resgatarJurosGringotes(id);
+            res.json(r);
+        } else {
+            const r = core.calcularJurosGringotes(id);
+            res.json(r);
+        }
+    } catch(e) { res.status(500).json({ erro: "Erro no Banco Gringotes." }); }
+});
+
+app.post('/api/aulas/exame_ano', async (req, res) => {
+    try {
+        const r = await core.realizarExameAno(req.body.id, req.body.respostas);
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao avaliar exame." }); }
+});
+
+app.post('/api/mercado/vender_item', (req, res) => {
+    try {
+        const r = core.venderItemMercado(req.body.id, req.body.tipo, req.body.chaveOuId, req.body.quantidade);
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao negociar item." }); }
+});
+
+// ==============================================================================
+// 🌟 ROTAS DE GAMIFICAÇÃO & SOCIAL BEACONS ("PARTICIPAR JUNTO")
+// ==============================================================================
+app.get('/api/gamificacao/status', (req, res) => {
+    try {
+        const { id } = req.query;
+        const a = core.alunos[id];
+        if (!a) return res.status(404).json({ erro: "Aluno não encontrado." });
+        core.gamificacao.garantirEstadoAluno(a);
+
+        res.json({
+            diario: a.diarioMaroto,
+            streakDias: a.streakDias || 1,
+            conquistas: a.conquistas || [],
+            tituloEquipado: a.tituloEquipado || 'Aprendiz de Magia',
+            catalogoConquistas: core.gamificacao.catalogoConquistas,
+            saposColecionados: a.saposColecionados || [],
+            catalogoSapos: core.gamificacao.catalogoSapos,
+            auraDescanso: a.auraDescanso || 0,
+            auraDescansoMax: a.auraDescansoMax || 500,
+            bounties: core.gamificacao.obterBountiesHogsmeade(id),
+            casaLider: core.gamificacao.obterCasaLiderComBonus()
+        });
+    } catch(e) { res.status(500).json({ erro: "Erro ao carregar gamificação." }); }
+});
+
+app.post('/api/gamificacao/diario/reivindicar', (req, res) => {
+    try {
+        const r = core.gamificacao.reivindicarMarcoDiario(req.body.id, req.body.marco);
+        if (r.sucesso) forcarSyncAluno(req.body.id);
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao reivindicar diário." }); }
+});
+
+app.post('/api/gamificacao/titulos/equipar', (req, res) => {
+    try {
+        const r = core.gamificacao.equiparTitulo(req.body.id, req.body.tituloId);
+        if (r.sucesso) forcarSyncAluno(req.body.id);
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao equipar título." }); }
+});
+
+app.post('/api/gamificacao/bounties/aceitar', (req, res) => {
+    try {
+        const r = core.gamificacao.aceitarBounty(req.body.id, req.body.bountyId);
+        if (r.sucesso) forcarSyncAluno(req.body.id);
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao aceitar contrato." }); }
+});
+
+app.post('/api/gamificacao/sapos/abrir', (req, res) => {
+    try {
+        const a = core.alunos[req.body.id];
+        if (!a) return res.status(404).json({ erro: "Aluno não encontrado." });
+        if ((a.galeoes || 0) < 20) return res.status(400).json({ erro: "Precisas de 20 Galeões para comprar um Sapo de Chocolate!" });
+        
+        a.galeoes -= 20;
+        const r = core.gamificacao.abrirSapoDeChocolate(req.body.id);
+        core._salvarBancoDeDados();
+        forcarSyncAluno(req.body.id);
+        res.json({ sucesso: true, sapo: r, saldoGaleoes: a.galeoes });
+    } catch(e) { res.status(500).json({ erro: "Erro ao abrir sapo de chocolate." }); }
+});
+
+app.post('/api/social/beacon/criar', (req, res) => {
+    try {
+        const r = core.gamificacao.criarBeaconSocial({
+            autorId: req.body.id,
+            tipo: req.body.tipo,
+            titulo: req.body.titulo,
+            descricao: req.body.descricao,
+            dados: req.body.dados,
+            salaId: req.body.salaId,
+            duracaoSegundos: req.body.duracaoSegundos || 60
+        });
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao emitir convocação." }); }
+});
+
+app.post('/api/social/beacon/participar', (req, res) => {
+    try {
+        const r = core.gamificacao.participarBeaconSocial(req.body.beaconId, req.body.id);
+        if (r.sucesso) forcarSyncAluno(req.body.id);
+        res.json(r);
+    } catch(e) { res.status(500).json({ erro: "Erro ao participar da convocação." }); }
+});
+
+app.post('/api/social/descansar', (req, res) => {
+    try {
+        const a = core.alunos[req.body.id];
+        if (!a) return res.status(404).json({ erro: "Aluno não encontrado." });
+        core.gamificacao.adicionarAuraDescanso(req.body.id, req.body.minutos || 2);
+        core._salvarBancoDeDados();
+        forcarSyncAluno(req.body.id);
+        res.json({ sucesso: true, auraDescanso: a.auraDescanso, msg: "💤 Descansaste nas poltronas confortáveis da Sala Comunal (+Aura de Descanso)!" });
+    } catch(e) { res.status(500).json({ erro: "Erro ao descansar." }); }
+});
+
 app.post('/api/pvp/entrar_fila', (req, res) => { try { res.json(core.entrarFilaPvP(req.body.id, io)); } catch(e) { res.status(500).json({erro: "Fechado."}); } });
 app.post('/api/pvp/action', (req, res) => { try { res.json(core.processarAcaoPvP(req.body.id, req.body.instId, req.body.feiticoId, io)); } catch(e) { res.status(500).json({erro: "Falha mágica."}); } });
 app.post('/api/evento/atacar_boss', (req, res) => { try { res.json(core.atacarWorldBossGlobal(req.body.id)); forcarSyncAluno(req.body.id); } catch(e) { res.status(500).json({erro:"O boss rugiu alto."}); } });
@@ -1308,7 +1667,7 @@ app.post('/api/perfil/titulo', async (req, res) => {
     // 🔥 NOVO: Exigência de 500 Galeões
     if(a.galeoes < 500) return res.json({erro: "O Ministério exige uma taxa de 500 Galeões para avaliar a tua honraria."});
 
-    const r = await core.cerebroIA.gerarTituloBruxo(a);
+    const r = await core.gerarTituloBruxo(a);
     if(r && r.titulo) {
         a.focoAtual -= 5;
         a.galeoes -= 500;
@@ -1381,38 +1740,47 @@ io.on('connection', (socket) => {
         if(mob) core.florestaEngine.iniciarCombate(inst, mob, inst.jogadores[a.id], io, false);
     });
 
-    // 🔥 Lidar com os baús procedurais da Floresta
+    // 🔥 Lidar com os baús procedurais da Floresta (Atômico & Completo)
     socket.on('forest_open_chest', async (dados) => {
-        let inst = core.florestaEngine.instancias[dados.instId];
-        let a = core.alunos[socket.alunoId];
-        if(!inst || !a) return;
-        
-        let bau = inst.baus[dados.bauIdx];
-        if(!bau || bau.looted) return;
+        try {
+            let inst = core.florestaEngine.instancias[dados.instId];
+            let a = core.alunos[socket.alunoId];
+            if(!inst || !a) return;
+            
+            let bau = inst.baus[dados.bauIdx];
+            if(!bau || bau.looted || bau.aberto) return;
 
-        bau.looted = true;
-        let goldDrop = Math.floor(Math.random() * 100) + (inst.area * 50);
-        a.lootTemporario.galeoes += goldDrop;
+            bau.looted = true;
+            bau.aberto = true;
+            let goldDrop = Math.floor(Math.random() * 150) + (inst.area * 60);
+            if (!a.lootTemporario) a.lootTemporario = { galeoes: 0, xp: 0, itens: [] };
+            a.lootTemporario.galeoes += goldDrop;
 
-        // 30% de chance da IA gerar um item mágico raro no baú
-        if (Math.random() > 0.70 && core.cerebroIA) {
-            const itemIA = await core.cerebroIA.gerarItemMundoIA("Artefato da Floresta");
-            if (itemIA) {
-                const novoItem = { 
-                    id: 'itm_' + crypto.randomBytes(4).toString('hex'), 
-                    nome: itemIA.nome, tipo: 'reliquia', lore: itemIA.descricao 
-                };
-                a.lootTemporario.itens.push(novoItem);
-                io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G e obteve [${novoItem.nome}]!` });
+            // Chance de obter equipamento ou artefato raro
+            if (Math.random() > 0.60 && core.cerebroIA) {
+                const tipoPeca = ['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)];
+                const equip = await core.cerebroIA.gerarEquipamentoRPG(tipoPeca, a.nivel || 1);
+                if (equip) {
+                    equip.id = `eq_chest_${crypto.randomBytes(4).toString('hex')}`;
+                    equip.raridade = ['Incomum', 'Raro', 'Épico'][Math.floor(Math.random()*3)];
+                    a.lootTemporario.itens.push(equip);
+                    io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G e obtiveste [${equip.raridade}] ${equip.nome}!` });
+                } else {
+                    io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G.` });
+                }
             } else {
                 io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G.` });
             }
-        } else {
-            io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 Abriu Baú: +${goldDrop} G.` });
-        }
 
-        // Atualiza a tela de todo o mundo na instância para eles verem o baú a sumir
-        io.to(`forest_${inst.id}`).emit('forest_sync', inst);
+            io.to(`priv_${a.id}`).emit('forest_loot_update', { 
+                gold: a.lootTemporario.galeoes, 
+                xp: a.lootTemporario.xp, 
+                itens: a.lootTemporario.itens.length 
+            });
+            io.to(`forest_${inst.id}`).emit('forest_sync', inst);
+        } catch (err) {
+            console.error("Erro ao abrir baú da floresta:", err);
+        }
     });
 
     // =====================================
@@ -1505,30 +1873,6 @@ socket.on('forest_mover', (dados) => {
         }
     });
 
-    socket.on('forest_open_chest', async (dados) => {
-        let inst = core.florestaEngine.instancias[dados.instId];
-        let a = core.alunos[socket.alunoId];
-        if(!inst || !a) return;
-        
-        let bau = inst.baus[dados.bauIdx];
-        if(!bau || bau.looted) return;
-
-        bau.looted = true;
-        let goldDrop = Math.floor(Math.random() * 200) + (inst.area * 80);
-        a.lootTemporario.galeoes += goldDrop;
-
-        if (Math.random() > 0.60 && core.cerebroIA) {
-            const equip = await core.cerebroIA.gerarEquipamentoRPG(['cabeca', 'corpo', 'pescoco'][Math.floor(Math.random()*3)], a.nivel);
-            equip.id = `eq_chest_${crypto.randomBytes(4).toString('hex')}`;
-            equip.raridade = ['Incomum', 'Raro', 'Épico'][Math.floor(Math.random()*3)];
-            a.lootTemporario.itens.push(equip);
-            io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 +${goldDrop} G e obtiveste [${equip.raridade}] ${equip.nome}!` });
-        } else {
-            io.to(`priv_${a.id}`).emit('forest_msg', { msg: `📦 +${goldDrop} G.` });
-        }
-
-        io.to(`priv_${a.id}`).emit('forest_loot_update', { gold: a.lootTemporario.galeoes, xp: a.lootTemporario.xp, itens: a.lootTemporario.itens.length });
-    });
 
 	
 // Ação de Clique em Objeto do Mundo (MMO)
@@ -1827,6 +2171,7 @@ socket.on('mmo_interagir_objeto', async (dados) => {
                 x: dados.startX || 400, y: dados.startY || 300, dir: 1, isMoving: false,
                 partyId: a.partyId, // Essencial para os grupos
                 equipamentos: a.equipamentos || {}, 
+                tituloEquipado: a.tituloEquipado || "Aprendiz de Magia",
                 zona: dados.zona
             };
         }
@@ -1851,14 +2196,14 @@ socket.on('mmo_interagir_objeto', async (dados) => {
     });
 
     socket.on('pedir_presenca', (dados) => {
-        atualizarPresencaZona(dados.zona);
+        atualizarPresencaZona(dados ? dados.zona : socket.zonaAtual);
     });
 
     socket.on('disconnect', () => {
         if (socket.alunoId) {
             let z = socket.zonaAtual;
-            if (core.playersOnlineMmo[socket.alunoId]) {
-                z = core.playersOnlineMmo[socket.alunoId].zona;
+            if (core.playersOnlineMmo && core.playersOnlineMmo[socket.alunoId]) {
+                z = core.playersOnlineMmo[socket.alunoId].zona || z;
                 delete core.playersOnlineMmo[socket.alunoId];
             }
             if (z) {
@@ -1868,47 +2213,6 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         }
     });
 
-    socket.on('aceitar_convite_grupo', (dados) => {
-        let liderId = dados.liderId;
-        if (!core.grupos[liderId]) core.grupos[liderId] = { lider: liderId, membros: [liderId] };
-        
-        if (!core.grupos[liderId].membros.includes(socket.alunoId)) {
-            core.grupos[liderId].membros.push(socket.alunoId);
-        }
-        
-        // Atualiza as contas
-        if(core.alunos[liderId]) core.alunos[liderId].partyId = liderId;
-        if(core.alunos[socket.alunoId]) core.alunos[socket.alunoId].partyId = liderId;
-        core._salvarUrgente();
-        
-        forcarSyncAluno(liderId);
-        forcarSyncAluno(socket.alunoId);
-
-        // O SEGREDO DO COOP: Juntar toda a gente à mesma sala Socket
-        socket.join(`party_${liderId}`);
-        let sLider = Array.from(global.io.sockets.sockets.values()).find(sock => sock.alunoId === liderId);
-        if(sLider) sLider.join(`party_${liderId}`);
-        
-        let infoGrupo = { 
-            lider: liderId, 
-            membrosNomes: core.grupos[liderId].membros.map(id => {
-                let a = core.alunos[id];
-                return a ? { id: id, nome: a.nome, equipamentos: a.equipamentos, casa: a.casa } : null;
-            }).filter(Boolean)
-        };
-        
-        // Emite para a SALA INTEIRA
-        global.io.to(`party_${liderId}`).emit('grupo_atualizado', infoGrupo);
-        atualizarPresencaZona(socket.zonaAtual); // Re-renderiza as cores verdes na tela
-    });
-
-	
-
-
-	socket.on('pedir_presenca', (dados) => {
-        atualizarPresencaZona(dados.zona);
-    });
-	// 🔥 VERSÃO ÚNICA E DEFINITIVA PARA TODO O SERVIDOR
     function atualizarPresencaZona(zona) {
         if (!zona) return;
         const clientsInZone = global.io.sockets.adapter.rooms.get(`zona_${zona}`);
@@ -1933,30 +2237,6 @@ socket.on('mmo_interagir_objeto', async (dados) => {
         }
         global.io.to(`zona_${zona}`).emit('mmo_update_presenca', jogadoresNaZona);
     }
-
-    socket.on('disconnect', () => {
-        if (socket.zonaAtual && socket.alunoId) {
-            io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
-        }
-    });
-	
-	socket.on('disconnect', () => {
-        if (socket.zonaAtual && socket.alunoId) {
-            io.to(`zona_${socket.zonaAtual}`).emit('mmo_jogador_saiu', { id: socket.alunoId });
-        }
-    });
-
-    // API para Inspecionar Jogador (Novo Endpoint)
-    app.get('/api/jogador/perfil/:id', (req, res) => {
-        const a = core.alunos[req.params.id];
-        if(!a) return res.json({erro: "Bruxo desaparecido."});
-        res.json({
-            id: a.id, nome: a.nome, titulo: a.titulo, nivel: a.nivel, casa: a.casa,
-            elo: a.elos?.duelos || 1000, 
-            varinha: a.equipamentos.varinha ? a.equipamentos.varinha.nome : "Nenhuma",
-            gremio: a.gremioId ? core.gremios[a.gremioId]?.nome : "Sem Guilda"
-        });
-    });
 
     socket.on('mensagem_chat', async (dados) => {
         const payload = { autor: `[${dados.remetenteCasa.substring(0,3)}] ${dados.remetenteNome}`, texto: dados.texto, hora: new Date().toLocaleTimeString() };
@@ -2072,6 +2352,17 @@ socket.on('mmo_interagir_objeto', async (dados) => {
     // MUDE ISTO: (Substitua dx/dy para vx/vy para corresponder ao front)
     socket.on('q_mover', (dados) => { if(core.quadribol) core.quadribol.acaoJogador(dados.matchId, dados.id, { vX: dados.vx, vY: dados.vy }); });
     socket.on('q_acao', (dados) => { if(core.quadribol) core.quadribol.acaoJogador(dados.matchId, dados.id, { acao: dados.acao }); });
+    
+    // 🌟 SOCKETS DE BEACONS & SOCIAL COOP ("PARTICIPAR JUNTO")
+    socket.on('beacon_emitir', (dados) => {
+        if (core.gamificacao) core.gamificacao.criarBeaconSocial(dados);
+    });
+    socket.on('beacon_entrar', (dados) => {
+        if (core.gamificacao) {
+            const r = core.gamificacao.participarBeaconSocial(dados.beaconId, dados.alunoId);
+            socket.emit('beacon_resposta', r);
+        }
+    });
 });
 
 async function iniciarSistema() {
