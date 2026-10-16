@@ -1,0 +1,754 @@
+
+/* ==========================================================================
+   HOGWARTS PRODUCT V3 — MOBILE GAME UI
+   Screenshot-driven repair: 308–430 px phones first.
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  /* --- ROOT / TOP GAP --------------------------------------------------- */
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden !important;
+  }
+
+  body {
+    padding-top: 52px !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  }
+
+  /* The legacy app reserved 80px for world-ticker/profeta. Product header
+     already owns the top, so this was the large empty band in the screenshot. */
+  .container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding:
+      5px
+      max(6px, env(safe-area-inset-right))
+      calc(18px + env(safe-area-inset-bottom))
+      max(6px, env(safe-area-inset-left)) !important;
+  }
+
+  .world-ticker,
+  .profeta-ticker {
+    display: none !important;
+  }
+
+  /* Absolute safety: hidden state can never be resurrected by later CSS. */
+  .oculto,
+  [hidden],
+  .tabs.oculto,
+  .sub-tabs.oculto,
+  .main-nav-container.oculto,
+  #mmo-world-container.oculto,
+  #forest-map-container.oculto {
+    display: none !important;
+  }
+
+  /* --- TOUCH SAFETY ---------------------------------------------------- */
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [onclick],
+  [role="button"] {
+    pointer-events: auto !important;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(217, 184, 99, .16);
+  }
+
+  #mmo-world-container,
+  #forest-map-container,
+  #mmo-world-canvas,
+  #mmo-joystick-zone,
+  #forest-joystick-zone,
+  #q-joystick-zone,
+  #map-joystick-zone {
+    pointer-events: auto !important;
+  }
+
+  #mmo-world-canvas,
+  #mmo-joystick-zone,
+  #forest-joystick-zone,
+  #q-joystick-zone,
+  #map-joystick-zone {
+    touch-action: none !important;
+  }
+
+  .overlay-vignette,
+  #ambient-particles-canvas,
+  #arena-flash,
+  #hud-bloqueios-centro {
+    pointer-events: none !important;
+  }
+
+  /* --- PRODUCT COMMAND BAR -------------------------------------------- */
+  #hg2-command {
+    height: 48px !important;
+    min-height: 48px !important;
+    grid-template-columns: 32px minmax(0, 1fr) auto !important;
+    gap: 6px !important;
+    padding: 5px 6px !important;
+  }
+
+  .hg2-brand {
+    width: 32px !important;
+    min-width: 32px !important;
+  }
+
+  .hg2-crest {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    border-radius: 8px !important;
+    font-size: .85rem !important;
+  }
+
+  .hg2-brand-copy,
+  .hg2-objective small,
+  #hg2-objective-detail,
+  .hg2-status .hg2-chip:not(#hg2-connection) {
+    display: none !important;
+  }
+
+  .hg2-objective {
+    height: 34px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    gap: 5px !important;
+    padding: 4px 7px !important;
+    border-radius: 8px !important;
+  }
+
+  .hg2-objective > div {
+    display: block !important;
+    min-width: 0 !important;
+  }
+
+  .hg2-objective-icon {
+    font-size: .86rem !important;
+  }
+
+  #hg2-objective-title {
+    display: block !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: .62rem !important;
+  }
+
+  #hg2-connection {
+    max-width: 58px !important;
+    padding: 5px 6px !important;
+    font-size: .50rem !important;
+  }
+
+  /* Product V2 added a second bottom navigation over the legacy game.
+     The game already has a category nav; keeping one navigation model is cleaner
+     and prevents invisible touch interception near the bottom. */
+  #hg2-mobile-dock {
+    display: none !important;
+    pointer-events: none !important;
+  }
+
+  #hg2-journey {
+    display: none !important;
+  }
+
+  /* --- PLAYER BANNER --------------------------------------------------- */
+  #ui-main {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 0 12px !important;
+    overflow-x: hidden !important;
+  }
+
+  .player-header {
+    position: relative !important;
+    top: auto !important;
+    z-index: 20 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 101px !important;
+    align-items: center !important;
+    gap: 6px !important;
+    margin: 0 0 5px 0 !important;
+    padding: 6px 7px !important;
+    border-radius: 10px !important;
+  }
+
+  .player-header > div {
+    min-width: 0 !important;
+  }
+
+  .player-header > div:first-child {
+    display: grid !important;
+    grid-template-columns: 32px minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  .house-crest-avatar {
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    border-width: 1px !important;
+  }
+
+  #ui-casa-crest {
+    font-size: 1rem !important;
+  }
+
+  #ui-nome {
+    max-width: 100% !important;
+    margin: 0 !important;
+    font-size: .74rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .badge-level {
+    padding: 1px 4px !important;
+    font-size: .46rem !important;
+  }
+
+  .player-header > div:first-child > div:last-child > div:nth-child(2) {
+    font-size: .50rem !important;
+    margin-top: 1px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  #ui-titulo {
+    display: inline-block !important;
+    max-width: 80px !important;
+    vertical-align: bottom !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .player-header > div:last-child,
+  .player-header > div:last-child > div:first-child {
+    width: 101px !important;
+    max-width: 101px !important;
+  }
+
+  .player-header > div:last-child {
+    display: block !important;
+  }
+
+  .player-header > div:last-child > div:first-child > div:first-child {
+    margin-bottom: 1px !important;
+  }
+
+  .player-header > div:last-child > div:first-child > div:first-child > span:first-child {
+    display: none !important;
+  }
+
+  .player-header .bar-bg {
+    height: 7px !important;
+    margin: 1px 0 !important;
+    border-radius: 4px !important;
+  }
+
+  .player-header .bar-text {
+    font-size: 5.5px !important;
+    line-height: 7px !important;
+  }
+
+  .needs-container {
+    display: none !important;
+  }
+
+  /* --- QUEST ----------------------------------------------------------- */
+  #hud-quest-tracker {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 0 5px 0 !important;
+    padding: 5px 7px !important;
+    z-index: 8 !important;
+    border-radius: 9px !important;
+  }
+
+  #hud-quest-tracker > div:first-child {
+    margin: 0 0 2px !important;
+    padding-bottom: 2px !important;
+  }
+
+  #hud-quest-titulo {
+    font-size: .61rem !important;
+  }
+
+  #hud-quest-progresso {
+    margin-top: 1px !important;
+    font-size: .54rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* --- SINGLE MOBILE NAV ---------------------------------------------- */
+  .main-nav-container {
+    position: relative !important;
+    top: auto !important;
+    z-index: 15 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 34px 34px !important;
+    gap: 3px !important;
+    margin: 0 0 5px 0 !important;
+    padding: 3px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(217,184,99,.23) !important;
+    border-radius: 9px !important;
+    background: rgba(7,9,13,.94) !important;
+  }
+
+  .main-nav-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 31px !important;
+    padding: 4px 1px !important;
+    border-radius: 6px !important;
+    font-size: .49rem !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .main-nav-container > button:not(.main-nav-btn) {
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
+    min-height: 31px !important;
+    padding: 1px !important;
+    border-radius: 6px !important;
+    font-size: .82rem !important;
+  }
+
+  .sub-tabs.oculto,
+  .tabs.oculto {
+    display: none !important;
+  }
+
+  .sub-tabs:not(.oculto),
+  .tabs:not(.oculto) {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    margin: 0 0 5px !important;
+    padding: 4px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    border-radius: 8px !important;
+  }
+
+  .sub-tabs:not(.oculto)::-webkit-scrollbar,
+  .tabs:not(.oculto)::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .sub-tabs:not(.oculto) button,
+  .tabs:not(.oculto) button {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 80px !important;
+    max-width: 140px !important;
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 5px 7px !important;
+    font-size: .55rem !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* --- LOCATION TOOLBAR: screenshot #1 ------------------------------- */
+  .hg3-zone-toolbar {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 5px !important;
+    align-items: stretch !important;
+    margin: 5px 0 !important;
+  }
+
+  .hg3-zone-title {
+    order: 1;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    justify-content: center !important;
+    text-align: center !important;
+    font-size: 1.06rem !important;
+    padding: 5px 4px !important;
+  }
+
+  #hud-gamificacao-topo {
+    order: 2;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 5px !important;
+    margin: 0 !important;
+    padding: 5px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 9px !important;
+  }
+
+  #hud-gamificacao-topo::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  #hud-gamificacao-topo > div {
+    flex: 0 0 112px !important;
+    width: 112px !important;
+    min-width: 112px !important;
+    min-height: 43px !important;
+    margin: 0 !important;
+    padding: 5px 6px !important;
+    gap: 5px !important;
+    border: 1px solid rgba(217,184,99,.13);
+    border-radius: 7px;
+    background: rgba(255,255,255,.025);
+  }
+
+  #hud-gamificacao-topo > div > span:first-child {
+    font-size: .84rem !important;
+  }
+
+  #hud-gamificacao-topo > div > div > div:first-child,
+  #hud-gamificacao-topo > div > span:last-child {
+    font-size: .52rem !important;
+    line-height: 1.1 !important;
+  }
+
+  #hud-gamificacao-topo > div > div > div:last-child {
+    max-width: 82px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: .48rem !important;
+  }
+
+  .hg3-zone-actions {
+    order: 3;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    gap: 5px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 0 3px !important;
+  }
+
+  .hg3-zone-actions::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .hg3-zone-actions button {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 155px !important;
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 5px 9px !important;
+    font-size: .55rem !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  #banner-bencao-casas {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin: 5px 0 !important;
+    padding: 6px 7px !important;
+  }
+
+  #banner-bencao-casas > div {
+    min-width: 0 !important;
+  }
+
+  #ui-bencao-descricao {
+    display: none !important;
+  }
+
+  #banner-bencao-casas button {
+    min-height: 29px !important;
+    padding: 4px 6px !important;
+    font-size: .50rem !important;
+  }
+
+  /* --- MMO WORLD: maximize actual play area --------------------------- */
+  #mmo-world-container,
+  #forest-map-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: calc(100dvh - 58px - env(safe-area-inset-bottom)) !important;
+    min-height: 390px !important;
+    margin: 0 !important;
+    border-width: 1px !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+  }
+
+  #mmo-world-canvas,
+  #forest-map-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    display: block !important;
+  }
+
+  #mmo-joystick-zone {
+    display: block !important;
+    left: 12px !important;
+    bottom: 12px !important;
+    width: 104px !important;
+    height: 104px !important;
+    z-index: 400 !important;
+    border-width: 1px !important;
+    background: rgba(5,8,12,.48) !important;
+    box-shadow: 0 6px 22px rgba(0,0,0,.30);
+  }
+
+  #mmo-joystick-knob {
+    width: 46px !important;
+    height: 46px !important;
+    top: 29px !important;
+    left: 29px !important;
+    background: rgba(239,231,202,.70) !important;
+  }
+
+  #mmo-interaction-prompt:not(.oculto) {
+    display: flex !important;
+    left: auto !important;
+    right: 10px !important;
+    bottom: 18px !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: calc(100% - 130px) !important;
+    min-height: 40px !important;
+    padding: 7px 10px !important;
+    z-index: 420 !important;
+    font-size: .60rem !important;
+  }
+
+  #mmo-interaction-text {
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  /* Hide desktop keyboard help inside the canvas. */
+  #mmo-world-container > div[style*="[WASD"] {
+    display: none !important;
+  }
+
+  /* Keep return button in-bounds and away from other controls. */
+  #mmo-world-container > button {
+    top: 8px !important;
+    right: 8px !important;
+    max-width: 126px !important;
+    min-height: 32px !important;
+    padding: 5px 7px !important;
+    font-size: .56rem !important;
+  }
+
+  /* --- MMO SOCIAL SIDEBAR --------------------------------------------- */
+  #btn-mobile-sidebar {
+    top: 55px !important;
+    right: 7px !important;
+    width: 35px !important;
+    height: 35px !important;
+    min-height: 35px !important;
+    z-index: 1300 !important;
+    font-size: .88rem !important;
+  }
+
+  .mmo-sidebar {
+    top: 48px !important;
+    width: min(84vw, 290px) !important;
+    max-width: min(84vw, 290px) !important;
+    height: calc(100dvh - 48px) !important;
+    z-index: 1290 !important;
+    padding: 9px !important;
+  }
+
+  /* --- GENERAL CONTENT ------------------------------------------------- */
+  .card,
+  .modal-content,
+  .painel,
+  .chat-container,
+  .alchemy-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .card {
+    margin: 0 0 7px !important;
+    padding: 9px !important;
+  }
+
+  .mapa-grid,
+  .loja-grid {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .mapa-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 72px !important;
+    padding: 6px 4px !important;
+    font-size: .70rem !important;
+  }
+
+  input,
+  textarea,
+  select {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    font-size: 16px !important;
+  }
+
+  .modal-content {
+    width: calc(100vw - 12px) !important;
+    max-width: calc(100vw - 12px) !important;
+    max-height: calc(100dvh - 12px) !important;
+    margin: 6px !important;
+    padding: 10px !important;
+    overflow: auto !important;
+  }
+
+  #chat-zona-box,
+  #chat-aula-box,
+  .chat-container {
+    height: min(30dvh, 225px) !important;
+  }
+
+  /* Combat horizontal hotbar, never 3 stacked rows. */
+  .hotbar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    gap: 6px !important;
+    padding: 7px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hotbar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .spell-card {
+    flex: 0 0 66px !important;
+    width: 66px !important;
+    max-width: 66px !important;
+    height: 88px !important;
+  }
+}
+
+@media (max-width: 350px) {
+  .player-header {
+    grid-template-columns: minmax(0, 1fr) 94px !important;
+  }
+
+  .player-header > div:last-child,
+  .player-header > div:last-child > div:first-child {
+    width: 94px !important;
+    max-width: 94px !important;
+  }
+
+  .main-nav-container {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 31px 31px !important;
+  }
+
+  .main-nav-container > button:not(.main-nav-btn) {
+    width: 31px !important;
+    min-width: 31px !important;
+    max-width: 31px !important;
+  }
+
+  #hud-gamificacao-topo > div {
+    flex-basis: 104px !important;
+    width: 104px !important;
+    min-width: 104px !important;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 900px) and (max-height: 560px) {
+  body {
+    padding-top: 42px !important;
+  }
+
+  #hg2-command {
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
+  .container {
+    padding-top: 3px !important;
+  }
+
+  .player-header,
+  #hud-quest-tracker,
+  .main-nav-container,
+  .sub-tabs:not(.oculto),
+  .tabs:not(.oculto),
+  .hg3-zone-toolbar,
+  #banner-bencao-casas {
+    position: relative !important;
+    top: auto !important;
+  }
+
+  #mmo-world-container,
+  #forest-map-container {
+    height: calc(100dvh - 46px - env(safe-area-inset-bottom)) !important;
+    min-height: 245px !important;
+  }
+}

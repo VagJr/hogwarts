@@ -1238,7 +1238,31 @@ Cria uma varinha que a represente. Responde EXCLUSIVAMENTE com o objeto JSON aba
             return this._extrairJSONBlindado(res.choices[0].message.content) || { sucesso: false };
         } catch(e) { return { sucesso: false }; }
     }
-    async criarFeiticoInedito(aluno, tese) { return null; }
+    async criarFeiticoInedito(aluno, tese) {
+        if (!this.apiKey || !this.groq) return null;
+        try {
+            const prompt = `Cria um feitiço original e equilibrado para um RPG escolar mágico.
+Aluno: ${aluno.nome}; nível: ${aluno.nivel || 1}.
+Tese: ${String(tese || '').slice(0, 1400)}
+Retorna APENAS JSON:
+{"nome":"Nome","tipoMecanica":"ataque|status|cura|escudo","elemento":"fogo|agua|gelo|eletrico|vento|cinetico|luz|trevas|terra","custoFocoBase":3,"poderBase":50,"efeitoSecundario":null,"duracao":2,"lore":"texto"}
+Limites rígidos: custo 2-8; poder 0-180; duração 0-5. Proibido morte instantânea, XP, moedas ou alterações permanentes.`;
+            const res = await this.groq.chat.completions.create({
+                messages: [{ role: 'user', content: prompt }],
+                model: 'llama-3.1-8b-instant',
+                response_format: { type: 'json_object' }
+            });
+            const f = this._extrairJSONBlindado(res.choices[0].message.content);
+            if (!f || !f.nome) return null;
+            f.custoFocoBase = Math.max(2, Math.min(8, Number(f.custoFocoBase) || 3));
+            f.poderBase = Math.max(0, Math.min(180, Number(f.poderBase) || 40));
+            f.duracao = Math.max(0, Math.min(5, Number(f.duracao) || 0));
+            f.lore = String(f.lore || 'Magia criada por pesquisa independente.').slice(0, 500);
+            return f;
+        } catch (_) {
+            return null;
+        }
+    }
     async gerarTitulo(aluno) {
         try {
             const prompt = `Gera SÓ UM Título épico (ex: 'Mestre das Sombras') para bruxo nível ${aluno.nivel} da casa ${aluno.casa}. NADA DE ASPAS OU JSON.`;
@@ -2024,14 +2048,13 @@ acaoGringotes(alunoId, acao, valor, moeda = 'galeoes') {
 
     async gerarVarinhaOllivanders(alunoId, tracoPersonalidade) {
         const a = this.alunos[alunoId]; if (!a) return { erro: "Fantasma." };
-        if (a.nuques <47) return { erro: "A varinha custa 7 Galeões." }; 
+        if ((a.siclos || 0) < 47) return { erro: "O vínculo da varinha custa 47 Sicles." }; 
         if (a.equipamentos.varinha) return { erro: "Já tens varinha." };
         
         let varinhaUnica = await this.cerebroIA.forjarVarinhaUnica(a.nome, tracoPersonalidade);
         if (!varinhaUnica || !varinhaUnica.nome) { varinhaUnica = Ollivanders.forjarVarinhaDestinada(a.nome); }
 
-        a.nuques += 50; 
-a.siclos += 5;
+        a.siclos -= 47;
         a.equipamentos.varinha = { 
             id: 'var_ia', nome: varinhaUnica.nome, 
             madeira_nucleo: `${varinhaUnica.comprimento || '11 pol'} | ${varinhaUnica.nucleo || 'Misterioso'}`, 
@@ -2170,7 +2193,12 @@ a.siclos += 5;
             let vendedor = this.alunos[oferta.vendedorId];
             
             // 🔥 CORREÇÃO: Garante que o valor é um número real! Vai para o Banco Gringotes!
-            vendedor.cofreGringotes = (parseInt(vendedor.cofreGringotes) || 0) + parseInt(oferta.preco);
+            if (typeof vendedor.cofreGringotes === 'number') {
+                vendedor.cofreGringotes = { galeoes: vendedor.cofreGringotes, siclos: 0, nuques: 0 };
+            }
+            vendedor.cofreGringotes ||= { galeoes: 0, siclos: 0, nuques: 0 };
+            vendedor.cofreGringotes.galeoes =
+                (Number(vendedor.cofreGringotes.galeoes) || 0) + (Number(oferta.preco) || 0);
             vendedorIdRefresh = vendedor.id; // Guarda o ID para dar Sync ao ecrã dele
             
             if (global.io) {
@@ -2703,7 +2731,7 @@ a.siclos += 5;;
         a.focoAtual -= 1;
         
         let chance = (a.atributosTotais.furtividade || 10) / 100;
-        if(Math.random() < chance || true) { // Forçado a true para testar IA
+        if(Math.random() < Math.max(0.08, Math.min(0.65, chance))) {
             let segredo = await this.cerebroIA.investigarSegredo(zona);
             a.galeoes += segredo.gold || 0;
             if(segredo.item) a.mochilaEscolar.push({ id: crypto.randomBytes(4).toString('hex'), nome: segredo.item, tipo: 'reliquia' });
@@ -2764,6 +2792,7 @@ a.siclos += 5;;
         if(!a || !this.worldBoss.ativo) return {erro: "Não há ameaças no momento."};
         if(!a.feitiçosEquipados || a.feitiçosEquipados.length !== 6) return { erro: "O teu Grimório de Combate deve ter ESTRITAMENTE 6 feitiços equipados para atacares o Boss!" };
         
+        if ((a.focoAtual || 0) < 2) return { erro: "Foco insuficiente para atacar o Boss." };
         a.focoAtual -= 2;
         let dano = this._obterAtributosTotais(a).feiticos * 10 + (a.nivel * 5);
         this.worldBoss.hpAtual -= dano;
@@ -2772,7 +2801,7 @@ a.siclos += 5;;
 
         if(this.worldBoss.hpAtual <= 0) {
             this.worldBoss.ativo = false;
-            aa.nuques += 50; 
+            a.nuques += 50; 
 a.siclos += 5; // Bonus pro Last Hit
             global.io.emit('nova_mensagem', { canal: 'salaoPrincipal', autor: '🏆 VITÓRIA GLOBAL', texto: `O ${this.worldBoss.nome} foi derrotado na ${this.worldBoss.zona}! O golpe final foi de ${a.nome}. A paz regressa.` });
         }
@@ -3555,13 +3584,13 @@ a.siclos += 5; // Bonus pro Last Hit
                 dano = calcRes.danoFinal;
                 relatoAcao += calcRes.relato;
                 if (dano > 0) inimigo.hpAtual -= dano;
-                if (dano > 0) inimigo.hpAtual -= dano;
 
                 if (f.efeitoSecundario && (dano > 0 || mecanica === 'status')) {
-                    let duracaoMs = 1200; 
+                    let duracaoSeg = Number(f.duracao || f.duracaoBuff || 1.2);
+                    let duracaoMs = duracaoSeg * 1000;
                     let eExist = inimigo.efeitos.find(e => e.tipo === f.efeitoSecundario);
-                    if(eExist) { eExist.expiresAt = agora + duracaoMs; eExist.duracao = 1.2; } 
-                    else { inimigo.efeitos.push({ tipo: f.efeitoSecundario, expiresAt: agora + duracaoMs, duracao: 1.2 }); }
+                    if(eExist) { eExist.expiresAt = agora + duracaoMs; eExist.duracao = duracaoSeg; }
+                    else { inimigo.efeitos.push({ tipo: f.efeitoSecundario, expiresAt: agora + duracaoMs, duracao: duracaoSeg }); }
                 }
             }
         }

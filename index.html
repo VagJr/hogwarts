@@ -1001,6 +1001,9 @@
     }
 
 </style>
+    <link rel="stylesheet" href="/product/product-v2.css">
+    <link rel="stylesheet" href="/product/mobile-product-v3.css">
+    <link rel="stylesheet" href="/product/mobile-scroll-fix-v3.css">
 </head>
 <body>
 <!-- CANVAS DE PARTÍCULAS AMBIENTAIS E RASTRO MÁGICO DE VARINHA -->
@@ -2813,7 +2816,7 @@ window.publicarEstudo = async function(feiticoNome, textoManuscrito) {
 
         const toast = document.createElement('div');
         toast.className = `magical-toast ${tipo === 'erro' ? 'toast-erro' : (tipo === 'sucesso' ? 'toast-sucesso' : '')}`;
-        toast.innerHTML = msg; 
+        toast.textContent = String(msg ?? ''); 
         container.appendChild(toast);
         
         // Força o navegador a reconhecer o elemento antes de animar
@@ -3455,7 +3458,7 @@ if(sel && meuBruxo) {
             safeSet('ui-titulo', meuBruxo.titulo); 
             safeSet('ui-casa', meuBruxo.casa);
             if (meuBruxo.casa) {
-                const hName = meuBruxo.casa.toLowerCase();
+                const hName = (meuBruxo.casa || 'Nenhuma').toLowerCase();
                 const crests = { 'gryffindor': '🦁', 'slytherin': '🐍', 'ravenclaw': '🦅', 'hufflepuff': '🦡' };
                 document.documentElement.className = 'theme-' + hName;
                 safeSet('ui-casa-crest', crests[hName] || '⚡', true);
@@ -5490,7 +5493,7 @@ window.drawCombatScene = function(ctx, timestamp, isAtk) {
         let offsetX = (index * 160) - ((mobsVivos.length - 1) * 80);
         let bx = ((stateBossHitbox.x - 80) + offsetX); 
         let bY = (stateBossHitbox.y + ((index % 2 !== 0) ? -35 : 15) + Math.cos(atTick * 1.5 + index) * 15);
-        let bN = mob.nome.toLowerCase();
+        let bN = String(mob.nome || 'criatura').toLowerCase();
         
         let isColossal = mob.hpMax >= 2500;
         let sF = isColossal ? 1.8 : 1.0;
@@ -6318,7 +6321,19 @@ window.mmoInteragirMundo = function(idAlvo, tipo) {
                 </div>
             </div>`;
         } else {
-            box.innerHTML += `<div class="chat-msg"><span style="color:${corNome}; font-weight:bold;">${dados.autor}:</span> <span style="color:#d0d5dc;">${dados.texto}</span></div>`;
+            {
+            const row = document.createElement('div');
+            row.className = 'chat-msg';
+            const who = document.createElement('span');
+            who.style.color = corNome;
+            who.style.fontWeight = 'bold';
+            who.textContent = String(dados.autor || 'Sistema') + ': ';
+            const body = document.createElement('span');
+            body.style.color = '#d0d5dc';
+            body.textContent = String(dados.texto || '');
+            row.append(who, body);
+            box.appendChild(row);
+        }
         }
         box.scrollTop = box.scrollHeight; 
         
@@ -9490,7 +9505,7 @@ const ForestMMOEngine = {
         this.mapData.mobs.forEach(m => {
             ctx.save();
             ctx.translate(m.x, m.y);
-            let bN = m.nome.toLowerCase();
+            let bN = String(m.nome || 'criatura').toLowerCase();
             let sz = m.isBoss ? 20 : 12;
             
             ctx.shadowColor = m.isBoss ? '#8e44ad' : '#e74c3c'; ctx.shadowBlur = 15;
@@ -11015,5 +11030,7 @@ window.atualizarVisualDeckSlots = function() {
 };
 
 </script>
+    <script src="/product/client-product-v2.js"></script>
+    <script src="/product/mobile-product-v3.js"></script>
 </body>
 </html>

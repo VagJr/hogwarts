@@ -1,0 +1,85 @@
+/* ==========================================================================
+   HOGWARTS MOBILE V3 - RESTAURACAO DE SCROLL VERTICAL
+   Permite swipe vertical na pagina e preserva joysticks/gestos exclusivos.
+   ========================================================================== */
+
+@media (max-width: 900px) {
+
+  html,
+  body {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .container,
+  #ui-main,
+  .aba,
+  .card {
+    touch-action: pan-y !important;
+  }
+
+  /*
+   * O canvas ocupa grande parte da tela no mobile.
+   * Ele NAO deve bloquear o gesto vertical da pagina.
+   */
+  #mmo-world-canvas,
+  #forest-map-container canvas {
+    touch-action: pan-y !important;
+  }
+
+  /*
+   * O container pode participar do scroll da pagina.
+   */
+  #mmo-world-container,
+  #forest-map-container {
+    touch-action: pan-y !important;
+  }
+
+  /*
+   * Apenas os controles que realmente precisam capturar o dedo
+   * continuam com touch-action:none.
+   */
+  #mmo-joystick-zone,
+  #forest-joystick-zone,
+  #q-joystick-zone,
+  #map-joystick-zone {
+    touch-action: none !important;
+    overscroll-behavior: contain !important;
+  }
+
+  /*
+   * Botoes continuam clicaveis e deixam o navegador transformar
+   * um arrasto vertical em scroll.
+   */
+  button,
+  a,
+  [onclick] {
+    touch-action: pan-y manipulation !important;
+  }
+
+  /*
+   * Esta regra vem depois da regra generica de botoes/onclick
+   * para garantir que joysticks nunca sejam convertidos em scroll.
+   */
+  #mmo-joystick-zone,
+  #forest-joystick-zone,
+  #q-joystick-zone,
+  #map-joystick-zone {
+    touch-action: none !important;
+  }
+
+  /*
+   * Elementos decorativos nunca devem capturar o gesto.
+   */
+  .overlay-vignette,
+  #ambient-particles-canvas,
+  #arena-flash,
+  #hud-bloqueios-centro {
+    pointer-events: none !important;
+  }
+}

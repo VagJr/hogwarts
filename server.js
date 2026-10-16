@@ -16,19 +16,39 @@ const Lexicon = require('./LexiconMagicae.js');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" }, pingInterval: 25000, pingTimeout: 60000 });
+const socketOrigins = process.env.APP_ORIGIN
+    ? process.env.APP_ORIGIN.split(',').map(v => v.trim()).filter(Boolean)
+    : true;
+const io = new Server(server, { cors: { origin: socketOrigins }, pingInterval: 25000, pingTimeout: 60000 });
 global.io = io; 
 const PORT = process.env.PORT || 8080;
 const MONGO_URI = process.env.MONGO_URI || ""; 
 
 app.use(express.json());
-app.use(express.static(__dirname));
+const PRIVATE_HTTP_FILES = new Set([
+    '/server.js',
+    '/HogwartsCore.js',
+    '/GamificacaoHogwarts.js',
+    '/LexiconMagicae.js',
+    '/package.json',
+    '/package-lock.json',
+    '/.env'
+]);
+app.use((req, res, next) => {
+    if (PRIVATE_HTTP_FILES.has(req.path) || req.path.startsWith('/data/') || req.path.startsWith('/scripts/')) {
+        return res.status(404).end();
+    }
+    next();
+});
+app.use(express.static(__dirname, { dotfiles: 'deny' }));
 // 🔥 SISTEMA ANTI-SONO PARA O RENDER FREE TIER
 app.get('/api/ping', (req, res) => {
     res.status(200).send('Servidor de Hogwarts Acordado!');
 });
 
 const core = new HogwartsCore();
+const { installHogwartsProductV2 } = require('./product/server-product-v2.js');
+installHogwartsProductV2({ app, io, core, RelogioHogwarts, AstrolabioMagico });
 // Inicializar a gestão de grupos
 core.grupos = {}; // Formato: { liderId: { lider: id, membros: [id1, id2, id3] } }
 
@@ -156,7 +176,7 @@ async function inicializarServidor() {
                 const opsAlunos = Object.values(docLegado.alunos).map(aluno => ({
                     updateOne: {
                         filter: { _id: aluno.id }, 
-                        update: { $set: aluno },
+                        update: { $set: Object.fromEntries(Object.entries(aluno).filter(([key]) => key !== '_id')) },
                         upsert: true
                     }
                 }));
@@ -180,13 +200,18 @@ async function inicializarServidor() {
             const todosAlunos = await core.col_alunos.find({}).toArray();
             
             if (todosAlunos.length > 0) {
-                todosAlunos.forEach(a => { core.alunos[a._id] = a; });
+                todosAlunos.forEach(a => {
+                    const playerId = String(a._id || a.id);
+                    delete a._id;
+                    a.id = a.id || playerId;
+                    core.alunos[playerId] = a;
+                });
             } else if (carregouLocal && Object.keys(core.alunos).length > 0) {
                 // Atlas vazio mas local tem alunos: sincroniza para o Atlas
                 const bulkOps = Object.values(core.alunos).map(aluno => ({
                     updateOne: {
                         filter: { _id: aluno.id },
-                        update: { $set: aluno },
+                        update: { $set: Object.fromEntries(Object.entries(aluno).filter(([key]) => key !== '_id')) },
                         upsert: true
                     }
                 }));
@@ -280,7 +305,7 @@ async function inicializarServidor() {
                 const bulkOps = alunosArray.map(aluno => ({
                     updateOne: {
                         filter: { _id: aluno.id },
-                        update: { $set: aluno },
+                        update: { $set: Object.fromEntries(Object.entries(aluno).filter(([key]) => key !== '_id')) },
                         upsert: true
                     }
                 }));

@@ -1,0 +1,436 @@
+{
+ "format": 1,
+ "source_root": "C:\\hogwarts",
+ "repository": "VagJr/hogwarts",
+ "backup_branch": "backup/codex-2026-10-16-hogwarts",
+ "created_local_date": "2026-10-16",
+ "content": "code-and-art-only",
+ "local_only": [
+  {
+   "path": "data/hogwarts_save.json",
+   "type": "local-save-or-account-state",
+   "bytes": 93356
+  }
+ ],
+ "sanitized_files": [],
+ "excluded_categories": {
+  "generated-or-downloadable-directory": 1
+ },
+ "files": {
+  ".env.example": {
+   "sha": "26f51be535e8cbeb47363e33f3ca04b7a12b7b76",
+   "mode": "100644",
+   "bytes": 251
+  },
+  ".hogwarts-mobile-scroll-backup-20260918-183007/index.html": {
+   "sha": "d2da387494ad209f62bc6fe01a1dfe28a21a6fc8",
+   "mode": "100644",
+   "bytes": 616411
+  },
+  ".hogwarts-mobile-scroll-v2-backup-20260918-183823/index.html": {
+   "sha": "d2da387494ad209f62bc6fe01a1dfe28a21a6fc8",
+   "mode": "100644",
+   "bytes": 616411
+  },
+  ".hogwarts-mobile-v2-backup-20260918-180854/index.html": {
+   "sha": "e66220b10c4ae14dc9a3f00b39b39973f1e861ac",
+   "mode": "100644",
+   "bytes": 616287
+  },
+  ".hogwarts-mobile-v2-backup-20260918-180854/product/product-v2.css": {
+   "sha": "ceca58aac87a7de2cd1c72f90f629fc14eadf1bc",
+   "mode": "100644",
+   "bytes": 11546
+  },
+  ".hogwarts-mobile-v3-backup-20260918-181910/index.html": {
+   "sha": "29f37c2c9693de489f5e794b59bac30615d7312e",
+   "mode": "100644",
+   "bytes": 616411
+  },
+  ".hogwarts-mobile-v3-backup-20260918-181910/product/mobile-product-v2.css": {
+   "sha": "ee1f0410e727f9c22ba24956ae5de1f08f1ff3ea",
+   "mode": "100644",
+   "bytes": 19206
+  },
+  ".hogwarts-mobile-v3-backup-20260918-181910/product/mobile-product-v2.js": {
+   "sha": "8034a3a9bbdad996abe35a832b5cd5d4f8d1aa13",
+   "mode": "100644",
+   "bytes": 2723
+  },
+  ".hogwarts-product-v2-backup-20260918-180024/GamificacaoHogwarts.js": {
+   "sha": "79743242f113721047ed347ae9b43f8975bda950",
+   "mode": "100644",
+   "bytes": 39453
+  },
+  ".hogwarts-product-v2-backup-20260918-180024/HogwartsCore.js": {
+   "sha": "40152a2aa3d0243462142124cb0a312c5f8a14de",
+   "mode": "100644",
+   "bytes": 227429
+  },
+  ".hogwarts-product-v2-backup-20260918-180024/HogwartsMMOEngine.js": {
+   "sha": "e4865dd2c4967d75254b6f46ec5214266dbb1cb5",
+   "mode": "100644",
+   "bytes": 120502
+  },
+  ".hogwarts-product-v2-backup-20260918-180024/index.html": {
+   "sha": "148ce995ca80b2455f4066c0af6ce61c9e72621a",
+   "mode": "100644",
+   "bytes": 615725
+  },
+  ".hogwarts-product-v2-backup-20260918-180024/package.json": {
+   "sha": "7e46034c5344aa154bf8d7d256802161ab5c6f32",
+   "mode": "100644",
+   "bytes": 219
+  },
+  ".hogwarts-product-v2-backup-20260918-180024/server.js": {
+   "sha": "3bfa66617668b7a24fc5f96f9b83fca99ede0ca8",
+   "mode": "100644",
+   "bytes": 115946
+  },
+  ".hogwarts-product-v2-backup-20260918-180024/site.html": {
+   "sha": "8f0e29911191f09b5b307c495515604a3beaefcb",
+   "mode": "100644",
+   "bytes": 19284
+  },
+  ".hogwarts-v1-backup-2026-09-18T20-46-27-279Z/HogwartsCore.js": {
+   "sha": "40152a2aa3d0243462142124cb0a312c5f8a14de",
+   "mode": "100644",
+   "bytes": 227429
+  },
+  ".hogwarts-v1-backup-2026-09-18T20-46-27-279Z/index.html": {
+   "sha": "148ce995ca80b2455f4066c0af6ce61c9e72621a",
+   "mode": "100644",
+   "bytes": 615725
+  },
+  ".hogwarts-v1-backup-2026-09-18T20-46-27-279Z/package.json": {
+   "sha": "7e46034c5344aa154bf8d7d256802161ab5c6f32",
+   "mode": "100644",
+   "bytes": 219
+  },
+  ".hogwarts-v1-backup-2026-09-18T20-46-27-279Z/server.js": {
+   "sha": "3bfa66617668b7a24fc5f96f9b83fca99ede0ca8",
+   "mode": "100644",
+   "bytes": 115946
+  },
+  "GamificacaoHogwarts.js": {
+   "sha": "79743242f113721047ed347ae9b43f8975bda950",
+   "mode": "100644",
+   "bytes": 39453
+  },
+  "HOTFIX_HOGWARTS_MOBILE_V2_FINAL.ps1": {
+   "sha": "633882447bcbe11359bb28a69404d5bc31b8b6d9",
+   "mode": "100644",
+   "bytes": 47091
+  },
+  "HOTFIX_HOGWARTS_MOBILE_V3_SCROLL_TOUCH.ps1": {
+   "sha": "e1c915877d228c52e59b5e8277063114face5d7e",
+   "mode": "100644",
+   "bytes": 6473
+  },
+  "HOTFIX_HOGWARTS_MOBILE_V3_SCROLL_TOUCH_V2.ps1": {
+   "sha": "28b7fa3d06f6612769db4660bd3cc4642f56e586",
+   "mode": "100644",
+   "bytes": 6458
+  },
+  "HOTFIX_HOGWARTS_MOBILE_V3_TOUCH_LAYOUT.ps1": {
+   "sha": "b12973c606901ed125c8b822e9c97797489b4620",
+   "mode": "100644",
+   "bytes": 49534
+  },
+  "HOTFIX_HOGWARTS_V1_PACKAGE.ps1": {
+   "sha": "d793936d1fdc4fae928b3d6f0b5356ac3d5da9ce",
+   "mode": "100644",
+   "bytes": 3654
+  },
+  "HogwartsCore.js": {
+   "sha": "85b9be6e540ad36bfa16efa1afa002d371275711",
+   "mode": "100644",
+   "bytes": 229257
+  },
+  "HogwartsMMOEngine.js": {
+   "sha": "e4865dd2c4967d75254b6f46ec5214266dbb1cb5",
+   "mode": "100644",
+   "bytes": 120502
+  },
+  "LexiconMagicae.js": {
+   "sha": "eaa186e701237a1b2632efeab45711fbffb17d63",
+   "mode": "100644",
+   "bytes": 2060
+  },
+  "PATCH_HOGWARTS_PRODUCT_V2_CURRENT.ps1": {
+   "sha": "66092f87e4a734efaf4065899f7696bc44b338bd",
+   "mode": "100644",
+   "bytes": 120726
+  },
+  "PATCH_HOGWARTS_V1_COMPLETE.ps1": {
+   "sha": "62f3a5bf5145f8a01f1681da44ba418d398ff186",
+   "mode": "100644",
+   "bytes": 89780
+  },
+  "PRODUCT_V2.md": {
+   "sha": "eaf942a1df04aae17b0c34bddc602158d47d36f2",
+   "mode": "100644",
+   "bytes": 2985
+  },
+  "ROLLBACK_HOGWARTS_MOBILE_SCROLL_V2.ps1": {
+   "sha": "8d8155b7a7fbb14d1f39ef6e90437dfd34b74515",
+   "mode": "100644",
+   "bytes": 669
+  },
+  "ROLLBACK_HOGWARTS_MOBILE_V2.ps1": {
+   "sha": "b3c253671b3726c903133135f3f04dce7ca93554",
+   "mode": "100644",
+   "bytes": 1105
+  },
+  "ROLLBACK_HOGWARTS_MOBILE_V3.ps1": {
+   "sha": "b0800d58efc749c8639d8a1f29333df80d36c780",
+   "mode": "100644",
+   "bytes": 754
+  },
+  "ROLLBACK_HOGWARTS_PRODUCT_V2.ps1": {
+   "sha": "a736a2026f093289ccbdef41588987980514f475",
+   "mode": "100644",
+   "bytes": 759
+  },
+  "ROLLBACK_HOGWARTS_V1.ps1": {
+   "sha": "f9a559b33d8d8876ceea86a4d5939097b6ba2d7e",
+   "mode": "100644",
+   "bytes": 661
+  },
+  "V1_REWORK.md": {
+   "sha": "ee2895c6f69243625e3566d7262ad84026040985",
+   "mode": "100644",
+   "bytes": 2237
+  },
+  "index.html": {
+   "sha": "eb0ac2a3a23fa6591058b878035fdd149413a12e",
+   "mode": "100644",
+   "bytes": 616481
+  },
+  "intro.mp4": {
+   "sha": "4ad3156b7abe54cda512a1603886e497e59754b9",
+   "mode": "100644",
+   "bytes": 2510193
+  },
+  "music.mp3": {
+   "sha": "98efc75686211dd516c98e60828bd8d399b7231f",
+   "mode": "100644",
+   "bytes": 21451040
+  },
+  "package-lock.json": {
+   "sha": "9f9fedb986af448e13d644ef1161290e0c099958",
+   "mode": "100644",
+   "bytes": 122989
+  },
+  "package.json": {
+   "sha": "d6037bd83e6b63185debeb6bde5b28777ffae682",
+   "mode": "100644",
+   "bytes": 343
+  },
+  "product/client-product-v2.js": {
+   "sha": "9facd8a858b68a16d52912191190cc95042374c0",
+   "mode": "100644",
+   "bytes": 10183
+  },
+  "product/mobile-product-v2.css": {
+   "sha": "ee1f0410e727f9c22ba24956ae5de1f08f1ff3ea",
+   "mode": "100644",
+   "bytes": 19206
+  },
+  "product/mobile-product-v2.js": {
+   "sha": "8034a3a9bbdad996abe35a832b5cd5d4f8d1aa13",
+   "mode": "100644",
+   "bytes": 2723
+  },
+  "product/mobile-product-v3.css": {
+   "sha": "9593a4fda9889d8cc24391831716150b9e445e2a",
+   "mode": "100644",
+   "bytes": 18968
+  },
+  "product/mobile-product-v3.js": {
+   "sha": "38461db122606debc14b397c0b682ecce3d7e4b6",
+   "mode": "100644",
+   "bytes": 4916
+  },
+  "product/mobile-scroll-fix-v3.css": {
+   "sha": "21f8278d4ea3437f52fb504e93f2d589a705ee76",
+   "mode": "100644",
+   "bytes": 2013
+  },
+  "product/product-v2.css": {
+   "sha": "25d1a510e640ab24d887975d56f397d2ab4843aa",
+   "mode": "100644",
+   "bytes": 11763
+  },
+  "product/server-product-v2.js": {
+   "sha": "b16f92366a18b3545d2ad6b0df349aa708586692",
+   "mode": "100644",
+   "bytes": 29487
+  },
+  "scratch/apply_full_beacons_and_qol.js": {
+   "sha": "f6e058cacc6d0e58b0c5847dee0d39c36c75d0e1",
+   "mode": "100644",
+   "bytes": 13915
+  },
+  "scratch/apply_full_interactive_evolution.js": {
+   "sha": "ca62c408757d2881ef8958105ab5b5ad49a8ef43",
+   "mode": "100644",
+   "bytes": 6593
+  },
+  "scratch/check_tipos.js": {
+   "sha": "5caee69ee027940a5b9da3dfb6801d68bc7aab9b",
+   "mode": "100644",
+   "bytes": 345
+  },
+  "scratch/find_client_sync.js": {
+   "sha": "9272ec945204a638f82edd2df2daa905f42fbb5d",
+   "mode": "100644",
+   "bytes": 251
+  },
+  "scratch/find_engines.js": {
+   "sha": "86d88fb2a3bf7e4e9304576da9a7ef319bf99abe",
+   "mode": "100644",
+   "bytes": 564
+  },
+  "scratch/find_landmarks.js": {
+   "sha": "25a83934f635f58d905a8abccf1150c046a8c953",
+   "mode": "100644",
+   "bytes": 306
+  },
+  "scratch/find_mmo_sync.js": {
+   "sha": "de1eba42c501e1646930b029795d2b045b160c12",
+   "mode": "100644",
+   "bytes": 325
+  },
+  "scratch/find_modo_mmo.js": {
+   "sha": "d12054ebcc49fd74fd3195d766f14c8cd12c9a35",
+   "mode": "100644",
+   "bytes": 232
+  },
+  "scratch/find_msg.js": {
+   "sha": "2d15713c0a47573f679cf2edfab4f2a74dd6f638",
+   "mode": "100644",
+   "bytes": 240
+  },
+  "scratch/find_wizard_draw.js": {
+   "sha": "ef0e707d37d383158318e8753dce52328e313403",
+   "mode": "100644",
+   "bytes": 249
+  },
+  "scratch/find_zonas_vivas.js": {
+   "sha": "822673c524c7c0de8640313a14da082f36842769",
+   "mode": "100644",
+   "bytes": 377
+  },
+  "scratch/find_zone_join.js": {
+   "sha": "7323721fa66342c0f566c97c9a00227b82cf40b4",
+   "mode": "100644",
+   "bytes": 439
+  },
+  "scratch/fix_core_block.js": {
+   "sha": "f9c608404a14112a7149362ee2e1e2700ee4efd9",
+   "mode": "100644",
+   "bytes": 10981
+  },
+  "scratch/fix_floreios_and_modo.js": {
+   "sha": "e54bff77fa4866d0f5589eedbf4c48a71c12a70c",
+   "mode": "100644",
+   "bytes": 2400
+  },
+  "scratch/inspect_structure.js": {
+   "sha": "3e5b052fc0237c0905897239d3f944e6ee2727b9",
+   "mode": "100644",
+   "bytes": 967
+  },
+  "scratch/patch_castelo_and_chat.js": {
+   "sha": "a0bb943021bdf5449478bc65c8d3d52bcfb62917",
+   "mode": "100644",
+   "bytes": 5116
+  },
+  "scratch/patch_final_injections.js": {
+   "sha": "e837882f6f8a275701252ccbd14903183194e545",
+   "mode": "100644",
+   "bytes": 6641
+  },
+  "scratch/patch_gamification_ui.js": {
+   "sha": "e1fcf7c7cd8b73075c16aa3335df559ab25c9bda",
+   "mode": "100644",
+   "bytes": 25799
+  },
+  "scratch/patch_hogwarts_engine.js": {
+   "sha": "4b350fff7f0d5eb02881a53d73d2cc5c384295b8",
+   "mode": "100644",
+   "bytes": 2943
+  },
+  "scratch/research_map.js": {
+   "sha": "99db9ba83830c2aa1e8f1d607b5e8dce4e7145c6",
+   "mode": "100644",
+   "bytes": 1288
+  },
+  "scratch/test_complete_systems.js": {
+   "sha": "62d6d66bb6cba22d203029f7a0a9e1fda9d50c29",
+   "mode": "100644",
+   "bytes": 17216
+  },
+  "scratch/test_gamification_systems.js": {
+   "sha": "48c7f38aee1450b9c5f032126b8e00b4a99d85aa",
+   "mode": "100644",
+   "bytes": 13438
+  },
+  "scratch/test_walkable_hogwarts.js": {
+   "sha": "7947beaf0da9c1ec592298df5b84783eb2b0ba66",
+   "mode": "100644",
+   "bytes": 14533
+  },
+  "scratch/validate_scripts.js": {
+   "sha": "399dc4740537610dac10db9a6ca181d73ce22652",
+   "mode": "100644",
+   "bytes": 962
+  },
+  "scripts/check-v1.js": {
+   "sha": "bd9ba385dfbac50a55457250fe8b2a65f36c07ac",
+   "mode": "100644",
+   "bytes": 2200
+  },
+  "scripts/preflight-v2.js": {
+   "sha": "4b7f37fe475f44ed98bf766611f1111699115eb1",
+   "mode": "100644",
+   "bytes": 2770
+  },
+  "server.js": {
+   "sha": "0e674235d18f40a3fe31a70e5f141844d477a06b",
+   "mode": "100644",
+   "bytes": 117057
+  },
+  "site.html": {
+   "sha": "8f0e29911191f09b5b307c495515604a3beaefcb",
+   "mode": "100644",
+   "bytes": 19284
+  },
+  "v1-client.js": {
+   "sha": "6b46aedae33ce9eaf4af5e9dd025af74ae650a12",
+   "mode": "100644",
+   "bytes": 8944
+  },
+  "v1.css": {
+   "sha": "3801d84e4ccf428050a85b89dd9224e399ac76bc",
+   "mode": "100644",
+   "bytes": 11055
+  },
+  "v1/content.js": {
+   "sha": "ddab211af4d06ed152dbd7b901f7d66ca95017cf",
+   "mode": "100644",
+   "bytes": 1615
+  },
+  "v1/server-runtime.js": {
+   "sha": "51db3dddd9e6c328de465cb90a0ffca9c697512c",
+   "mode": "100644",
+   "bytes": 29119
+  },
+  "walkthrough.md": {
+   "sha": "70b8e0572fec140969b847165ab0c7837eabecfb",
+   "mode": "100644",
+   "bytes": 9698
+  }
+ }
+}
